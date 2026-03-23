@@ -50,10 +50,39 @@ struct LocalShellSessionConfiguration: Codable, Hashable {
     var shellPath: String
     var shellArguments: [String]
 
-    static let `default` = LocalShellSessionConfiguration(
+    static let legacyDefault = LocalShellSessionConfiguration(
         shellPath: "/bin/zsh",
         shellArguments: ["-l"]
     )
+
+    static var `default`: LocalShellSessionConfiguration {
+        fromLoginShellPath(CurrentUserLoginShell.path())
+    }
+
+    static func fromLoginShellPath(_ shellPath: String?) -> LocalShellSessionConfiguration {
+        let normalizedShellPath = shellPath?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let normalizedShellPath, !normalizedShellPath.isEmpty {
+            return LocalShellSessionConfiguration(
+                shellPath: normalizedShellPath,
+                shellArguments: legacyDefault.shellArguments
+            )
+        }
+
+        return legacyDefault
+    }
+
+    var isLegacyDefault: Bool {
+        self == Self.legacyDefault
+    }
+
+    func resolvingLegacyDefault(
+        using loginShellPath: String?
+    ) -> LocalShellSessionConfiguration {
+        guard isLegacyDefault else { return self }
+        return Self.fromLoginShellPath(loginShellPath)
+    }
 }
 
 struct SSHSessionConfiguration: Codable, Hashable {
@@ -393,14 +422,15 @@ struct SessionBackendConfiguration: Codable, Hashable {
     var agent: AgentSessionConfiguration?
 
     static func local(
-        shellPath: String = LocalShellSessionConfiguration.default.shellPath,
-        shellArguments: [String] = LocalShellSessionConfiguration.default.shellArguments
+        shellPath: String? = nil,
+        shellArguments: [String]? = nil
     ) -> SessionBackendConfiguration {
-        SessionBackendConfiguration(
+        let defaultShell = LocalShellSessionConfiguration.default
+        return SessionBackendConfiguration(
             kind: .localShell,
             localShell: LocalShellSessionConfiguration(
-                shellPath: shellPath,
-                shellArguments: shellArguments
+                shellPath: shellPath ?? defaultShell.shellPath,
+                shellArguments: shellArguments ?? defaultShell.shellArguments
             ),
             ssh: nil,
             agent: nil
@@ -436,8 +466,15 @@ struct SessionBackendConfiguration: Codable, Hashable {
         }
     }
 
+    func resolvedLocalShellConfiguration(
+        defaultConfiguration: LocalShellSessionConfiguration = .default
+    ) -> LocalShellSessionConfiguration {
+        (localShell ?? defaultConfiguration)
+            .resolvingLegacyDefault(using: defaultConfiguration.shellPath)
+    }
+
     var localShellConfiguration: LocalShellSessionConfiguration {
-        localShell ?? .default
+        resolvedLocalShellConfiguration()
     }
 }
 
