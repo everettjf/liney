@@ -92,10 +92,13 @@ Default behavior:
 
 - bumps `MARKETING_VERSION` by patch and increments `CURRENT_PROJECT_VERSION` by 1 unless `SKIP_BUMP=1`
 - builds and signs the release DMG
+- archives `Liney.app.dSYM` to `dist/dSYMs/Liney-<version>.app.dSYM`
+- packages `dist/dSYMs/Liney-<version>.app.dSYM.zip`
+- uploads `Liney.app.dSYM` to Sentry using the default target `xnu/liney`
 - packages `Liney-<version>.app.zip` for Sparkle
 - notarizes unless `SKIP_NOTARIZE=1`
 - updates the repository `appcast.xml`
-- creates or updates the GitHub release
+- creates or updates the GitHub release, including the dSYM zip
 - updates the Homebrew tap unless `SKIP_CASK_UPDATE=1`
 
 Useful overrides:
@@ -104,8 +107,18 @@ Useful overrides:
 - `SKIP_BUMP=1 ./deploy.sh`
 - `SKIP_NOTARIZE=1 ./deploy.sh`
 - `SKIP_CASK_UPDATE=1 ./deploy.sh`
+- `SKIP_SENTRY_DSYM_UPLOAD=1 ./deploy.sh`
 - `LINEY_RELEASE_HOME=/secure/release-home ./deploy.sh`
 - `SPARKLE_PRIVATE_KEY_FILE=/secure/path/private_key ./deploy.sh`
+
+Sentry dSYM upload uses `sentry-cli` authentication by default. `SENTRY_AUTH_TOKEN` also works.
+
+Optional Sentry environment:
+
+- `SENTRY_ORG` to override the default org `xnu`
+- `SENTRY_PROJECT` to override the default project `liney`
+- `SENTRY_URL` for self-hosted Sentry
+- `SENTRY_INCLUDE_SOURCES=1` to upload source bundles together with the dSYM
 
 If you prefer the old path, `scripts/deploy.sh` remains available as a compatibility wrapper.
 

@@ -12,6 +12,8 @@ RELEASE_ARCHS="${RELEASE_ARCHS:-arm64}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/dist}"
 APPCAST_FILE="${APPCAST_FILE:-$ROOT_DIR/appcast.xml}"
 SIGN_SCRIPT="${SIGN_SCRIPT:-$ROOT_DIR/scripts/sign_macos.sh}"
+ARCHIVE_DSYM_SCRIPT="${ARCHIVE_DSYM_SCRIPT:-$ROOT_DIR/scripts/archive_dsym.sh}"
+UPLOAD_DSYM_SCRIPT="${UPLOAD_DSYM_SCRIPT:-$ROOT_DIR/scripts/upload_dsym_to_sentry.sh}"
 TAP_REPO="${TAP_REPO:-everettjf/homebrew-tap}"
 TAP_DIR_DEFAULT="$ROOT_DIR/tmp/homebrew-tap"
 TAP_DIR="${TAP_DIR:-$TAP_DIR_DEFAULT}"
@@ -31,6 +33,7 @@ SKIP_BUMP="${SKIP_BUMP:-0}"
 BUMP_PART="${BUMP_PART:-patch}"
 SKIP_NOTARIZE="${SKIP_NOTARIZE:-0}"
 SKIP_CASK_UPDATE="${SKIP_CASK_UPDATE:-0}"
+SKIP_SENTRY_DSYM_UPLOAD="${SKIP_SENTRY_DSYM_UPLOAD:-0}"
 FORCE_REBUILD="${FORCE_REBUILD:-1}"
 RELEASE_NOTES_LIMIT="${RELEASE_NOTES_LIMIT:-50}"
 RELEASE_NOTES_FILE=""
@@ -49,6 +52,7 @@ Environment:
   BUMP_PART=patch        Version bump part when SKIP_BUMP=0. patch also increments CURRENT_PROJECT_VERSION by 1.
   SKIP_NOTARIZE=1        Skip notarization in sign_macos.sh.
   SKIP_CASK_UPDATE=1     Skip updating the Homebrew tap repository.
+  SKIP_SENTRY_DSYM_UPLOAD=1  Skip uploading the release dSYM to Sentry.
   TAP_REPO=owner/repo    Override the tap repo. Default: everettjf/homebrew-tap.
   LINEY_RELEASE_HOME=dir Release-only secret directory. Default: ~/.liney_release.
   DEFAULT_NOTARYTOOL_PROFILE=name  Auto-detected notarytool profile. Default: liney-notarytool.
@@ -197,6 +201,16 @@ if [[ ! -x "$SIGN_SCRIPT" ]]; then
   exit 1
 fi
 
+if [[ ! -x "$ARCHIVE_DSYM_SCRIPT" ]]; then
+  echo "Missing executable dSYM archive script: $ARCHIVE_DSYM_SCRIPT" >&2
+  exit 1
+fi
+
+if [[ "$SKIP_SENTRY_DSYM_UPLOAD" != "1" && ! -x "$UPLOAD_DSYM_SCRIPT" ]]; then
+  echo "Missing executable dSYM upload script: $UPLOAD_DSYM_SCRIPT" >&2
+  exit 1
+fi
+
 if ! gh auth status >/dev/null 2>&1; then
   echo "GitHub CLI not authenticated. Run: gh auth login" >&2
   exit 1
@@ -234,6 +248,8 @@ VERSION="$(read_setting MARKETING_VERSION)"
 TAG="v$VERSION"
 DIST_DMG_PATH="$OUTPUT_DIR/$APP_NAME-$VERSION.dmg"
 DIST_ZIP_PATH="$OUTPUT_DIR/$APP_NAME-$VERSION.app.zip"
+DIST_DSYM_PATH="$OUTPUT_DIR/dSYMs/$APP_NAME-$VERSION.app.dSYM"
+DIST_DSYM_ZIP_PATH="$DIST_DSYM_PATH.zip"
 RELEASE_DONE=0
 DID_BUMP=0
 PREVIOUS_TAG="$(git tag -l 'v*' --sort=-version:refname | head -n 1 || true)"
@@ -260,6 +276,8 @@ fi
 TAG="v$VERSION"
 DIST_DMG_PATH="$OUTPUT_DIR/$APP_NAME-$VERSION.dmg"
 DIST_ZIP_PATH="$OUTPUT_DIR/$APP_NAME-$VERSION.app.zip"
+DIST_DSYM_PATH="$OUTPUT_DIR/dSYMs/$APP_NAME-$VERSION.app.dSYM"
+DIST_DSYM_ZIP_PATH="$DIST_DSYM_PATH.zip"
 
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
   echo "Tag already exists: $TAG" >&2
@@ -292,6 +310,23 @@ SCHEME="$SCHEME" \
 if [[ ! -f "$DIST_DMG_PATH" ]]; then
   echo "Missing packaged DMG: $DIST_DMG_PATH" >&2
   exit 1
+fi
+
+APP_NAME="$APP_NAME" \
+VERSION="$VERSION" \
+OUTPUT_DIR="$OUTPUT_DIR" \
+"$ARCHIVE_DSYM_SCRIPT" --version "$VERSION"
+
+if [[ ! -d "$DIST_DSYM_PATH" || ! -f "$DIST_DSYM_ZIP_PATH" ]]; then
+  echo "Missing archived dSYM artifacts: $DIST_DSYM_PATH / $DIST_DSYM_ZIP_PATH" >&2
+  exit 1
+fi
+
+if [[ "$SKIP_SENTRY_DSYM_UPLOAD" != "1" ]]; then
+  APP_NAME="$APP_NAME" \
+  OUTPUT_DIR="$OUTPUT_DIR" \
+  DSYM_PATH="$DIST_DSYM_PATH" \
+  "$UPLOAD_DSYM_SCRIPT"
 fi
 
 RELEASE_NOTES_FILE="$(generate_release_notes "$VERSION" "$TAG" "$PREVIOUS_TAG" "$(basename "$DIST_DMG_PATH")")"
@@ -330,12 +365,12 @@ git tag "$TAG"
 git push origin "$TAG"
 
 if gh release view "$TAG" >/dev/null 2>&1; then
-  gh release upload "$TAG" "$DIST_DMG_PATH" "$DIST_ZIP_PATH" "$APPCAST_FILE" --clobber
+  gh release upload "$TAG" "$DIST_DMG_PATH" "$DIST_ZIP_PATH" "$DIST_DSYM_ZIP_PATH" "$APPCAST_FILE" --clobber
   gh release edit "$TAG" \
     --title "$APP_NAME $VERSION" \
     --notes-file "$RELEASE_NOTES_FILE"
 else
-  gh release create "$TAG" "$DIST_DMG_PATH" "$DIST_ZIP_PATH" "$APPCAST_FILE" \
+  gh release create "$TAG" "$DIST_DMG_PATH" "$DIST_ZIP_PATH" "$DIST_DSYM_ZIP_PATH" "$APPCAST_FILE" \
     --title "$APP_NAME $VERSION" \
     --notes-file "$RELEASE_NOTES_FILE"
 fi

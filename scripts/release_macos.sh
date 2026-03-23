@@ -6,6 +6,8 @@ cd "$ROOT_DIR"
 
 source "$ROOT_DIR/scripts/sparkle_tools.sh"
 
+ARCHIVE_DSYM_SCRIPT="${ARCHIVE_DSYM_SCRIPT:-$ROOT_DIR/scripts/archive_dsym.sh}"
+UPLOAD_DSYM_SCRIPT="${UPLOAD_DSYM_SCRIPT:-$ROOT_DIR/scripts/upload_dsym_to_sentry.sh}"
 PROJECT_PATH="${PROJECT_PATH:-$ROOT_DIR/Liney.xcodeproj}"
 SCHEME="${SCHEME:-Liney}"
 APP_NAME="${APP_NAME:-Liney}"
@@ -31,6 +33,7 @@ SKIP_PUSH="${SKIP_PUSH:-0}"
 SKIP_TAG="${SKIP_TAG:-0}"
 SKIP_GH_RELEASE="${SKIP_GH_RELEASE:-0}"
 SKIP_NOTARIZE="${SKIP_NOTARIZE:-0}"
+SKIP_SENTRY_DSYM_UPLOAD="${SKIP_SENTRY_DSYM_UPLOAD:-0}"
 RELEASE_NOTES_FILE=""
 APPCAST_STAGING_DIR=""
 
@@ -54,6 +57,16 @@ trap cleanup EXIT
 for cmd in git xcodebuild xcrun; do
   require_cmd "$cmd"
 done
+
+if [[ "$SKIP_SENTRY_DSYM_UPLOAD" != "1" && ! -x "$UPLOAD_DSYM_SCRIPT" ]]; then
+  echo "Missing executable dSYM upload script: $UPLOAD_DSYM_SCRIPT" >&2
+  exit 1
+fi
+
+if [[ ! -x "$ARCHIVE_DSYM_SCRIPT" ]]; then
+  echo "Missing executable dSYM archive script: $ARCHIVE_DSYM_SCRIPT" >&2
+  exit 1
+fi
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then
   require_cmd codesign
@@ -112,6 +125,8 @@ fi
 APP_BUNDLE_PATH="$OUTPUT_DIR/$APP_NAME.app"
 DMG_PATH="$OUTPUT_DIR/$APP_NAME-$VERSION.dmg"
 ZIP_PATH="$OUTPUT_DIR/$APP_NAME-$VERSION.app.zip"
+DSYM_PATH="$OUTPUT_DIR/dSYMs/$APP_NAME-$VERSION.app.dSYM"
+DSYM_ZIP_PATH="$DSYM_PATH.zip"
 APPCAST_OUTPUT_PATH="$OUTPUT_DIR/appcast.xml"
 TAG="${TAG:-v$VERSION}"
 
@@ -179,6 +194,23 @@ EOF
   xcrun stapler staple "$DMG_PATH"
 fi
 
+APP_NAME="$APP_NAME" \
+VERSION="$VERSION" \
+OUTPUT_DIR="$OUTPUT_DIR" \
+"$ARCHIVE_DSYM_SCRIPT" --version "$VERSION"
+
+if [[ ! -d "$DSYM_PATH" || ! -f "$DSYM_ZIP_PATH" ]]; then
+  echo "Missing archived dSYM artifacts: $DSYM_PATH / $DSYM_ZIP_PATH" >&2
+  exit 1
+fi
+
+if [[ "$SKIP_SENTRY_DSYM_UPLOAD" != "1" ]]; then
+  APP_NAME="$APP_NAME" \
+  OUTPUT_DIR="$OUTPUT_DIR" \
+  DSYM_PATH="$DSYM_PATH" \
+  "$UPLOAD_DSYM_SCRIPT"
+fi
+
 if [[ "$SKIP_TAG" != "1" ]]; then
   if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
     echo "Tag already exists: $TAG" >&2
@@ -227,12 +259,12 @@ RELEASE_NOTES_FILE=""
 
 if [[ "$SKIP_GH_RELEASE" != "1" ]]; then
   if gh release view "$TAG" >/dev/null 2>&1; then
-    gh release upload "$TAG" "$DMG_PATH" "$ZIP_PATH" "$APPCAST_OUTPUT_PATH" --clobber
+    gh release upload "$TAG" "$DMG_PATH" "$ZIP_PATH" "$DSYM_ZIP_PATH" "$APPCAST_OUTPUT_PATH" --clobber
     gh release edit "$TAG" \
       --title "$APP_NAME $VERSION" \
       --notes "Release $VERSION"
   else
-    gh release create "$TAG" "$DMG_PATH" "$ZIP_PATH" "$APPCAST_OUTPUT_PATH" \
+    gh release create "$TAG" "$DMG_PATH" "$ZIP_PATH" "$DSYM_ZIP_PATH" "$APPCAST_OUTPUT_PATH" \
       --title "$APP_NAME $VERSION" \
       --notes "Release $VERSION"
   fi
