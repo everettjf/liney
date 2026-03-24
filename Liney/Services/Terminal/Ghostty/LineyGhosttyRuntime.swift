@@ -16,6 +16,11 @@ final class LineyGhosttyRuntime: NSObject {
     var config: ghostty_config_t!
     var app: ghostty_app_t!
 
+    var needsConfirmQuit: Bool {
+        guard let app else { return false }
+        return ghostty_app_needs_confirm_quit(app)
+    }
+
     private override init() {
         super.init()
         LineyGhosttyBootstrap.initialize()

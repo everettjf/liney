@@ -264,6 +264,10 @@ public final class LineyDesktopApplication: NSObject {
         hotKeyWindowSettings.confirmQuitWhenCommandsRunning
     }
 
+    var needsConfirmQuit: Bool {
+        LineyGhosttyRuntime.shared.needsConfirmQuit || quitConfirmationSessionCount > 0
+    }
+
     var quitConfirmationSessionCount: Int {
         windowContexts.reduce(0) { $0 + $1.store.quitConfirmationSessionCount }
     }

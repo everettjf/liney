@@ -95,13 +95,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard Thread.isMainThread else { return .terminateNow }
         return MainActor.assumeIsolated {
-            let sessionCount = desktopApplication?.quitConfirmationSessionCount ?? 0
+            let needsConfirmQuit = desktopApplication?.needsConfirmQuit ?? false
             let shouldConfirm = lineyShouldConfirmTermination(
                 confirmQuitWhenCommandsRunning: desktopApplication?.confirmQuitWhenCommandsRunning ?? true,
-                quitConfirmationSessionCount: sessionCount
+                needsConfirmQuit: needsConfirmQuit
             )
             guard shouldConfirm else { return .terminateNow }
 
+            let sessionCount = max(
+                desktopApplication?.quitConfirmationSessionCount ?? 0,
+                needsConfirmQuit ? 1 : 0
+            )
             let copy = lineyQuitConfirmationCopy(quitConfirmationSessionCount: sessionCount)
             let alert = NSAlert()
             alert.alertStyle = .warning
@@ -396,9 +400,9 @@ func lineyShouldReopenMainWindow(hasVisibleWindows: Bool) -> Bool {
 
 func lineyShouldConfirmTermination(
     confirmQuitWhenCommandsRunning: Bool,
-    quitConfirmationSessionCount: Int
+    needsConfirmQuit: Bool
 ) -> Bool {
-    confirmQuitWhenCommandsRunning && quitConfirmationSessionCount > 0
+    confirmQuitWhenCommandsRunning && needsConfirmQuit
 }
 
 func lineyQuitConfirmationCopy(quitConfirmationSessionCount: Int) -> (title: String, message: String) {

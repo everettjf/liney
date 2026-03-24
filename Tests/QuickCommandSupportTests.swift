@@ -166,19 +166,19 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertTrue(
             lineyShouldConfirmTermination(
                 confirmQuitWhenCommandsRunning: true,
-                quitConfirmationSessionCount: 1
+                needsConfirmQuit: true
             )
         )
         XCTAssertFalse(
             lineyShouldConfirmTermination(
                 confirmQuitWhenCommandsRunning: false,
-                quitConfirmationSessionCount: 1
+                needsConfirmQuit: true
             )
         )
         XCTAssertFalse(
             lineyShouldConfirmTermination(
                 confirmQuitWhenCommandsRunning: true,
-                quitConfirmationSessionCount: 0
+                needsConfirmQuit: false
             )
         )
     }
