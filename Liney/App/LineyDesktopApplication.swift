@@ -67,15 +67,21 @@ public final class LineyDesktopApplication: NSObject {
             controller.window
         }
 
-        func present(ignoringOtherApps: Bool) {
+        func present(ignoringOtherApps: Bool, activatesApplication: Bool = true) {
             guard let window else { return }
 
             if window.isMiniaturized {
                 window.deminiaturize(nil)
             }
-            NSApp.activate(ignoringOtherApps: ignoringOtherApps)
+            if activatesApplication {
+                NSApp.activate(ignoringOtherApps: ignoringOtherApps)
+            }
             controller.showWindow(nil)
             window.makeKeyAndOrderFront(nil)
+        }
+
+        func windowShouldClose(_ sender: NSWindow) -> Bool {
+            owner?.shouldCloseWindowContext(self) ?? true
         }
 
         func windowWillClose(_ notification: Notification) {
@@ -101,7 +107,9 @@ public final class LineyDesktopApplication: NSObject {
             initialAppSettings: nil
         )
         syncWindowPresentation()
-        context.present(ignoringOtherApps: false)
+        DispatchQueue.main.async {
+            context.present(ignoringOtherApps: false, activatesApplication: false)
+        }
 
         Task { @MainActor in
             await loadWindowContextIfNeeded(context, updateHotKeySettings: true)
@@ -256,6 +264,18 @@ public final class LineyDesktopApplication: NSObject {
         hotKeyWindowSettings.hotKeyWindowEnabled
     }
 
+    var confirmQuitWhenCommandsRunning: Bool {
+        hotKeyWindowSettings.confirmQuitWhenCommandsRunning
+    }
+
+    var needsConfirmQuit: Bool {
+        LineyGhosttyRuntime.shared.needsConfirmQuit || quitConfirmationSessionCount > 0
+    }
+
+    var quitConfirmationSessionCount: Int {
+        windowContexts.reduce(0) { $0 + $1.store.quitConfirmationSessionCount }
+    }
+
     var canCloseSelectedTab: Bool {
         guard let workspace = activeStore?.selectedWorkspace else { return false }
         return workspace.tabs.count > 1 && workspace.activeTabID != nil
@@ -355,6 +375,19 @@ public final class LineyDesktopApplication: NSObject {
         windowContexts.first { $0.window === window }
     }
 
+    private func shouldCloseWindowContext(_ context: WindowContext) -> Bool {
+        guard lineyShouldInterceptLastWindowCloseForTermination(
+            hotKeyWindowEnabled: isHotKeyWindowEnabled,
+            openWindowCount: windowContexts.count,
+            needsConfirmQuit: needsConfirmQuit
+        ) else {
+            return true
+        }
+
+        NSApp.terminate(nil)
+        return false
+    }
+
     private func removeWindowContext(_ context: WindowContext) {
         let wasPrimary = context.persistsWorkspaceState
         if wasPrimary {
@@ -423,6 +456,14 @@ public final class LineyDesktopApplication: NSObject {
         }
         syncWindowPresentation()
     }
+}
+
+func lineyShouldInterceptLastWindowCloseForTermination(
+    hotKeyWindowEnabled: Bool,
+    openWindowCount: Int,
+    needsConfirmQuit: Bool
+) -> Bool {
+    !hotKeyWindowEnabled && openWindowCount <= 1 && needsConfirmQuit
 }
 
 @MainActor

@@ -158,6 +158,12 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         sessionController.activeSessionCount
     }
 
+    var quitConfirmationSessionCount: Int {
+        worktreeControllers.values.reduce(0) { partialResult, controllers in
+            partialResult + controllers.values.reduce(0) { $0 + $1.quitConfirmationSessionCount }
+        }
+    }
+
     var isPinned: Bool {
         get { settings.isPinned }
         set { settings.isPinned = newValue }

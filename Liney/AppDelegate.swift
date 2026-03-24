@@ -11,10 +11,13 @@ import Sentry
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let websiteURL = URL(string: "https://liney.dev")!
     private let repositoryURL = URL(string: "https://github.com/everettjf/liney")!
+    private let quitConfirmationSuppressionInterval: TimeInterval = 0.5
 
     @MainActor private var desktopApplication: LineyDesktopApplication?
     @MainActor private let applicationMenuController = ApplicationMenuController()
     private var appSettingsObserver: NSObjectProtocol?
+    private var isPresentingQuitConfirmation = false
+    private var suppressQuitConfirmationUntil: Date?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         let releaseVersion = applicationReleaseVersion()
@@ -46,7 +49,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         Task { @MainActor in
             let desktopApplication = LineyDesktopApplication()
             self.desktopApplication = desktopApplication
-            applicationMenuController.installMainMenu(appName: applicationName(), target: self, settings: AppSettings())
             appSettingsObserver = NotificationCenter.default.addObserver(
                 forName: .lineyAppSettingsDidChange,
                 object: nil,
@@ -62,6 +64,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 }
             }
             desktopApplication.launch()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.applicationMenuController.installMainMenu(
+                    appName: self.applicationName(),
+                    target: self,
+                    settings: AppSettings()
+                )
+            }
         }
     }
 
@@ -82,6 +92,48 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             lineyShouldTerminateAfterLastWindowClosed(
                 hotKeyWindowEnabled: desktopApplication?.isHotKeyWindowEnabled ?? false
             )
+        }
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard Thread.isMainThread else { return .terminateNow }
+        return MainActor.assumeIsolated {
+            if isPresentingQuitConfirmation {
+                return .terminateCancel
+            }
+            if let suppressQuitConfirmationUntil, suppressQuitConfirmationUntil > Date() {
+                return .terminateCancel
+            }
+
+            let needsConfirmQuit = desktopApplication?.needsConfirmQuit ?? false
+            let shouldConfirm = lineyShouldConfirmTermination(
+                confirmQuitWhenCommandsRunning: desktopApplication?.confirmQuitWhenCommandsRunning ?? true,
+                needsConfirmQuit: needsConfirmQuit
+            )
+            guard shouldConfirm else { return .terminateNow }
+
+            let sessionCount = max(
+                desktopApplication?.quitConfirmationSessionCount ?? 0,
+                needsConfirmQuit ? 1 : 0
+            )
+            let copy = lineyQuitConfirmationCopy(quitConfirmationSessionCount: sessionCount)
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = copy.title
+            alert.informativeText = copy.message
+            alert.addButton(withTitle: "Quit")
+            alert.addButton(withTitle: "Cancel")
+            NSApp.activate(ignoringOtherApps: true)
+            isPresentingQuitConfirmation = true
+            defer { isPresentingQuitConfirmation = false }
+
+            if alert.runModal() == .alertFirstButtonReturn {
+                suppressQuitConfirmationUntil = nil
+                return .terminateNow
+            }
+
+            suppressQuitConfirmationUntil = Date().addingTimeInterval(quitConfirmationSuppressionInterval)
+            return .terminateCancel
         }
     }
 
@@ -363,4 +415,23 @@ func lineyShouldTerminateAfterLastWindowClosed(hotKeyWindowEnabled: Bool) -> Boo
 
 func lineyShouldReopenMainWindow(hasVisibleWindows: Bool) -> Bool {
     !hasVisibleWindows
+}
+
+func lineyShouldConfirmTermination(
+    confirmQuitWhenCommandsRunning: Bool,
+    needsConfirmQuit: Bool
+) -> Bool {
+    confirmQuitWhenCommandsRunning && needsConfirmQuit
+}
+
+func lineyQuitConfirmationCopy(quitConfirmationSessionCount: Int) -> (title: String, message: String) {
+    let count = max(quitConfirmationSessionCount, 0)
+    let subject = count == 1
+        ? "1 terminal session still has a running command."
+        : "\(count) terminal sessions still have running commands."
+    let impact = count == 1 ? "Quitting now will stop it." : "Quitting now will stop them."
+    return (
+        title: "Quit Liney?",
+        message: "\(subject) \(impact) You can turn this confirmation off in Settings > General."
+    )
 }

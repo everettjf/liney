@@ -53,6 +53,7 @@ protocol TerminalSurfaceController: AnyObject {
 protocol ManagedTerminalSessionSurfaceController: TerminalSurfaceController {
     var managedPID: Int32? { get }
     var isManagedSessionRunning: Bool { get }
+    var needsConfirmQuit: Bool { get }
     var onProcessExit: ((Int32?) -> Void)? { get set }
     func updateLaunchConfiguration(_ configuration: TerminalLaunchConfiguration)
     func startManagedSessionIfNeeded()

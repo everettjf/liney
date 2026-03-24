@@ -111,6 +111,10 @@ final class WorkspaceStore: ObservableObject {
         appSettings.quickCommandPresets
     }
 
+    var quitConfirmationSessionCount: Int {
+        workspaces.reduce(0) { $0 + $1.quitConfirmationSessionCount }
+    }
+
     var recentQuickCommandPresets: [QuickCommandPreset] {
         let commandsByID = Dictionary(uniqueKeysWithValues: quickCommandPresets.map { ($0.id, $0) })
         return appSettings.quickCommandRecentIDs.compactMap { commandsByID[$0] }
@@ -633,6 +637,7 @@ final class WorkspaceStore: ObservableObject {
             autoRefreshEnabled: settings.autoRefreshEnabled,
             autoRefreshIntervalSeconds: settings.autoRefreshIntervalSeconds,
             autoClosePaneOnProcessExit: settings.autoClosePaneOnProcessExit,
+            confirmQuitWhenCommandsRunning: settings.confirmQuitWhenCommandsRunning,
             hotKeyWindowEnabled: settings.hotKeyWindowEnabled,
             hotKeyWindowShortcut: settings.hotKeyWindowShortcut,
             fileWatcherEnabled: settings.fileWatcherEnabled,

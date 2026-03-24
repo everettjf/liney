@@ -232,6 +232,7 @@ struct AppSettings: Codable, Hashable {
     var autoRefreshEnabled: Bool
     var autoRefreshIntervalSeconds: Int
     var autoClosePaneOnProcessExit: Bool
+    var confirmQuitWhenCommandsRunning: Bool
     var hotKeyWindowEnabled: Bool
     var hotKeyWindowShortcut: StoredShortcut
     var fileWatcherEnabled: Bool
@@ -257,6 +258,7 @@ struct AppSettings: Codable, Hashable {
         autoRefreshEnabled: Bool = true,
         autoRefreshIntervalSeconds: Int = 30,
         autoClosePaneOnProcessExit: Bool = true,
+        confirmQuitWhenCommandsRunning: Bool = true,
         hotKeyWindowEnabled: Bool = false,
         hotKeyWindowShortcut: StoredShortcut = StoredShortcut(key: " ", command: true, shift: true, option: false, control: false),
         fileWatcherEnabled: Bool = true,
@@ -281,6 +283,7 @@ struct AppSettings: Codable, Hashable {
         self.autoRefreshEnabled = autoRefreshEnabled
         self.autoRefreshIntervalSeconds = max(10, autoRefreshIntervalSeconds)
         self.autoClosePaneOnProcessExit = autoClosePaneOnProcessExit
+        self.confirmQuitWhenCommandsRunning = confirmQuitWhenCommandsRunning
         self.hotKeyWindowEnabled = hotKeyWindowEnabled
         self.hotKeyWindowShortcut = hotKeyWindowShortcut
         self.fileWatcherEnabled = fileWatcherEnabled
@@ -312,6 +315,7 @@ extension AppSettings {
         case autoRefreshEnabled
         case autoRefreshIntervalSeconds
         case autoClosePaneOnProcessExit
+        case confirmQuitWhenCommandsRunning
         case hotKeyWindowEnabled
         case hotKeyWindowShortcut
         case fileWatcherEnabled
@@ -347,6 +351,7 @@ extension AppSettings {
             autoRefreshEnabled: try container.decodeIfPresent(Bool.self, forKey: .autoRefreshEnabled) ?? true,
             autoRefreshIntervalSeconds: try container.decodeIfPresent(Int.self, forKey: .autoRefreshIntervalSeconds) ?? 30,
             autoClosePaneOnProcessExit: try container.decodeIfPresent(Bool.self, forKey: .autoClosePaneOnProcessExit) ?? true,
+            confirmQuitWhenCommandsRunning: try container.decodeIfPresent(Bool.self, forKey: .confirmQuitWhenCommandsRunning) ?? true,
             hotKeyWindowEnabled: try container.decodeIfPresent(Bool.self, forKey: .hotKeyWindowEnabled) ?? false,
             hotKeyWindowShortcut: try container.decodeIfPresent(StoredShortcut.self, forKey: .hotKeyWindowShortcut)
                 ?? StoredShortcut(key: " ", command: true, shift: true, option: false, control: false),

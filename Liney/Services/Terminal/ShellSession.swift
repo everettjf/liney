@@ -143,7 +143,11 @@ final class ShellSession: ObservableObject, Identifiable {
     }
 
     var isRunning: Bool {
-        hasActiveProcess
+        hasActiveProcess && needsQuitConfirmation
+    }
+
+    var needsQuitConfirmation: Bool {
+        surfaceController.needsConfirmQuit
     }
 
     func startIfNeeded() {

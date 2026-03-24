@@ -16,6 +16,7 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertEqual(settings.quickCommandPresets, QuickCommandCatalog.defaultCommands)
         XCTAssertTrue(settings.quickCommandRecentIDs.isEmpty)
         XCTAssertFalse(settings.hotKeyWindowEnabled)
+        XCTAssertTrue(settings.confirmQuitWhenCommandsRunning)
         XCTAssertEqual(
             settings.hotKeyWindowShortcut,
             StoredShortcut(key: " ", command: true, shift: true, option: false, control: false)
@@ -32,6 +33,7 @@ final class QuickCommandSupportTests: XCTestCase {
 
     func testSettingsEncodingPreservesHotKeyWindowFields() throws {
         let settings = AppSettings(
+            confirmQuitWhenCommandsRunning: false,
             hotKeyWindowEnabled: true,
             hotKeyWindowShortcut: StoredShortcut(key: "k", command: true, shift: true, option: false, control: false)
         )
@@ -40,6 +42,7 @@ final class QuickCommandSupportTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
         XCTAssertEqual(object["hotKeyWindowEnabled"] as? Bool, true)
+        XCTAssertEqual(object["confirmQuitWhenCommandsRunning"] as? Bool, false)
 
         let shortcut = try XCTUnwrap(object["hotKeyWindowShortcut"] as? [String: Any])
         XCTAssertEqual(shortcut["key"] as? String, "k")
@@ -154,9 +157,72 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertTrue(lineyShouldTerminateAfterLastWindowClosed(hotKeyWindowEnabled: false))
     }
 
+    func testLastWindowCloseInterceptsTerminationWhenQuitNeedsConfirmation() {
+        XCTAssertTrue(
+            lineyShouldInterceptLastWindowCloseForTermination(
+                hotKeyWindowEnabled: false,
+                openWindowCount: 1,
+                needsConfirmQuit: true
+            )
+        )
+        XCTAssertFalse(
+            lineyShouldInterceptLastWindowCloseForTermination(
+                hotKeyWindowEnabled: false,
+                openWindowCount: 2,
+                needsConfirmQuit: true
+            )
+        )
+        XCTAssertFalse(
+            lineyShouldInterceptLastWindowCloseForTermination(
+                hotKeyWindowEnabled: true,
+                openWindowCount: 1,
+                needsConfirmQuit: true
+            )
+        )
+        XCTAssertFalse(
+            lineyShouldInterceptLastWindowCloseForTermination(
+                hotKeyWindowEnabled: false,
+                openWindowCount: 1,
+                needsConfirmQuit: false
+            )
+        )
+    }
+
     func testDockReopenRestoresWindowWhenNoVisibleWindows() {
         XCTAssertTrue(lineyShouldReopenMainWindow(hasVisibleWindows: false))
         XCTAssertFalse(lineyShouldReopenMainWindow(hasVisibleWindows: true))
+    }
+
+    func testQuitConfirmationOnlyAppliesWhenEnabledAndCommandsNeedIt() {
+        XCTAssertTrue(
+            lineyShouldConfirmTermination(
+                confirmQuitWhenCommandsRunning: true,
+                needsConfirmQuit: true
+            )
+        )
+        XCTAssertFalse(
+            lineyShouldConfirmTermination(
+                confirmQuitWhenCommandsRunning: false,
+                needsConfirmQuit: true
+            )
+        )
+        XCTAssertFalse(
+            lineyShouldConfirmTermination(
+                confirmQuitWhenCommandsRunning: true,
+                needsConfirmQuit: false
+            )
+        )
+    }
+
+    func testQuitConfirmationCopyUsesSingularAndPluralText() {
+        XCTAssertEqual(
+            lineyQuitConfirmationCopy(quitConfirmationSessionCount: 1).message,
+            "1 terminal session still has a running command. Quitting now will stop it. You can turn this confirmation off in Settings > General."
+        )
+        XCTAssertEqual(
+            lineyQuitConfirmationCopy(quitConfirmationSessionCount: 3).message,
+            "3 terminal sessions still have running commands. Quitting now will stop them. You can turn this confirmation off in Settings > General."
+        )
     }
 
     func testGhosttyLogFilterSuppressesOnlyKnownMailboxSpam() {

@@ -11,6 +11,7 @@ import GhosttyKit
 enum LineyGhosttyBootstrap {
     private static let initialized: Void = {
         LineyGhosttyLogFilter.installIfNeeded()
+        applyProcessEnvironment()
         let result = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv)
         guard result == GHOSTTY_SUCCESS else {
             let message = """
@@ -24,6 +25,23 @@ enum LineyGhosttyBootstrap {
 
     static func initialize() {
         _ = initialized
+    }
+
+    static func processEnvironment(
+        resourcePaths: LineyGhosttyResourcePaths = .bundleMain()
+    ) -> [String: String] {
+        guard let ghosttyResourcesDirectory = resourcePaths.ghosttyResourcesDirectory else {
+            return [:]
+        }
+        return ["GHOSTTY_RESOURCES_DIR": ghosttyResourcesDirectory]
+    }
+
+    private static func applyProcessEnvironment(
+        resourcePaths: LineyGhosttyResourcePaths = .bundleMain()
+    ) {
+        for (key, value) in processEnvironment(resourcePaths: resourcePaths) {
+            setenv(key, value, 1)
+        }
     }
 }
 

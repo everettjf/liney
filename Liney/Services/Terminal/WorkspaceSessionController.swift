@@ -29,6 +29,10 @@ final class WorkspaceSessionController: ObservableObject {
         sessions.values.filter(\.hasActiveProcess).count
     }
 
+    var quitConfirmationSessionCount: Int {
+        sessions.values.filter(\.needsQuitConfirmation).count
+    }
+
     func session(for paneID: UUID) -> ShellSession? {
         sessions[paneID]
     }

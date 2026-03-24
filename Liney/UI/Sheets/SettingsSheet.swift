@@ -159,6 +159,7 @@ struct SettingsSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Enable automatic refresh", isOn: $appSettings.autoRefreshEnabled)
                     Toggle("Close terminal panes automatically after process exit", isOn: $appSettings.autoClosePaneOnProcessExit)
+                    Toggle("Confirm before quitting if commands are still running", isOn: $appSettings.confirmQuitWhenCommandsRunning)
                     Toggle("Enable hot key window", isOn: $appSettings.hotKeyWindowEnabled)
                     Toggle("Enable file watchers", isOn: $appSettings.fileWatcherEnabled)
                     Toggle("Allow system notifications", isOn: $appSettings.systemNotificationsEnabled)

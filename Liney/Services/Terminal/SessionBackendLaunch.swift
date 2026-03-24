@@ -34,14 +34,19 @@ extension SessionBackendConfiguration {
         switch kind {
         case .localShell:
             let local = localShellConfiguration
+            let command = TerminalCommandDefinition(
+                executablePath: local.shellPath,
+                arguments: local.shellArguments,
+                displayName: URL(fileURLWithPath: local.shellPath).lastPathComponent
+            )
+            let prepared = LineyGhosttyShellIntegration.prepare(
+                command: command,
+                environment: baseEnvironment
+            )
             return TerminalLaunchConfiguration(
                 workingDirectory: preferredWorkingDirectory,
-                environment: baseEnvironment,
-                command: TerminalCommandDefinition(
-                    executablePath: local.shellPath,
-                    arguments: local.shellArguments,
-                    displayName: URL(fileURLWithPath: local.shellPath).lastPathComponent
-                ),
+                environment: prepared.environment,
+                command: prepared.command,
                 backendConfiguration: self
             )
 
@@ -77,14 +82,19 @@ extension SessionBackendConfiguration {
             for (key, value) in configuration.environment {
                 environment[key] = value
             }
+            let command = TerminalCommandDefinition(
+                executablePath: configuration.launchPath,
+                arguments: configuration.arguments,
+                displayName: configuration.name
+            )
+            let prepared = LineyGhosttyShellIntegration.prepare(
+                command: command,
+                environment: environment
+            )
             return TerminalLaunchConfiguration(
                 workingDirectory: configuration.workingDirectory ?? preferredWorkingDirectory,
-                environment: environment,
-                command: TerminalCommandDefinition(
-                    executablePath: configuration.launchPath,
-                    arguments: configuration.arguments,
-                    displayName: configuration.name
-                ),
+                environment: prepared.environment,
+                command: prepared.command,
                 backendConfiguration: self
             )
         }

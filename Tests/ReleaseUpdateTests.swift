@@ -73,6 +73,7 @@ final class ReleaseUpdateTests: XCTestCase {
         XCTAssertFalse(decoded.autoRefreshEnabled)
         XCTAssertEqual(decoded.autoRefreshIntervalSeconds, 60)
         XCTAssertTrue(decoded.autoClosePaneOnProcessExit)
+        XCTAssertTrue(decoded.confirmQuitWhenCommandsRunning)
         XCTAssertTrue(decoded.autoCheckForUpdates)
         XCTAssertFalse(decoded.autoDownloadUpdates)
         XCTAssertTrue(decoded.sidebarShowsSecondaryLabels)

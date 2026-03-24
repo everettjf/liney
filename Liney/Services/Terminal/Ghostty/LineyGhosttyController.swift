@@ -28,6 +28,10 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         guard let surface = terminalView.surface else { return false }
         return !ghostty_surface_process_exited(surface)
     }
+    var needsConfirmQuit: Bool {
+        guard let surface = terminalView.surface else { return false }
+        return ghostty_surface_needs_confirm_quit(surface)
+    }
 
     var currentSurface: ghostty_surface_t? { terminalView.surface }
 
