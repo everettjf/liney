@@ -158,4 +158,11 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertTrue(lineyShouldReopenMainWindow(hasVisibleWindows: false))
         XCTAssertFalse(lineyShouldReopenMainWindow(hasVisibleWindows: true))
     }
+
+    func testGhosttyLogFilterSuppressesOnlyKnownMailboxSpam() {
+        XCTAssertTrue(LineyGhosttyLogFilter.shouldSuppress("io_thread: mailbox message=start_synchronized_output"))
+        XCTAssertTrue(LineyGhosttyLogFilter.shouldSuppress("debug(io_thread): mailbox message=start_synchronized_output"))
+        XCTAssertFalse(LineyGhosttyLogFilter.shouldSuppress("io_thread: mailbox message=end_synchronized_output"))
+        XCTAssertFalse(LineyGhosttyLogFilter.shouldSuppress("warning(io_thread): error draining mailbox err=something"))
+    }
 }
