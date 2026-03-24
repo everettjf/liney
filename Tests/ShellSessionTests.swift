@@ -10,6 +10,45 @@ import XCTest
 @testable import Liney
 
 final class ShellSessionTests: XCTestCase {
+    func testLocalShellDefaultUsesResolvedLoginShellPath() {
+        let configuration = LocalShellSessionConfiguration.fromLoginShellPath("/opt/homebrew/bin/fish")
+
+        XCTAssertEqual(configuration.shellPath, "/opt/homebrew/bin/fish")
+        XCTAssertEqual(configuration.shellArguments, ["-l"])
+    }
+
+    func testLocalShellDefaultFallsBackToLegacyZshWhenLoginShellIsUnavailable() {
+        let configuration = LocalShellSessionConfiguration.fromLoginShellPath(nil)
+
+        XCTAssertEqual(configuration, .legacyDefault)
+    }
+
+    func testLocalShellBackendResolvesLegacyDefaultToCurrentLoginShell() {
+        let backend = SessionBackendConfiguration.local(
+            shellPath: LocalShellSessionConfiguration.legacyDefault.shellPath,
+            shellArguments: LocalShellSessionConfiguration.legacyDefault.shellArguments
+        )
+        let resolved = backend.resolvedLocalShellConfiguration(
+            defaultConfiguration: LocalShellSessionConfiguration.fromLoginShellPath("/opt/homebrew/bin/fish")
+        )
+
+        XCTAssertEqual(resolved.shellPath, "/opt/homebrew/bin/fish")
+        XCTAssertEqual(resolved.shellArguments, ["-l"])
+    }
+
+    func testExplicitNonDefaultLocalShellConfigurationIsPreserved() {
+        let backend = SessionBackendConfiguration.local(
+            shellPath: "/bin/bash",
+            shellArguments: ["-lc", "echo hi"]
+        )
+        let resolved = backend.resolvedLocalShellConfiguration(
+            defaultConfiguration: LocalShellSessionConfiguration.fromLoginShellPath("/opt/homebrew/bin/fish")
+        )
+
+        XCTAssertEqual(resolved.shellPath, "/bin/bash")
+        XCTAssertEqual(resolved.shellArguments, ["-lc", "echo hi"])
+    }
+
     func testStartIfNeededOnlyAutoStartsIdleSession() async {
         await MainActor.run {
             let surface = FakeManagedTerminalSurfaceController()
