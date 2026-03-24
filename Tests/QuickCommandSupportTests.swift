@@ -121,4 +121,12 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertEqual(shortcut.carbonKeyCode, UInt32(kVK_Space))
         XCTAssertEqual(shortcut.carbonModifierFlags, UInt32(optionKey | shiftKey))
     }
+
+    func testHotKeyWindowKeepsAppRunningWhenLastWindowCloses() {
+        XCTAssertFalse(lineyShouldTerminateAfterLastWindowClosed(hotKeyWindowEnabled: true))
+    }
+
+    func testStandardWindowModeTerminatesAfterLastWindowCloses() {
+        XCTAssertTrue(lineyShouldTerminateAfterLastWindowClosed(hotKeyWindowEnabled: false))
+    }
 }

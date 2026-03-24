@@ -77,7 +77,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        guard Thread.isMainThread else { return true }
+        return MainActor.assumeIsolated {
+            lineyShouldTerminateAfterLastWindowClosed(
+                hotKeyWindowEnabled: desktopApplication?.isHotKeyWindowEnabled ?? false
+            )
+        }
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
@@ -337,4 +342,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         )
         return credits
     }
+}
+
+func lineyShouldTerminateAfterLastWindowClosed(hotKeyWindowEnabled: Bool) -> Bool {
+    !hotKeyWindowEnabled
 }

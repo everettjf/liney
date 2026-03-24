@@ -183,6 +183,10 @@ public final class LineyDesktopApplication: NSObject {
         store.selectedWorkspace?.tabs.count ?? 0
     }
 
+    var isHotKeyWindowEnabled: Bool {
+        store.appSettings.hotKeyWindowEnabled
+    }
+
     var canCloseSelectedTab: Bool {
         guard let workspace = store.selectedWorkspace else { return false }
         return workspace.tabs.count > 1 && workspace.activeTabID != nil
