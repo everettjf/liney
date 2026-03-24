@@ -85,6 +85,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard Thread.isMainThread else { return false }
+        return MainActor.assumeIsolated {
+            guard lineyShouldReopenMainWindow(hasVisibleWindows: flag) else { return false }
+            desktopApplication?.reopenMainWindow()
+            return true
+        }
+    }
+
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         true
     }
@@ -346,4 +355,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
 func lineyShouldTerminateAfterLastWindowClosed(hotKeyWindowEnabled: Bool) -> Bool {
     !hotKeyWindowEnabled
+}
+
+func lineyShouldReopenMainWindow(hasVisibleWindows: Bool) -> Bool {
+    !hasVisibleWindows
 }

@@ -7,6 +7,25 @@
 
 import Foundation
 
+private let lineyPersistenceIsDebugBuild: Bool = {
+#if DEBUG
+    true
+#else
+    false
+#endif
+}()
+
+func lineyStateDirectoryName(isDebugBuild: Bool = lineyPersistenceIsDebugBuild) -> String {
+    isDebugBuild ? ".liney-debug" : ".liney"
+}
+
+func lineyStateDirectoryURL(fileManager: FileManager = .default) -> URL {
+    fileManager.homeDirectoryForCurrentUser.appendingPathComponent(
+        lineyStateDirectoryName(),
+        isDirectory: true
+    )
+}
+
 struct AppSettingsPersistence {
     private let fileManager = FileManager.default
 
@@ -28,7 +47,7 @@ struct AppSettingsPersistence {
     }
 
     private func stateDirectoryURL() -> URL {
-        fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".liney", isDirectory: true)
+        lineyStateDirectoryURL(fileManager: fileManager)
     }
 
     private func settingsFileURL() -> URL {

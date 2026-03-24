@@ -49,6 +49,11 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertEqual(shortcut["control"] as? Bool, false)
     }
 
+    func testDebugBuildUsesSeparatePersistenceDirectoryName() {
+        XCTAssertEqual(lineyStateDirectoryName(isDebugBuild: true), ".liney-debug")
+        XCTAssertEqual(lineyStateDirectoryName(isDebugBuild: false), ".liney")
+    }
+
     func testQuickCommandNormalizationTrimsAndDropsDuplicates() {
         let commands = [
             QuickCommandPreset(
@@ -147,5 +152,10 @@ final class QuickCommandSupportTests: XCTestCase {
 
     func testStandardWindowModeTerminatesAfterLastWindowCloses() {
         XCTAssertTrue(lineyShouldTerminateAfterLastWindowClosed(hotKeyWindowEnabled: false))
+    }
+
+    func testDockReopenRestoresWindowWhenNoVisibleWindows() {
+        XCTAssertTrue(lineyShouldReopenMainWindow(hasVisibleWindows: false))
+        XCTAssertFalse(lineyShouldReopenMainWindow(hasVisibleWindows: true))
     }
 }

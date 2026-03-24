@@ -57,9 +57,7 @@ public final class LineyDesktopApplication: NSObject {
         }
 
         applyHotKeyWindowSettings(store.appSettings)
-        windowController?.showWindow(nil)
-        windowController?.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        presentMainWindow(ignoringOtherApps: false)
 
         Task { @MainActor in
             await store.loadIfNeeded()
@@ -214,6 +212,10 @@ public final class LineyDesktopApplication: NSObject {
         applyHotKeyWindowSettings(settings)
     }
 
+    func reopenMainWindow() {
+        presentMainWindow(ignoringOtherApps: true)
+    }
+
     private func applyHotKeyWindowSettings(_ settings: AppSettings) {
         guard let window = windowController?.window else { return }
 
@@ -241,10 +243,16 @@ public final class LineyDesktopApplication: NSObject {
             return
         }
 
+        presentMainWindow(ignoringOtherApps: true)
+    }
+
+    private func presentMainWindow(ignoringOtherApps: Bool) {
+        guard let window = windowController?.window else { return }
+
         if window.isMiniaturized {
             window.deminiaturize(nil)
         }
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate(ignoringOtherApps: ignoringOtherApps)
         windowController?.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
     }

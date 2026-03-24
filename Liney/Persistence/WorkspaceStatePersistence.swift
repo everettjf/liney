@@ -30,7 +30,7 @@ struct WorkspaceStatePersistence {
     }
 
     private func stateDirectoryURL() -> URL {
-        fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".liney", isDirectory: true)
+        lineyStateDirectoryURL(fileManager: fileManager)
     }
 
     private func stateFileURL() -> URL {
