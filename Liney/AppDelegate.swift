@@ -11,10 +11,13 @@ import Sentry
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let websiteURL = URL(string: "https://liney.dev")!
     private let repositoryURL = URL(string: "https://github.com/everettjf/liney")!
+    private let quitConfirmationSuppressionInterval: TimeInterval = 0.5
 
     @MainActor private var desktopApplication: LineyDesktopApplication?
     @MainActor private let applicationMenuController = ApplicationMenuController()
     private var appSettingsObserver: NSObjectProtocol?
+    private var isPresentingQuitConfirmation = false
+    private var suppressQuitConfirmationUntil: Date?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         let releaseVersion = applicationReleaseVersion()
@@ -95,13 +98,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard Thread.isMainThread else { return .terminateNow }
         return MainActor.assumeIsolated {
-            let sessionCount = desktopApplication?.quitConfirmationSessionCount ?? 0
+            if isPresentingQuitConfirmation {
+                return .terminateCancel
+            }
+            if let suppressQuitConfirmationUntil, suppressQuitConfirmationUntil > Date() {
+                return .terminateCancel
+            }
+
+            let needsConfirmQuit = desktopApplication?.needsConfirmQuit ?? false
             let shouldConfirm = lineyShouldConfirmTermination(
                 confirmQuitWhenCommandsRunning: desktopApplication?.confirmQuitWhenCommandsRunning ?? true,
-                quitConfirmationSessionCount: sessionCount
+                needsConfirmQuit: needsConfirmQuit
             )
             guard shouldConfirm else { return .terminateNow }
 
+            let sessionCount = max(
+                desktopApplication?.quitConfirmationSessionCount ?? 0,
+                needsConfirmQuit ? 1 : 0
+            )
             let copy = lineyQuitConfirmationCopy(quitConfirmationSessionCount: sessionCount)
             let alert = NSAlert()
             alert.alertStyle = .warning
@@ -110,7 +124,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             alert.addButton(withTitle: "Quit")
             alert.addButton(withTitle: "Cancel")
             NSApp.activate(ignoringOtherApps: true)
-            return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+            isPresentingQuitConfirmation = true
+            defer { isPresentingQuitConfirmation = false }
+
+            if alert.runModal() == .alertFirstButtonReturn {
+                suppressQuitConfirmationUntil = nil
+                return .terminateNow
+            }
+
+            suppressQuitConfirmationUntil = Date().addingTimeInterval(quitConfirmationSuppressionInterval)
+            return .terminateCancel
         }
     }
 
@@ -396,9 +419,9 @@ func lineyShouldReopenMainWindow(hasVisibleWindows: Bool) -> Bool {
 
 func lineyShouldConfirmTermination(
     confirmQuitWhenCommandsRunning: Bool,
-    quitConfirmationSessionCount: Int
+    needsConfirmQuit: Bool
 ) -> Bool {
-    confirmQuitWhenCommandsRunning && quitConfirmationSessionCount > 0
+    confirmQuitWhenCommandsRunning && needsConfirmQuit
 }
 
 func lineyQuitConfirmationCopy(quitConfirmationSessionCount: Int) -> (title: String, message: String) {

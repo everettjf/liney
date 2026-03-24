@@ -40,6 +40,55 @@ final class ShellSessionTests: XCTestCase {
         XCTAssertEqual(prepared.environment["ZDOTDIR"], zshIntegration.path)
     }
 
+    func testGhosttyShellIntegrationInjectsFishEnvironmentFromBundledResources() {
+        let resourcesRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let ghosttyResources = resourcesRoot.appendingPathComponent("ghostty", isDirectory: true)
+        let fishVendorDirectory = ghosttyResources.appendingPathComponent("shell-integration/fish/vendor_conf.d", isDirectory: true)
+        let terminfo = resourcesRoot.appendingPathComponent("terminfo", isDirectory: true)
+
+        try? FileManager.default.createDirectory(at: fishVendorDirectory, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: terminfo, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: resourcesRoot) }
+
+        let prepared = LineyGhosttyShellIntegration.prepare(
+            command: TerminalCommandDefinition(
+                executablePath: "/opt/homebrew/bin/fish",
+                arguments: ["-l"],
+                displayName: "fish"
+            ),
+            environment: ["XDG_DATA_DIRS": "/usr/local/share:/usr/share"],
+            resourcePaths: LineyGhosttyResourcePaths(resourceRootURL: resourcesRoot)
+        )
+
+        XCTAssertEqual(prepared.environment["TERM"], "xterm-ghostty")
+        XCTAssertEqual(prepared.environment["TERMINFO"], terminfo.path)
+        XCTAssertEqual(prepared.environment["GHOSTTY_RESOURCES_DIR"], ghosttyResources.path)
+        XCTAssertEqual(
+            prepared.environment["GHOSTTY_SHELL_INTEGRATION_XDG_DIR"],
+            ghosttyResources.appendingPathComponent("shell-integration", isDirectory: true).path
+        )
+        XCTAssertEqual(
+            prepared.environment["XDG_DATA_DIRS"],
+            [
+                ghosttyResources.appendingPathComponent("shell-integration", isDirectory: true).path,
+                "/usr/local/share",
+                "/usr/share",
+            ].joined(separator: ":")
+        )
+    }
+
+    func testGhosttyBootstrapPublishesBundledResourcesDirectory() {
+        let environment = LineyGhosttyBootstrap.processEnvironment(
+            resourcePaths: LineyGhosttyResourcePaths(
+                ghosttyResourcesDirectory: "/tmp/liney-ghostty",
+                terminfoDirectory: "/tmp/liney-terminfo"
+            )
+        )
+
+        XCTAssertEqual(environment["GHOSTTY_RESOURCES_DIR"], "/tmp/liney-ghostty")
+    }
+
     func testLocalShellDefaultUsesResolvedLoginShellPath() {
         let configuration = LocalShellSessionConfiguration.fromLoginShellPath("/opt/homebrew/bin/fish")
 

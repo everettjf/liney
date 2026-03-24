@@ -61,8 +61,13 @@ enum LineyGhosttyShellIntegration {
             return (command, environment)
         }
 
-        if shellName(for: command.executablePath) == "zsh" {
+        switch shellName(for: command.executablePath) {
+        case "zsh":
             injectZsh(into: &environment, ghosttyResourcesDirectory: ghosttyResourcesDirectory)
+        case "fish":
+            injectFish(into: &environment, ghosttyResourcesDirectory: ghosttyResourcesDirectory)
+        default:
+            break
         }
 
         return (command, environment)
@@ -81,5 +86,25 @@ enum LineyGhosttyShellIntegration {
             environment["GHOSTTY_ZSH_ZDOTDIR"] = existingZdotdir
         }
         environment["ZDOTDIR"] = integrationDirectory
+    }
+
+    private static func injectFish(into environment: inout [String: String], ghosttyResourcesDirectory: String) {
+        let integrationDirectory = URL(fileURLWithPath: ghosttyResourcesDirectory)
+            .appendingPathComponent("shell-integration", isDirectory: true)
+            .path
+
+        environment["GHOSTTY_SHELL_INTEGRATION_XDG_DIR"] = integrationDirectory
+
+        let existingDirectories = environment["XDG_DATA_DIRS"]?
+            .split(separator: ":")
+            .map(String.init) ?? []
+
+        if existingDirectories.contains(integrationDirectory) {
+            environment["XDG_DATA_DIRS"] = existingDirectories.joined(separator: ":")
+            return
+        }
+
+        environment["XDG_DATA_DIRS"] = ([integrationDirectory] + existingDirectories)
+            .joined(separator: ":")
     }
 }
