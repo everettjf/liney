@@ -765,6 +765,11 @@ private final class LineyGhosttySurfaceView: NSView {
             return
         }
 
+        if let appDelegate = NSApp.delegate as? AppDelegate,
+           appDelegate.performShortcutAction(matching: event) {
+            return
+        }
+
         if shouldPreferRawKeyEvent(for: event) {
             sendRawKeyEvent(event, on: surface)
             return
