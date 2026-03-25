@@ -174,6 +174,43 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
         )
     }
 
+    func testGhosttySplitRightStopsDispatchingWhenShortcutIsCustomized() {
+        var settings = AppSettings()
+        LineyKeyboardShortcuts.setShortcut(
+            StoredShortcut(key: "d", command: false, shift: false, option: true, control: false),
+            for: .splitRight,
+            in: &settings
+        )
+
+        XCTAssertFalse(
+            lineyGhosttyShouldDispatchWorkspaceSplitAction(
+                GHOSTTY_SPLIT_DIRECTION_RIGHT,
+                settings: settings
+            )
+        )
+    }
+
+    func testGhosttySplitDownStopsDispatchingWhenShortcutIsDisabled() {
+        var settings = AppSettings()
+        LineyKeyboardShortcuts.disableShortcut(for: .splitDown, in: &settings)
+
+        XCTAssertFalse(
+            lineyGhosttyShouldDispatchWorkspaceSplitAction(
+                GHOSTTY_SPLIT_DIRECTION_DOWN,
+                settings: settings
+            )
+        )
+    }
+
+    func testGhosttySplitRightStillDispatchesWithDefaultShortcut() {
+        XCTAssertTrue(
+            lineyGhosttyShouldDispatchWorkspaceSplitAction(
+                GHOSTTY_SPLIT_DIRECTION_RIGHT,
+                settings: AppSettings()
+            )
+        )
+    }
+
     func testCtrlReturnEquivalentKeyStaysReturn() {
         let resolution = resolveGhosttyEquivalentKey(
             charactersIgnoringModifiers: "\r",

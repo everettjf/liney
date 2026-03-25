@@ -191,6 +191,22 @@ func lineyGhosttyShouldAttemptMenuKeyEquivalent(
     return relevantModifiers.intersection([.command, .control, .option]).isEmpty == false
 }
 
+func lineyGhosttyShouldDispatchWorkspaceSplitAction(
+    _ direction: ghostty_action_split_direction_e,
+    settings: AppSettings
+) -> Bool {
+    switch direction {
+    case GHOSTTY_SPLIT_DIRECTION_RIGHT:
+        return LineyKeyboardShortcuts.effectiveShortcut(for: .splitRight, in: settings) ==
+            LineyShortcutAction.splitRight.defaultShortcut
+    case GHOSTTY_SPLIT_DIRECTION_DOWN:
+        return LineyKeyboardShortcuts.effectiveShortcut(for: .splitDown, in: settings) ==
+            LineyShortcutAction.splitDown.defaultShortcut
+    default:
+        return true
+    }
+}
+
 func resolveGhosttyEquivalentKey(
     charactersIgnoringModifiers: String?,
     characters: String?,

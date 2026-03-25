@@ -111,6 +111,10 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
     func handleGhosttyAction(_ action: ghostty_action_s, on surface: ghostty_surface_t) -> Bool {
         switch action.tag {
         case GHOSTTY_ACTION_NEW_SPLIT:
+            if let appDelegate = NSApp.delegate as? AppDelegate,
+               !appDelegate.shouldDispatchGhosttySplitAction(action.action.new_split) {
+                return true
+            }
             dispatchWorkspaceAction(workspaceAction(for: action.action.new_split))
             return true
 

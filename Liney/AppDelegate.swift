@@ -6,6 +6,7 @@
 //
 
 import Cocoa
+import GhosttyKit
 import Sentry
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
@@ -220,6 +221,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         performShortcutAction(match.action, tabNumber: match.tabNumber ?? 0)
         return true
+    }
+
+    @MainActor
+    func shouldDispatchGhosttySplitAction(_ direction: ghostty_action_split_direction_e) -> Bool {
+        guard let desktopApplication else { return true }
+        return lineyGhosttyShouldDispatchWorkspaceSplitAction(
+            direction,
+            settings: desktopApplication.currentAppSettings
+        )
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
