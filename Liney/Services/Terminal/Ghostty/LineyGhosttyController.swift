@@ -789,6 +789,11 @@ private final class LineyGhosttySurfaceView: NSView {
             interpretKeyEvents([translationEvent])
             let accumulated = keyTextAccumulator?.joined() ?? ""
             keyTextAccumulator = nil
+            let hasMarkedTextAfterInterpretation = hasMarkedText()
+
+            if hasMarkedTextAfterInterpretation {
+                syncPreedit()
+            }
 
             if !accumulated.isEmpty {
                 sendTranslatedKeyEvent(
@@ -812,7 +817,7 @@ private final class LineyGhosttySurfaceView: NSView {
                 translationMods: translationMods,
                 composing: LineyGhosttyTextInputRouting.shouldMarkRawKeyEventAsComposing(
                     hadMarkedTextBeforeInterpretation: hadMarkedTextBeforeInterpretation,
-                    hasMarkedTextAfterInterpretation: hasMarkedText()
+                    hasMarkedTextAfterInterpretation: hasMarkedTextAfterInterpretation
                 )
             )
             return

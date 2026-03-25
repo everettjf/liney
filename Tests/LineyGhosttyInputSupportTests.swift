@@ -42,6 +42,33 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
         )
     }
 
+    func testOptionLeftArrowUsesRawKeyRouting() {
+        XCTAssertTrue(
+            LineyGhosttyTextInputRouting.shouldPreferRawKeyEvent(
+                keyCode: UInt16(kVK_LeftArrow),
+                modifierFlags: [.option]
+            )
+        )
+    }
+
+    func testOptionDeleteUsesRawKeyRouting() {
+        XCTAssertTrue(
+            LineyGhosttyTextInputRouting.shouldPreferRawKeyEvent(
+                keyCode: UInt16(kVK_Delete),
+                modifierFlags: [.option]
+            )
+        )
+    }
+
+    func testOptionPrintableKeyStillUsesTextInputRouting() {
+        XCTAssertFalse(
+            LineyGhosttyTextInputRouting.shouldPreferRawKeyEvent(
+                keyCode: UInt16(kVK_ANSI_B),
+                modifierFlags: [.option]
+            )
+        )
+    }
+
     func testPlainReturnDoesNotUseRawKeyRouting() {
         XCTAssertFalse(
             LineyGhosttyTextInputRouting.shouldPreferRawKeyEvent(
