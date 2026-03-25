@@ -149,6 +149,77 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertEqual(shortcut.carbonModifierFlags, UInt32(optionKey | shiftKey))
     }
 
+    func testPaneFocusShortcutsDefaultToCommandOptionArrows() {
+        let settings = AppSettings()
+
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .focusPaneLeft, in: settings),
+            StoredShortcut(key: "←", command: true, shift: false, option: true, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .focusPaneRight, in: settings),
+            StoredShortcut(key: "→", command: true, shift: false, option: true, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .focusPaneUp, in: settings),
+            StoredShortcut(key: "↑", command: true, shift: false, option: true, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .focusPaneDown, in: settings),
+            StoredShortcut(key: "↓", command: true, shift: false, option: true, control: false)
+        )
+    }
+
+    func testShortcutMatchingSupportsArrowKeys() {
+        let settings = AppSettings()
+
+        let event = try! XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [.command, .option],
+                timestamp: 1,
+                windowNumber: 0,
+                context: nil,
+                characters: "\u{F702}",
+                charactersIgnoringModifiers: "\u{F702}",
+                isARepeat: false,
+                keyCode: UInt16(kVK_LeftArrow)
+            )
+        )
+
+        XCTAssertEqual(
+            lineyShortcutMatch(for: event, in: settings),
+            LineyShortcutMatch(action: .focusPaneLeft, tabNumber: nil)
+        )
+    }
+
+    func testShortcutMatchingUsesStoredKeyForOptionModifiedLetters() {
+        var settings = AppSettings()
+        let shortcut = StoredShortcut(key: "d", command: false, shift: false, option: true, control: false)
+        LineyKeyboardShortcuts.setShortcut(shortcut, for: .splitRight, in: &settings)
+
+        let event = try! XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [.option],
+                timestamp: 1,
+                windowNumber: 0,
+                context: nil,
+                characters: "\u{2202}",
+                charactersIgnoringModifiers: "d",
+                isARepeat: false,
+                keyCode: UInt16(kVK_ANSI_D)
+            )
+        )
+
+        XCTAssertEqual(
+            lineyShortcutMatch(for: event, in: settings),
+            LineyShortcutMatch(action: .splitRight, tabNumber: nil)
+        )
+    }
+
     func testHotKeyWindowKeepsAppRunningWhenLastWindowCloses() {
         XCTAssertFalse(lineyShouldTerminateAfterLastWindowClosed(hotKeyWindowEnabled: true))
     }

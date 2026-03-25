@@ -8,6 +8,12 @@
 import SwiftUI
 
 struct TerminalPaneView: View {
+    private enum PaneHeaderDensity {
+        case full
+        case compact
+        case minimal
+    }
+
     @EnvironmentObject private var store: WorkspaceStore
     @ObservedObject var workspace: WorkspaceModel
     @ObservedObject var sessionController: WorkspaceSessionController
@@ -48,53 +54,23 @@ struct TerminalPaneView: View {
         return "\(Int(progress * 100))%"
     }
 
+    private var paneHeaderStatusTag: (text: String, tone: PaneTag.Tone)? {
+        if let exitCode = session.exitCode, session.lifecycle == .exited {
+            return ("exit \(exitCode)", .warning)
+        }
+        if isFocused {
+            return ("active", .accent)
+        }
+        return nil
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(session.hasActiveProcess ? LineyTheme.success : LineyTheme.warning)
-                    .frame(width: 7, height: 7)
-
-                Text(session.title)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(LineyTheme.tertiaryText)
-                    .lineLimit(1)
-
-                PaneTag(text: directoryLabel, tone: .neutral)
-
-                if let exitCode = session.exitCode, session.lifecycle == .exited {
-                    PaneTag(text: "exit \(exitCode)", tone: .warning)
-                } else if isFocused {
-                    PaneTag(text: "active", tone: .accent)
-                }
-
-                if session.surfaceStatus.isReadOnly {
-                    PaneTag(text: "read only", tone: .warning)
-                }
-
-                Spacer()
-
-                PaneHeaderButton(systemName: "magnifyingglass") {
-                    workspace.focusPane(paneID)
-                    presentSearch()
-                }
-
-                PaneHeaderButton(systemName: session.surfaceStatus.isReadOnly ? "lock.fill" : "lock.open") {
-                    workspace.focusPane(paneID)
-                    session.toggleReadOnly()
-                }
-
-                PaneHeaderButton(systemName: workspace.zoomedPaneID == paneID ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right") {
-                    workspace.focusPane(paneID)
-                    store.toggleZoom(in: workspace, paneID: paneID)
-                }
-
-                PaneHeaderButton(systemName: "xmark") {
-                    store.closePane(in: workspace, paneID: paneID)
-                }
+            GeometryReader { proxy in
+                paneHeaderContent(for: proxy.size.width)
             }
+            .frame(height: 30)
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
             .background(isFocused ? LineyTheme.panelRaised : LineyTheme.paneHeaderBackground)
 
             if isSearchPresented {
@@ -202,6 +178,74 @@ struct TerminalPaneView: View {
         }
     }
 
+    private func paneHeaderDensity(for width: CGFloat) -> PaneHeaderDensity {
+        switch width {
+        case 340...:
+            return .full
+        case 250...:
+            return .compact
+        default:
+            return .minimal
+        }
+    }
+
+    @ViewBuilder
+    private func paneHeaderContent(for width: CGFloat) -> some View {
+        let density = paneHeaderDensity(for: width)
+
+        HStack(spacing: 8) {
+            Circle()
+                .fill(session.hasActiveProcess ? LineyTheme.success : LineyTheme.warning)
+                .frame(width: 7, height: 7)
+
+            Text(session.title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(LineyTheme.tertiaryText)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(1)
+
+            if density == .full {
+                PaneTag(text: directoryLabel, tone: .neutral)
+            }
+
+            if density != .minimal,
+               let statusTag = paneHeaderStatusTag,
+               density == .full || statusTag.tone == .warning {
+                PaneTag(text: statusTag.text, tone: statusTag.tone)
+            }
+
+            if density == .full, session.surfaceStatus.isReadOnly {
+                PaneTag(text: "read only", tone: .warning)
+            }
+
+            Spacer(minLength: 6)
+
+            HStack(spacing: 6) {
+                PaneHeaderButton(systemName: "magnifyingglass") {
+                    workspace.focusPane(paneID)
+                    presentSearch()
+                }
+
+                PaneHeaderButton(systemName: session.surfaceStatus.isReadOnly ? "lock.fill" : "lock.open") {
+                    workspace.focusPane(paneID)
+                    session.toggleReadOnly()
+                }
+
+                PaneHeaderButton(systemName: workspace.zoomedPaneID == paneID ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right") {
+                    workspace.focusPane(paneID)
+                    store.toggleZoom(in: workspace, paneID: paneID)
+                }
+
+                PaneHeaderButton(systemName: "xmark") {
+                    store.closePane(in: workspace, paneID: paneID)
+                }
+            }
+            .fixedSize()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
     private func presentSearch() {
         isSearchPresented = true
         if searchDraft.isEmpty {
@@ -269,7 +313,7 @@ struct TerminalPaneView: View {
 }
 
 private struct PaneTag: View {
-    enum Tone {
+    enum Tone: Equatable {
         case neutral
         case accent
         case warning
@@ -293,8 +337,10 @@ private struct PaneTag: View {
         Text(text)
             .font(.system(size: 9, weight: .semibold, design: .monospaced))
             .foregroundStyle(foreground)
+            .lineLimit(1)
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
+            .fixedSize(horizontal: true, vertical: false)
             .background(LineyTheme.subtleFill, in: Capsule())
     }
 }

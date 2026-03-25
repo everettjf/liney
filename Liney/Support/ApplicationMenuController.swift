@@ -121,6 +121,11 @@ final class ApplicationMenuController: NSObject {
             item.tag = index
         }
         viewMenu.addItem(.separator())
+        addShortcutItem(title: "Focus Pane Left", shortcutAction: .focusPaneLeft, to: viewMenu, target: target)
+        addShortcutItem(title: "Focus Pane Right", shortcutAction: .focusPaneRight, to: viewMenu, target: target)
+        addShortcutItem(title: "Focus Pane Up", shortcutAction: .focusPaneUp, to: viewMenu, target: target)
+        addShortcutItem(title: "Focus Pane Down", shortcutAction: .focusPaneDown, to: viewMenu, target: target)
+        viewMenu.addItem(.separator())
         addShortcutItem(title: "Enter Full Screen", shortcutAction: .enterFullScreen, to: viewMenu, target: target)
 
         let workspaceMenu = NSMenu(title: "Workspace")

@@ -111,6 +111,10 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
     func handleGhosttyAction(_ action: ghostty_action_s, on surface: ghostty_surface_t) -> Bool {
         switch action.tag {
         case GHOSTTY_ACTION_NEW_SPLIT:
+            if let appDelegate = NSApp.delegate as? AppDelegate,
+               !appDelegate.shouldDispatchGhosttySplitAction(action.action.new_split) {
+                return true
+            }
             dispatchWorkspaceAction(workspaceAction(for: action.action.new_split))
             return true
 
@@ -765,6 +769,11 @@ private final class LineyGhosttySurfaceView: NSView {
             return
         }
 
+        if let appDelegate = NSApp.delegate as? AppDelegate,
+           appDelegate.performShortcutAction(matching: event) {
+            return
+        }
+
         if shouldPreferRawKeyEvent(for: event) {
             sendRawKeyEvent(event, on: surface)
             return
@@ -830,17 +839,24 @@ private final class LineyGhosttySurfaceView: NSView {
             return false
         }
 
-        if let flags = bindingFlags(for: event, on: surface) {
-            if ghosttyShouldAttemptMenu(
-                flags: flags,
-                hasActiveKeySequence: !activeKeySequence.isEmpty,
-                hasActiveKeyTable: !activeKeyTables.isEmpty
-            ),
-               let menu = NSApp.mainMenu,
-               menu.performKeyEquivalent(with: event) {
-                return true
-            }
+        let flags = bindingFlags(for: event, on: surface)
+        if lineyGhosttyShouldAttemptMenuKeyEquivalent(
+            bindingFlags: flags,
+            modifierFlags: event.modifierFlags,
+            hasActiveKeySequence: !activeKeySequence.isEmpty,
+            hasActiveKeyTable: !activeKeyTables.isEmpty
+        ),
+           let menu = NSApp.mainMenu,
+           menu.performKeyEquivalent(with: event) {
+            return true
+        }
 
+        if let appDelegate = NSApp.delegate as? AppDelegate,
+           appDelegate.performShortcutAction(matching: event) {
+            return true
+        }
+
+        if flags != nil {
             keyDown(with: event)
             return true
         }

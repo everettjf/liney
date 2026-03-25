@@ -628,6 +628,10 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
     case nextTab
     case previousTab
     case selectTabByNumber
+    case focusPaneLeft
+    case focusPaneRight
+    case focusPaneUp
+    case focusPaneDown
     case splitRight
     case splitDown
     case duplicatePane
@@ -655,7 +659,11 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
              .previousTab,
              .selectTabByNumber:
             return .tabs
-        case .splitRight,
+        case .focusPaneLeft,
+             .focusPaneRight,
+             .focusPaneUp,
+             .focusPaneDown,
+             .splitRight,
              .splitDown,
              .duplicatePane,
              .togglePaneZoom,
@@ -696,6 +704,14 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return "Previous Tab"
         case .selectTabByNumber:
             return "Select Tab 1…9"
+        case .focusPaneLeft:
+            return "Focus Pane Left"
+        case .focusPaneRight:
+            return "Focus Pane Right"
+        case .focusPaneUp:
+            return "Focus Pane Up"
+        case .focusPaneDown:
+            return "Focus Pane Down"
         case .splitRight:
             return "Split Right"
         case .splitDown:
@@ -741,6 +757,14 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return "Select the previous tab in the current workspace."
         case .selectTabByNumber:
             return "Jump directly to tabs 1 through 9."
+        case .focusPaneLeft:
+            return "Move focus to the pane on the left."
+        case .focusPaneRight:
+            return "Move focus to the pane on the right."
+        case .focusPaneUp:
+            return "Move focus to the pane above."
+        case .focusPaneDown:
+            return "Move focus to the pane below."
         case .splitRight:
             return "Split the focused pane to the right."
         case .splitDown:
@@ -786,6 +810,14 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return StoredShortcut(key: "[", command: true, shift: false, option: false, control: false)
         case .selectTabByNumber:
             return StoredShortcut(key: "1", command: true, shift: false, option: false, control: false)
+        case .focusPaneLeft:
+            return StoredShortcut(key: "←", command: true, shift: false, option: true, control: false)
+        case .focusPaneRight:
+            return StoredShortcut(key: "→", command: true, shift: false, option: true, control: false)
+        case .focusPaneUp:
+            return StoredShortcut(key: "↑", command: true, shift: false, option: true, control: false)
+        case .focusPaneDown:
+            return StoredShortcut(key: "↓", command: true, shift: false, option: true, control: false)
         case .splitRight:
             return StoredShortcut(key: "d", command: true, shift: false, option: false, control: false)
         case .splitDown:
@@ -939,6 +971,36 @@ enum LineyKeyboardShortcuts {
 
         return normalized
     }
+}
+
+struct LineyShortcutMatch: Equatable {
+    var action: LineyShortcutAction
+    var tabNumber: Int?
+}
+
+func lineyShortcutMatch(for event: NSEvent, in settings: AppSettings) -> LineyShortcutMatch? {
+    guard let recordedShortcut = StoredShortcut.from(event: event) else { return nil }
+
+    for action in LineyShortcutAction.allCases {
+        guard let effectiveShortcut = LineyKeyboardShortcuts.effectiveShortcut(for: action, in: settings) else {
+            continue
+        }
+
+        if action.usesNumberedDigitMatching {
+            guard let tabNumber = Int(recordedShortcut.key),
+                  (1...9).contains(tabNumber),
+                  action.normalizedRecordedShortcut(recordedShortcut) == effectiveShortcut else {
+                continue
+            }
+            return LineyShortcutMatch(action: action, tabNumber: tabNumber)
+        }
+
+        if recordedShortcut == effectiveShortcut {
+            return LineyShortcutMatch(action: action, tabNumber: nil)
+        }
+    }
+
+    return nil
 }
 
 nonisolated struct GitHubAuthStatus: Codable, Hashable {

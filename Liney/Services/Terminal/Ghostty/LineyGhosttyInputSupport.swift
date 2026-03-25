@@ -169,6 +169,44 @@ func ghosttyShouldAttemptMenu(
     return !isAll && !isPerformable && isConsumed
 }
 
+func lineyGhosttyShouldAttemptMenuKeyEquivalent(
+    bindingFlags: ghostty_binding_flags_e?,
+    modifierFlags: NSEvent.ModifierFlags,
+    hasActiveKeySequence: Bool,
+    hasActiveKeyTable: Bool
+) -> Bool {
+    if let bindingFlags {
+        return ghosttyShouldAttemptMenu(
+            flags: bindingFlags,
+            hasActiveKeySequence: hasActiveKeySequence,
+            hasActiveKeyTable: hasActiveKeyTable
+        )
+    }
+
+    guard !hasActiveKeySequence, !hasActiveKeyTable else {
+        return false
+    }
+
+    let relevantModifiers = modifierFlags.intersection(.deviceIndependentFlagsMask)
+    return relevantModifiers.intersection([.command, .control, .option]).isEmpty == false
+}
+
+func lineyGhosttyShouldDispatchWorkspaceSplitAction(
+    _ direction: ghostty_action_split_direction_e,
+    settings: AppSettings
+) -> Bool {
+    switch direction {
+    case GHOSTTY_SPLIT_DIRECTION_RIGHT:
+        return LineyKeyboardShortcuts.effectiveShortcut(for: .splitRight, in: settings) ==
+            LineyShortcutAction.splitRight.defaultShortcut
+    case GHOSTTY_SPLIT_DIRECTION_DOWN:
+        return LineyKeyboardShortcuts.effectiveShortcut(for: .splitDown, in: settings) ==
+            LineyShortcutAction.splitDown.defaultShortcut
+    default:
+        return true
+    }
+}
+
 func resolveGhosttyEquivalentKey(
     charactersIgnoringModifiers: String?,
     characters: String?,
