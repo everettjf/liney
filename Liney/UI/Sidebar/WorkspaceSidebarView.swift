@@ -85,7 +85,7 @@ private struct SidebarOpenRepositoryRow: View {
             HStack(spacing: 5) {
                 Image(systemName: "folder.badge.plus")
                     .font(.system(size: 11, weight: .semibold))
-                Text("Open repository…")
+                Text("Open folder…")
                     .font(.system(size: 11, weight: .semibold))
 
                 Spacer(minLength: 0)
@@ -101,7 +101,7 @@ private struct SidebarOpenRepositoryRow: View {
                 .foregroundStyle(LineyTheme.border)
         )
         .foregroundStyle(LineyTheme.secondaryText)
-        .help("Open Repository")
+        .help("Open Folder")
     }
 }
 
@@ -386,6 +386,13 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
                     action: #selector(refreshWorkspace(_:)),
                     representedObject: workspace.id
                 )
+            } else {
+                addMenuItem(
+                    to: menu,
+                    title: "Open as Repository",
+                    action: #selector(openWorkspaceAsRepository(_:)),
+                    representedObject: workspace.id
+                )
             }
 
             if LineyFeatureFlags.showsRemoteSessionCreationUI {
@@ -628,6 +635,12 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             guard let workspaceID = sender.representedObject as? UUID,
                   let workspace = store?.workspaces.first(where: { $0.id == workspaceID }) else { return }
             store?.refresh(workspace)
+        }
+
+        @objc private func openWorkspaceAsRepository(_ sender: NSMenuItem) {
+            guard let workspaceID = sender.representedObject as? UUID,
+                  let workspace = store?.workspaces.first(where: { $0.id == workspaceID }) else { return }
+            store?.openWorkspaceAsRepository(workspace)
         }
 
         @objc private func equalizeSplits(_ sender: NSMenuItem) {

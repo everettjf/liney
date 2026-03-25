@@ -511,8 +511,8 @@ final class WorkspaceStore: ObservableObject {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Add Workspace"
-        panel.message = "Choose a local git repository."
+        panel.prompt = "Open Folder"
+        panel.message = "Choose a local folder. Git repositories keep repository features; other folders open as local terminals."
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Task { @MainActor in
@@ -521,30 +521,37 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func addWorkspace(at url: URL) async {
+        let normalizedPath = url.standardizedFileURL.path
         do {
-            let snapshot = try await gitRepositoryService.inspectRepository(at: url.path)
-            if let existing = workspaces.first(where: { $0.repositoryRoot == snapshot.rootPath }) {
-                selectedWorkspaceID = existing.id
-                await refreshWorkspace(existing)
-                return
-            }
-
-            let workspace = WorkspaceModel(snapshot: snapshot)
-            let existingRepositoryIcons = workspaces
-                .filter(\.supportsRepositoryFeatures)
-                .map(sidebarIcon(for:))
-            workspace.workspaceIconOverride = .randomRepository(
-                preferredSeed: workspace.name,
-                avoiding: existingRepositoryIcons
-            )
-            workspaces.append(workspace)
-            selectedWorkspaceID = workspace.id
-            removeDefaultLocalWorkspaceIfNeeded()
-            configureMetadataWatchers()
+            try await openRepositoryWorkspace(at: normalizedPath, persistAfterChange: false)
             persist()
+        } catch GitServiceError.notAGitRepository {
+            addLocalWorkspace(atPath: normalizedPath)
         } catch {
-            presentError(title: "Unable to Add Workspace", message: error.localizedDescription)
+            presentError(title: "Unable to Open Repository", message: error.localizedDescription)
         }
+    }
+
+    func openWorkspaceAsRepository(_ workspace: WorkspaceModel) {
+        guard !workspace.supportsRepositoryFeatures else { return }
+        Task { @MainActor in
+            do {
+                try await openWorkspaceAsRepository(workspace, persistAfterChange: true)
+            } catch {
+                presentError(title: "Unable to Open Repository", message: error.localizedDescription)
+            }
+        }
+    }
+
+    func openWorkspaceAsRepository(
+        _ workspace: WorkspaceModel,
+        persistAfterChange: Bool
+    ) async throws {
+        guard !workspace.supportsRepositoryFeatures else { return }
+        try await openRepositoryWorkspace(
+            at: workspace.activeWorktreePath,
+            persistAfterChange: persistAfterChange
+        )
     }
 
     func removeWorkspace(_ workspace: WorkspaceModel) {
@@ -1877,6 +1884,38 @@ final class WorkspaceStore: ObservableObject {
         workspaces.first(where: { $0.id == id })
     }
 
+    func openRepositoryWorkspace(
+        at path: String,
+        persistAfterChange: Bool
+    ) async throws {
+        let normalizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        let snapshot = try await gitRepositoryService.inspectRepository(at: normalizedPath)
+
+        if let existing = workspaces.first(where: {
+            $0.supportsRepositoryFeatures && $0.repositoryRoot == snapshot.rootPath
+        }) {
+            selectedWorkspaceID = existing.id
+            await refreshWorkspace(existing, persistAfterRefresh: persistAfterChange)
+            return
+        }
+
+        let workspace = WorkspaceModel(snapshot: snapshot)
+        let existingRepositoryIcons = workspaces
+            .filter(\.supportsRepositoryFeatures)
+            .map(sidebarIcon(for:))
+        workspace.workspaceIconOverride = .randomRepository(
+            preferredSeed: workspace.name,
+            avoiding: existingRepositoryIcons
+        )
+        workspaces.append(workspace)
+        selectedWorkspaceID = workspace.id
+        removeDefaultLocalWorkspaceIfNeeded()
+        configureMetadataWatchers()
+        if persistAfterChange {
+            persist()
+        }
+    }
+
     private func normalizedWorkspaceSettings(
         _ settings: WorkspaceSettings,
         for workspace: WorkspaceModel
@@ -2429,10 +2468,33 @@ final class WorkspaceStore: ObservableObject {
         selectedWorkspaceID = workspace.id
     }
 
+    private func addLocalWorkspace(atPath path: String) {
+        let normalizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        if let existing = workspaces.first(where: {
+            !$0.supportsRepositoryFeatures && $0.activeWorktreePath == normalizedPath
+        }) {
+            selectedWorkspaceID = existing.id
+            existing.bootstrapIfNeeded()
+            persist()
+            return
+        }
+
+        let workspaceName = URL(fileURLWithPath: normalizedPath).lastPathComponent.nilIfEmpty ?? normalizedPath
+        let workspace = WorkspaceModel(localDirectoryPath: normalizedPath, name: workspaceName)
+        workspaces.append(workspace)
+        selectedWorkspaceID = workspace.id
+        removeDefaultLocalWorkspaceIfNeeded()
+        persist()
+    }
+
     private func removeDefaultLocalWorkspaceIfNeeded() {
         guard workspaces.count > 1 else { return }
         let localWorkspaces = workspaces.filter { !$0.supportsRepositoryFeatures }
-        guard localWorkspaces.count == 1, let localWorkspace = localWorkspaces.first else { return }
+        let homePath = FileManager.default.homeDirectoryForCurrentUser.path
+        guard localWorkspaces.count == 1,
+              let localWorkspace = localWorkspaces.first,
+              localWorkspace.repositoryRoot == homePath,
+              localWorkspace.name == "Terminal" else { return }
         workspaces.removeAll { $0.id == localWorkspace.id }
         if selectedWorkspaceID == localWorkspace.id {
             selectedWorkspaceID = workspaces.first?.id
