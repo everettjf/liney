@@ -10,11 +10,23 @@ import Carbon
 import GhosttyKit
 
 enum LineyGhosttyTextInputRouting {
+    private static let optionNavigationKeyCodes: Set<UInt16> = [
+        UInt16(kVK_LeftArrow),
+        UInt16(kVK_RightArrow),
+        UInt16(kVK_UpArrow),
+        UInt16(kVK_DownArrow),
+        UInt16(kVK_Delete),
+        UInt16(kVK_ForwardDelete),
+    ]
+
     static func shouldPreferRawKeyEvent(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags) -> Bool {
-        guard keyCode == UInt16(kVK_Return) || keyCode == UInt16(kVK_ANSI_KeypadEnter) else {
-            return false
+        let relevantModifiers = modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        if keyCode == UInt16(kVK_Return) || keyCode == UInt16(kVK_ANSI_KeypadEnter) {
+            return relevantModifiers.intersection([.option, .command, .control]).isEmpty == false
         }
-        return modifierFlags.intersection([.option, .command, .control]).isEmpty == false
+
+        return relevantModifiers.contains(.option) && optionNavigationKeyCodes.contains(keyCode)
     }
 
     static func shouldMarkRawKeyEventAsComposing(
@@ -23,6 +35,80 @@ enum LineyGhosttyTextInputRouting {
     ) -> Bool {
         hadMarkedTextBeforeInterpretation || hasMarkedTextAfterInterpretation
     }
+
+    static func shouldDispatchRawKeyFallbackAfterTextInterpretation(
+        accumulatedText: String,
+        handledTextInputCommand: Bool,
+        hadMarkedTextBeforeInterpretation: Bool,
+        hasMarkedTextAfterInterpretation: Bool
+    ) -> Bool {
+        if !accumulatedText.isEmpty || handledTextInputCommand {
+            return false
+        }
+
+        // When IME updates or clears marked text, AppKit has already consumed
+        // the key event. Forwarding the raw key duplicates input such as
+        // "n/i/space" alongside the composed candidate.
+        if hadMarkedTextBeforeInterpretation || hasMarkedTextAfterInterpretation {
+            return false
+        }
+
+        return true
+    }
+
+    static func shouldSyncPreeditAfterTextInterpretation(
+        hadMarkedTextBeforeInterpretation: Bool,
+        hasMarkedTextAfterInterpretation: Bool
+    ) -> Bool {
+        hadMarkedTextBeforeInterpretation || hasMarkedTextAfterInterpretation
+    }
+
+    static func shouldTreatInsertedTextAsMarkedTextDuringDeletion(
+        insertedText: String,
+        keyCode: UInt16?,
+        hadMarkedTextBeforeDeletion: Bool
+    ) -> Bool {
+        guard hadMarkedTextBeforeDeletion, !insertedText.isEmpty else {
+            return false
+        }
+
+        switch keyCode {
+        case UInt16(kVK_Delete), UInt16(kVK_ForwardDelete):
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+enum LineyGhosttyTextInputCommandAction: Equatable {
+    case none
+    case scrollToTop
+    case scrollToBottom
+    case deleteBackwardInMarkedText
+    case cancelMarkedText
+
+    static func resolve(selector: Selector, hasMarkedText: Bool) -> Self {
+        switch selector {
+        case #selector(NSResponder.moveToBeginningOfDocument(_:)):
+            return .scrollToTop
+        case #selector(NSResponder.moveToEndOfDocument(_:)):
+            return .scrollToBottom
+        case #selector(NSResponder.deleteBackward(_:)),
+             #selector(NSResponder.deleteBackwardByDecomposingPreviousCharacter(_:)):
+            return hasMarkedText ? .deleteBackwardInMarkedText : .none
+        case #selector(NSResponder.cancelOperation(_:)):
+            return hasMarkedText ? .cancelMarkedText : .none
+        default:
+            return .none
+        }
+    }
+}
+
+func lineyGhosttyShouldEnableIMEDebugLogging(
+    environment: [String: String]
+) -> Bool {
+    true
 }
 
 struct LineyGhosttyMarkedTextState: Equatable {

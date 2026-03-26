@@ -466,6 +466,9 @@ private final class LineyGhosttySurfaceView: NSView {
     private var handledTextInputCommand = false
     private var lastPerformKeyEvent: TimeInterval?
     private var markedSelectionRange = NSRange(location: NSNotFound, length: 0)
+    private var currentTextInputEventKeyCode: UInt16?
+    private var currentTextInputHadMarkedText = false
+    private let imeDebugLogger = LineyGhosttyIMEDebugLogger.shared
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -786,11 +789,26 @@ private final class LineyGhosttySurfaceView: NSView {
             let hadMarkedTextBeforeInterpretation = hasMarkedText()
             keyTextAccumulator = []
             handledTextInputCommand = false
+            currentTextInputEventKeyCode = event.keyCode
+            currentTextInputHadMarkedText = hadMarkedTextBeforeInterpretation
+            defer {
+                currentTextInputEventKeyCode = nil
+                currentTextInputHadMarkedText = false
+            }
             interpretKeyEvents([translationEvent])
             let accumulated = keyTextAccumulator?.joined() ?? ""
             keyTextAccumulator = nil
+            let hasMarkedTextAfterInterpretation = hasMarkedText()
+
+            if LineyGhosttyTextInputRouting.shouldSyncPreeditAfterTextInterpretation(
+                hadMarkedTextBeforeInterpretation: hadMarkedTextBeforeInterpretation,
+                hasMarkedTextAfterInterpretation: hasMarkedTextAfterInterpretation
+            ) {
+                syncPreedit()
+            }
 
             if !accumulated.isEmpty {
+                logIMEDebug("keyDown translated text=\(accumulated.debugDescription)")
                 sendTranslatedKeyEvent(
                     event,
                     on: surface,
@@ -802,18 +820,31 @@ private final class LineyGhosttySurfaceView: NSView {
             }
 
             if handledTextInputCommand {
+                logIMEDebug("keyDown handled by text input command")
                 return
             }
 
+            if !LineyGhosttyTextInputRouting.shouldDispatchRawKeyFallbackAfterTextInterpretation(
+                accumulatedText: accumulated,
+                handledTextInputCommand: handledTextInputCommand,
+                hadMarkedTextBeforeInterpretation: hadMarkedTextBeforeInterpretation,
+                hasMarkedTextAfterInterpretation: hasMarkedTextAfterInterpretation
+            ) {
+                logIMEDebug("keyDown IME consumed event, skip raw fallback")
+                return
+            }
+
+            let composing = LineyGhosttyTextInputRouting.shouldMarkRawKeyEventAsComposing(
+                hadMarkedTextBeforeInterpretation: hadMarkedTextBeforeInterpretation,
+                hasMarkedTextAfterInterpretation: hasMarkedTextAfterInterpretation
+            )
+            logIMEDebug("keyDown raw fallback composing=\(composing)")
             sendRawKeyEvent(
                 event,
                 on: surface,
                 translationEvent: translationEvent,
                 translationMods: translationMods,
-                composing: LineyGhosttyTextInputRouting.shouldMarkRawKeyEventAsComposing(
-                    hadMarkedTextBeforeInterpretation: hadMarkedTextBeforeInterpretation,
-                    hasMarkedTextAfterInterpretation: hasMarkedText()
-                )
+                composing: composing
             )
             return
         }
@@ -912,6 +943,7 @@ private final class LineyGhosttySurfaceView: NSView {
     }
 
     override func doCommand(by selector: Selector) {
+        logIMEDebug("doCommand selector=\(NSStringFromSelector(selector)) marked=\(hasMarkedText()) text=\(markedText.string.debugDescription)")
         if let lastPerformKeyEvent,
            let currentEvent = NSApp.currentEvent,
            lastPerformKeyEvent == currentEvent.timestamp {
@@ -919,18 +951,20 @@ private final class LineyGhosttySurfaceView: NSView {
             return
         }
 
-        switch selector {
-        case #selector(moveToBeginningOfDocument(_:)):
+        switch LineyGhosttyTextInputCommandAction.resolve(selector: selector, hasMarkedText: hasMarkedText()) {
+        case .scrollToTop:
             handledTextInputCommand = true
             _ = performBindingAction("scroll_to_top")
-        case #selector(moveToEndOfDocument(_:)):
+        case .scrollToBottom:
             handledTextInputCommand = true
             _ = performBindingAction("scroll_to_bottom")
-        case #selector(deleteBackward(_:)):
-            guard hasMarkedText() else { break }
+        case .deleteBackwardInMarkedText:
             handledTextInputCommand = true
             deleteBackwardInMarkedText()
-        default:
+        case .cancelMarkedText:
+            handledTextInputCommand = true
+            unmarkText()
+        case .none:
             break
         }
     }
@@ -1412,6 +1446,9 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
         )
         markedText = NSMutableAttributedString(string: state.text)
         markedSelectionRange = state.selectedRange
+        logIMEDebug(
+            "setMarkedText replacement=\(replacementText.debugDescription) selected=\(NSStringFromRange(selectedRange)) replacementRange=\(NSStringFromRange(replacementRange)) result=\(state.text.debugDescription)"
+        )
 
         if keyTextAccumulator == nil {
             syncPreedit()
@@ -1420,6 +1457,7 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
 
     func unmarkText() {
         guard markedText.length > 0 else { return }
+        logIMEDebug("unmarkText old=\(markedText.string.debugDescription)")
         markedText.mutableString.setString("")
         markedSelectionRange = NSRange(location: NSNotFound, length: 0)
         syncPreedit()
@@ -1475,6 +1513,20 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
         default:
             return
         }
+        logIMEDebug(
+            "insertText text=\(characters.debugDescription) replacementRange=\(NSStringFromRange(replacementRange)) keyCode=\(String(describing: currentTextInputEventKeyCode)) hadMarked=\(currentTextInputHadMarkedText) accumulator=\(keyTextAccumulator != nil)"
+        )
+
+        if LineyGhosttyTextInputRouting.shouldTreatInsertedTextAsMarkedTextDuringDeletion(
+            insertedText: characters,
+            keyCode: currentTextInputEventKeyCode,
+            hadMarkedTextBeforeDeletion: currentTextInputHadMarkedText
+        ) {
+            markedText = NSMutableAttributedString(string: characters)
+            markedSelectionRange = NSRange(location: markedText.length, length: 0)
+            syncPreedit()
+            return
+        }
 
         unmarkText()
 
@@ -1485,6 +1537,29 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
         }
 
         sendText(characters)
+    }
+
+    private func logIMEDebug(_ message: String) {
+        imeDebugLogger.log(message)
+    }
+}
+
+private final class LineyGhosttyIMEDebugLogger {
+    static let shared = LineyGhosttyIMEDebugLogger(environment: ProcessInfo.processInfo.environment)
+
+    private let enabled: Bool
+    private let processID = ProcessInfo.processInfo.processIdentifier
+
+    init(environment: [String: String]) {
+        self.enabled = lineyGhosttyShouldEnableIMEDebugLogging(environment: environment)
+    }
+
+    func log(_ message: String) {
+        guard enabled else { return }
+
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let line = "[IME] \(timestamp) pid=\(processID) \(message)\n"
+        print(line, terminator: "")
     }
 }
 
