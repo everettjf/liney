@@ -40,6 +40,7 @@ final class WorkspaceStore: ObservableObject {
     @Published var sleepPreventionSession: SleepPreventionSession?
     @Published private(set) var sleepPreventionQuickActionOption: SleepPreventionDurationOption = .oneHour
     @Published private(set) var sleepPreventionReferenceDate = Date()
+    @Published private(set) var hapiIntegrationState: HAPIIntegrationState = .unavailable
 
     private let persistence = WorkspaceStatePersistence()
     private let appSettingsPersistence = AppSettingsPersistence()
@@ -105,6 +106,13 @@ final class WorkspaceStore: ObservableObject {
             preferred: appSettings.preferredExternalEditor,
             among: availableExternalEditors
         )
+    }
+
+    var availableHAPIInstallation: HAPIInstallationStatus? {
+        guard case .available(let installation) = hapiIntegrationState else {
+            return nil
+        }
+        return installation
     }
 
     var quickCommandPresets: [QuickCommandPreset] {
@@ -313,6 +321,30 @@ final class WorkspaceStore: ObservableObject {
                     )
                 )
             }
+            if availableHAPIInstallation != nil {
+                items.append(
+                    CommandPaletteItem(
+                        id: "workspace-selected-hapi:\(selectedWorkspace.id.uuidString)",
+                        title: "Launch HAPI in \(selectedWorkspace.name)",
+                        subtitle: selectedWorkspace.activeWorktreePath,
+                        group: .sessions,
+                        keywords: ["hapi", "remote", "quick start", "phone", "claude"],
+                        isGlobal: false,
+                        kind: .command(.launchHAPISession(selectedWorkspace.id))
+                    )
+                )
+                items.append(
+                    CommandPaletteItem(
+                        id: "workspace-selected-hapi-hub:\(selectedWorkspace.id.uuidString)",
+                        title: "Start HAPI Hub in \(selectedWorkspace.name)",
+                        subtitle: "hapi hub --relay",
+                        group: .automation,
+                        keywords: ["hapi", "hub", "relay", "remote", "quick start"],
+                        isGlobal: false,
+                        kind: .command(.startHAPIHub(selectedWorkspace.id))
+                    )
+                )
+            }
         }
 
         for workspace in workspaces {
@@ -432,6 +464,30 @@ final class WorkspaceStore: ObservableObject {
                         keywords: ["ai", "agent", "codex"],
                         isGlobal: false,
                         kind: .command(.createAgentSession(workspace.id, workspace.preferredAgentPreset))
+                    )
+                )
+            }
+            if availableHAPIInstallation != nil {
+                items.append(
+                    CommandPaletteItem(
+                        id: "workspace-hapi:\(workspace.id.uuidString)",
+                        title: "Launch HAPI in \(workspace.name)",
+                        subtitle: workspace.activeWorktreePath,
+                        group: .sessions,
+                        keywords: ["hapi", "remote", "quick start", "phone", workspace.name],
+                        isGlobal: false,
+                        kind: .command(.launchHAPISession(workspace.id))
+                    )
+                )
+                items.append(
+                    CommandPaletteItem(
+                        id: "workspace-hapi-hub:\(workspace.id.uuidString)",
+                        title: "Start HAPI Hub in \(workspace.name)",
+                        subtitle: "hapi hub --relay",
+                        group: .automation,
+                        keywords: ["hapi", "hub", "relay", "remote", workspace.name],
+                        isGlobal: false,
+                        kind: .command(.startHAPIHub(workspace.id))
                     )
                 )
             }
@@ -1232,6 +1288,113 @@ final class WorkspaceStore: ObservableObject {
         )
     }
 
+    func refreshHAPIIntegrationStatus() async {
+        hapiIntegrationState = await HAPIIntegrationCatalog.detect()
+    }
+
+    func performPrimaryHAPIAction() {
+        guard let installation = availableHAPIInstallation else {
+            receive(.statusMessage("Install hapi to enable this shortcut.", .warning, deliverSystemNotification: false))
+            return
+        }
+        guard let workspace = selectedWorkspace else {
+            receive(.statusMessage("Select a workspace before using HAPI.", .warning, deliverSystemNotification: false))
+            return
+        }
+
+        switch installation.primaryAction {
+        case .launchSession:
+            launchHAPISession(in: workspace)
+        case .startHub:
+            startHAPIHub(in: workspace)
+        }
+    }
+
+    func launchHAPISession(workspaceID: UUID) {
+        guard let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+        launchHAPISession(in: workspace)
+    }
+
+    func startHAPIHub(workspaceID: UUID) {
+        guard let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+        startHAPIHub(in: workspace)
+    }
+
+    func openHAPIQuickStart() {
+        guard let url = URL(string: "https://hapi.run/docs/guide/quick-start") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    private func launchHAPISession(in workspace: WorkspaceModel) {
+        guard let installation = availableHAPIInstallation else {
+            receive(.statusMessage("Install hapi to launch it from Liney.", .warning, deliverSystemNotification: false))
+            return
+        }
+
+        let configuration = AgentSessionConfiguration(
+            name: "HAPI",
+            launchPath: installation.executablePath,
+            arguments: [],
+            environment: [:],
+            workingDirectory: workspace.activeWorktreePath
+        )
+
+        createSession(
+            in: workspace,
+            backendConfiguration: .agent(configuration),
+            workingDirectory: workspace.activeWorktreePath
+        )
+        recordActivity(
+            in: workspace,
+            kind: .agent,
+            title: "Launched HAPI",
+            detail: workspace.activeWorktreePath,
+            worktreePath: workspace.activeWorktreePath,
+            replayAction: .createSession(
+                backendConfiguration: .agent(configuration),
+                workingDirectory: workspace.activeWorktreePath
+            )
+        )
+    }
+
+    private func startHAPIHub(in workspace: WorkspaceModel) {
+        guard let installation = availableHAPIInstallation else {
+            receive(.statusMessage("Install hapi to start the hub from Liney.", .warning, deliverSystemNotification: false))
+            return
+        }
+
+        let workingDirectory = NSHomeDirectory()
+        let configuration = AgentSessionConfiguration(
+            name: "HAPI Hub",
+            launchPath: installation.executablePath,
+            arguments: ["hub", "--relay"],
+            environment: [:],
+            workingDirectory: workingDirectory
+        )
+
+        createSession(
+            in: workspace,
+            backendConfiguration: .agent(configuration),
+            workingDirectory: workingDirectory
+        )
+        recordActivity(
+            in: workspace,
+            kind: .command,
+            title: "Started HAPI hub",
+            detail: "hapi hub --relay",
+            worktreePath: workspace.activeWorktreePath,
+            replayAction: .createSession(
+                backendConfiguration: .agent(configuration),
+                workingDirectory: workingDirectory
+            )
+        )
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await refreshHAPIIntegrationStatus()
+        }
+    }
+
     @discardableResult
     func createWorktree(workspaceID: UUID, draft: CreateWorktreeDraft) -> Bool {
         guard let workspace = workspaces.first(where: { $0.id == workspaceID }),
@@ -1461,6 +1624,14 @@ final class WorkspaceStore: ObservableObject {
             } else if let workspace = workspace(for: id) {
                 presentCreateAgentSession(for: workspace)
             }
+
+        case .launchHAPISession(let id):
+            dismissCommandPalette()
+            launchHAPISession(workspaceID: id)
+
+        case .startHAPIHub(let id):
+            dismissCommandPalette()
+            startHAPIHub(workspaceID: id)
 
         case .openRemoteTargetShell(let workspaceID, let targetID):
             dismissCommandPalette()
