@@ -114,6 +114,66 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
         )
     }
 
+    func testImeMarkedTextUpdateSkipsRawFallback() {
+        XCTAssertFalse(
+            LineyGhosttyTextInputRouting.shouldDispatchRawKeyFallbackAfterTextInterpretation(
+                accumulatedText: "",
+                handledTextInputCommand: false,
+                hadMarkedTextBeforeInterpretation: false,
+                hasMarkedTextAfterInterpretation: true
+            )
+        )
+    }
+
+    func testImeMarkedTextClearSkipsRawFallback() {
+        XCTAssertFalse(
+            LineyGhosttyTextInputRouting.shouldDispatchRawKeyFallbackAfterTextInterpretation(
+                accumulatedText: "",
+                handledTextInputCommand: false,
+                hadMarkedTextBeforeInterpretation: true,
+                hasMarkedTextAfterInterpretation: false
+            )
+        )
+    }
+
+    func testImeMarkedTextUpdateSyncsPreedit() {
+        XCTAssertTrue(
+            LineyGhosttyTextInputRouting.shouldSyncPreeditAfterTextInterpretation(
+                hadMarkedTextBeforeInterpretation: false,
+                hasMarkedTextAfterInterpretation: true
+            )
+        )
+    }
+
+    func testImeMarkedTextClearSyncsPreedit() {
+        XCTAssertTrue(
+            LineyGhosttyTextInputRouting.shouldSyncPreeditAfterTextInterpretation(
+                hadMarkedTextBeforeInterpretation: true,
+                hasMarkedTextAfterInterpretation: false
+            )
+        )
+    }
+
+    func testPlainUnhandledKeyDoesNotSyncPreedit() {
+        XCTAssertFalse(
+            LineyGhosttyTextInputRouting.shouldSyncPreeditAfterTextInterpretation(
+                hadMarkedTextBeforeInterpretation: false,
+                hasMarkedTextAfterInterpretation: false
+            )
+        )
+    }
+
+    func testPlainUnhandledKeyStillUsesRawFallback() {
+        XCTAssertTrue(
+            LineyGhosttyTextInputRouting.shouldDispatchRawKeyFallbackAfterTextInterpretation(
+                accumulatedText: "",
+                handledTextInputCommand: false,
+                hadMarkedTextBeforeInterpretation: false,
+                hasMarkedTextAfterInterpretation: false
+            )
+        )
+    }
+
     func testDeleteEventKeepsInsertedAsciiAsMarkedTextWhileComposing() {
         XCTAssertTrue(
             LineyGhosttyTextInputRouting.shouldTreatInsertedTextAsMarkedTextDuringDeletion(
@@ -152,6 +212,46 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
                 hadMarkedTextBeforeDeletion: true
             )
         )
+    }
+
+    func testDeleteBackwardByDecomposingSelectorDeletesMarkedText() {
+        XCTAssertEqual(
+            LineyGhosttyTextInputCommandAction.resolve(
+                selector: #selector(NSResponder.deleteBackwardByDecomposingPreviousCharacter(_:)),
+                hasMarkedText: true
+            ),
+            .deleteBackwardInMarkedText
+        )
+    }
+
+    func testCancelOperationClearsMarkedText() {
+        XCTAssertEqual(
+            LineyGhosttyTextInputCommandAction.resolve(
+                selector: #selector(NSResponder.cancelOperation(_:)),
+                hasMarkedText: true
+            ),
+            .cancelMarkedText
+        )
+    }
+
+    func testCancelOperationWithoutMarkedTextFallsThrough() {
+        XCTAssertEqual(
+            LineyGhosttyTextInputCommandAction.resolve(
+                selector: #selector(NSResponder.cancelOperation(_:)),
+                hasMarkedText: false
+            ),
+            .none
+        )
+    }
+
+    func testImeDebugLoggingCanBeEnabledByEnvironment() {
+        XCTAssertTrue(
+            lineyGhosttyShouldEnableIMEDebugLogging(environment: ["LINEY_DEBUG_IME": "1"])
+        )
+    }
+
+    func testImeDebugLoggingDefaultsToEnabled() {
+        XCTAssertTrue(lineyGhosttyShouldEnableIMEDebugLogging(environment: [:]))
     }
 
     func testReturnIsNotSentAsLiteralText() {

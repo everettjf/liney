@@ -208,6 +208,99 @@ final class ShellSessionTests: XCTestCase {
             XCTAssertTrue(session.hasActiveProcess)
         }
     }
+
+    func testRestartReapsPreviousLaunchConfiguration() async {
+        await MainActor.run {
+            let surface = FakeManagedTerminalSurfaceController()
+            var reapedConfigurations: [TerminalLaunchConfiguration] = []
+            let session = ShellSession(
+                snapshot: PaneSnapshot.makeDefault(cwd: "/tmp/liney-shell-session-reap-restart"),
+                surfaceController: surface,
+                processReaper: { reapedConfigurations.append($0) }
+            )
+
+            let initialLaunchPath = session.launchPath
+            let initialLaunchArguments = session.launchArguments
+
+            session.startIfNeeded()
+            session.restart()
+
+            XCTAssertEqual(reapedConfigurations.count, 1)
+            XCTAssertEqual(reapedConfigurations[0].command.executablePath, initialLaunchPath)
+            XCTAssertEqual(reapedConfigurations[0].command.arguments, initialLaunchArguments)
+            XCTAssertEqual(surface.restartCallCount, 1)
+        }
+    }
+
+    func testTerminateReapsCurrentLaunchConfiguration() async {
+        await MainActor.run {
+            let surface = FakeManagedTerminalSurfaceController()
+            var reapedConfigurations: [TerminalLaunchConfiguration] = []
+            let session = ShellSession(
+                snapshot: PaneSnapshot.makeDefault(cwd: "/tmp/liney-shell-session-reap-terminate"),
+                surfaceController: surface,
+                processReaper: { reapedConfigurations.append($0) }
+            )
+
+            session.startIfNeeded()
+            let runningLaunchPath = session.launchPath
+            let runningLaunchArguments = session.launchArguments
+
+            session.terminate()
+
+            XCTAssertEqual(reapedConfigurations.count, 1)
+            XCTAssertEqual(reapedConfigurations[0].command.executablePath, runningLaunchPath)
+            XCTAssertEqual(reapedConfigurations[0].command.arguments, runningLaunchArguments)
+            XCTAssertEqual(surface.terminateCallCount, 1)
+        }
+    }
+
+    func testProcessReaperTerminatesShellProcessGroupAndLoginProcess() throws {
+        let metadataDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: metadataDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: metadataDirectory) }
+
+        let metadataPath = metadataDirectory.appendingPathComponent("session.env").path
+        try """
+        shell_pid=321
+        login_pid=123
+        tty=/dev/ttys099
+        """.write(toFile: metadataPath, atomically: true, encoding: .utf8)
+
+        let launchConfiguration = TerminalLaunchConfiguration(
+            workingDirectory: "/tmp",
+            environment: [LineyTerminalManagedProcessReaper.metadataPathEnvironmentKey: metadataPath],
+            command: TerminalCommandDefinition(
+                executablePath: "/bin/zsh",
+                arguments: ["-l"],
+                displayName: "zsh"
+            ),
+            backendConfiguration: .local()
+        )
+
+        var signals: [(pid: Int32, signal: Int32)] = []
+        let processControl = LineyTerminalManagedProcessControl(
+            processGroupID: { pid in
+                XCTAssertEqual(pid, 321)
+                return 777
+            },
+            sendSignal: { pid, signal in
+                signals.append((pid, signal))
+                return 0
+            }
+        )
+
+        LineyTerminalManagedProcessReaper.reap(
+            launchConfiguration,
+            fileManager: .default,
+            processControl: processControl
+        )
+
+        XCTAssertEqual(signals.map(\.pid), [-777, 321, 123])
+        XCTAssertEqual(signals.map(\.signal), [SIGTERM, SIGTERM, SIGTERM])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: metadataPath))
+    }
 }
 
 @MainActor

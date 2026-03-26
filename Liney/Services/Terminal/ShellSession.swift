@@ -7,6 +7,7 @@
 
 import AppKit
 import Combine
+import Darwin
 import Foundation
 
 enum ShellSessionLifecycle: Equatable {
@@ -46,13 +47,14 @@ final class ShellSession: ObservableObject, Identifiable {
     var onFocus: (() -> Void)?
 
     private let surfaceController: ManagedTerminalSessionSurfaceController
+    private let processReaper: @Sendable (TerminalLaunchConfiguration) -> Void
     private var launchConfiguration: TerminalLaunchConfiguration
     private var isFocusedInWorkspace = false
 
     init(snapshot: PaneSnapshot) {
-        let launchConfiguration = snapshot.backendConfiguration.makeLaunchConfiguration(
-            preferredWorkingDirectory: snapshot.preferredWorkingDirectory,
-            baseEnvironment: ShellSession.defaultEnvironment()
+        let launchConfiguration = Self.makeLaunchConfiguration(
+            backendConfiguration: snapshot.backendConfiguration,
+            preferredWorkingDirectory: snapshot.preferredWorkingDirectory
         )
 
         let surface = TerminalSurfaceFactory.make(
@@ -67,21 +69,27 @@ final class ShellSession: ObservableObject, Identifiable {
         self.launchConfiguration = launchConfiguration
         self.title = launchConfiguration.command.displayName
         self.surfaceController = surface
+        self.processReaper = LineyTerminalManagedProcessReaper.reap
         configureSurfaceCallbacks()
     }
 
-    init(snapshot: PaneSnapshot, surfaceController: ManagedTerminalSessionSurfaceController) {
+    init(
+        snapshot: PaneSnapshot,
+        surfaceController: ManagedTerminalSessionSurfaceController,
+        processReaper: @escaping @Sendable (TerminalLaunchConfiguration) -> Void = LineyTerminalManagedProcessReaper.reap
+    ) {
         self.id = snapshot.id
         self.requestedEngine = snapshot.preferredEngine
         self.backendConfiguration = snapshot.backendConfiguration
         self.resolvedEngine = snapshot.preferredEngine
         self.preferredWorkingDirectory = snapshot.preferredWorkingDirectory
-        self.launchConfiguration = snapshot.backendConfiguration.makeLaunchConfiguration(
-            preferredWorkingDirectory: snapshot.preferredWorkingDirectory,
-            baseEnvironment: ShellSession.defaultEnvironment()
+        self.launchConfiguration = Self.makeLaunchConfiguration(
+            backendConfiguration: snapshot.backendConfiguration,
+            preferredWorkingDirectory: snapshot.preferredWorkingDirectory
         )
         self.title = launchConfiguration.command.displayName
         self.surfaceController = surfaceController
+        self.processReaper = processReaper
         configureSurfaceCallbacks()
     }
 
@@ -156,9 +164,9 @@ final class ShellSession: ObservableObject, Identifiable {
     }
 
     func start() {
-        launchConfiguration = backendConfiguration.makeLaunchConfiguration(
-            preferredWorkingDirectory: preferredWorkingDirectory,
-            baseEnvironment: Self.defaultEnvironment()
+        launchConfiguration = Self.makeLaunchConfiguration(
+            backendConfiguration: backendConfiguration,
+            preferredWorkingDirectory: preferredWorkingDirectory
         )
         title = launchConfiguration.command.displayName
 
@@ -176,11 +184,13 @@ final class ShellSession: ObservableObject, Identifiable {
             reportedWorkingDirectory = nil
         }
 
-        launchConfiguration = backendConfiguration.makeLaunchConfiguration(
-            preferredWorkingDirectory: preferredWorkingDirectory,
-            baseEnvironment: Self.defaultEnvironment()
+        let previousLaunchConfiguration = launchConfiguration
+        launchConfiguration = Self.makeLaunchConfiguration(
+            backendConfiguration: backendConfiguration,
+            preferredWorkingDirectory: preferredWorkingDirectory
         )
         surfaceController.updateLaunchConfiguration(launchConfiguration)
+        processReaper(previousLaunchConfiguration)
         exitCode = nil
         lifecycle = .starting
         surfaceController.restartManagedSession()
@@ -197,7 +207,9 @@ final class ShellSession: ObservableObject, Identifiable {
     }
 
     func terminate() {
+        let currentLaunchConfiguration = launchConfiguration
         surfaceController.terminateManagedSession()
+        processReaper(currentLaunchConfiguration)
         lifecycle = .exited
         pid = nil
     }
@@ -276,6 +288,17 @@ final class ShellSession: ObservableObject, Identifiable {
         return shortVersion?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "0.0.0"
     }
 
+    private static func makeLaunchConfiguration(
+        backendConfiguration: SessionBackendConfiguration,
+        preferredWorkingDirectory: String
+    ) -> TerminalLaunchConfiguration {
+        let baseEnvironment = LineyTerminalManagedProcessReaper.prepareEnvironment(defaultEnvironment())
+        return backendConfiguration.makeLaunchConfiguration(
+            preferredWorkingDirectory: preferredWorkingDirectory,
+            baseEnvironment: baseEnvironment
+        )
+    }
+
     private func syncManagedProcessStateAfterLaunch() {
         pid = surfaceController.managedPID
         lifecycle = (surfaceController.isManagedSessionRunning || pid != nil) ? .running : .starting
@@ -297,4 +320,131 @@ enum TerminalWorkspaceAction {
     case equalizeSplits
     case togglePaneZoom
     case closePane
+}
+
+struct LineyTerminalManagedProcessMetadata: Equatable {
+    var shellPID: Int32?
+    var loginPID: Int32?
+    var tty: String?
+
+    init(shellPID: Int32? = nil, loginPID: Int32? = nil, tty: String? = nil) {
+        self.shellPID = shellPID
+        self.loginPID = loginPID
+        self.tty = tty
+    }
+
+    init(contents: String) {
+        var shellPID: Int32?
+        var loginPID: Int32?
+        var tty: String?
+
+        for line in contents.split(whereSeparator: \.isNewline) {
+            let parts = line.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { continue }
+
+            switch parts[0] {
+            case "shell_pid":
+                shellPID = Int32(parts[1])
+            case "login_pid":
+                loginPID = Int32(parts[1])
+            case "tty":
+                tty = parts[1].isEmpty ? nil : parts[1]
+            default:
+                continue
+            }
+        }
+
+        self.init(shellPID: shellPID, loginPID: loginPID, tty: tty)
+    }
+}
+
+struct LineyTerminalManagedProcessControl {
+    var processGroupID: @Sendable (Int32) -> Int32
+    var sendSignal: @Sendable (Int32, Int32) -> Int32
+
+    static let live = LineyTerminalManagedProcessControl(
+        processGroupID: { Darwin.getpgid($0) },
+        sendSignal: { Darwin.kill($0, $1) }
+    )
+}
+
+enum LineyTerminalManagedProcessReaper {
+    static let sessionIDEnvironmentKey = "LINEY_SESSION_ID"
+    static let metadataPathEnvironmentKey = "LINEY_SESSION_METADATA_PATH"
+
+    static func prepareEnvironment(
+        _ environment: [String: String],
+        fileManager: FileManager = .default
+    ) -> [String: String] {
+        var environment = environment
+        let sessionID = UUID().uuidString.lowercased()
+        let metadataDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("liney-terminal-sessions", isDirectory: true)
+        try? fileManager.createDirectory(at: metadataDirectory, withIntermediateDirectories: true)
+
+        let metadataPath = metadataDirectory
+            .appendingPathComponent("\(sessionID).env", isDirectory: false)
+            .path
+        if fileManager.fileExists(atPath: metadataPath) {
+            try? fileManager.removeItem(atPath: metadataPath)
+        }
+
+        environment[sessionIDEnvironmentKey] = sessionID
+        environment[metadataPathEnvironmentKey] = metadataPath
+        return environment
+    }
+
+    static func reap(_ launchConfiguration: TerminalLaunchConfiguration) {
+        reap(launchConfiguration, fileManager: .default, processControl: .live)
+    }
+
+    static func reap(
+        _ launchConfiguration: TerminalLaunchConfiguration,
+        fileManager: FileManager,
+        processControl: LineyTerminalManagedProcessControl
+    ) {
+        guard let metadataPath = launchConfiguration.environment[metadataPathEnvironmentKey],
+              !metadataPath.isEmpty else { return }
+
+        let metadata = readMetadata(atPath: metadataPath, fileManager: fileManager)
+        if fileManager.fileExists(atPath: metadataPath) {
+            try? fileManager.removeItem(atPath: metadataPath)
+        }
+
+        guard let metadata else { return }
+        terminateProcesses(for: metadata, processControl: processControl)
+    }
+
+    private static func readMetadata(
+        atPath path: String,
+        fileManager: FileManager
+    ) -> LineyTerminalManagedProcessMetadata? {
+        guard fileManager.fileExists(atPath: path),
+              let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return nil
+        }
+
+        let metadata = LineyTerminalManagedProcessMetadata(contents: contents)
+        if metadata.shellPID == nil && metadata.loginPID == nil {
+            return nil
+        }
+        return metadata
+    }
+
+    private static func terminateProcesses(
+        for metadata: LineyTerminalManagedProcessMetadata,
+        processControl: LineyTerminalManagedProcessControl
+    ) {
+        if let shellPID = metadata.shellPID, shellPID > 1 {
+            let processGroupID = processControl.processGroupID(shellPID)
+            if processGroupID > 1 {
+                _ = processControl.sendSignal(-processGroupID, SIGTERM)
+            }
+            _ = processControl.sendSignal(shellPID, SIGTERM)
+        }
+
+        if let loginPID = metadata.loginPID, loginPID > 1 {
+            _ = processControl.sendSignal(loginPID, SIGTERM)
+        }
+    }
 }

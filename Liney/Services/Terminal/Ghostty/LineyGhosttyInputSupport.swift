@@ -36,6 +36,33 @@ enum LineyGhosttyTextInputRouting {
         hadMarkedTextBeforeInterpretation || hasMarkedTextAfterInterpretation
     }
 
+    static func shouldDispatchRawKeyFallbackAfterTextInterpretation(
+        accumulatedText: String,
+        handledTextInputCommand: Bool,
+        hadMarkedTextBeforeInterpretation: Bool,
+        hasMarkedTextAfterInterpretation: Bool
+    ) -> Bool {
+        if !accumulatedText.isEmpty || handledTextInputCommand {
+            return false
+        }
+
+        // When IME updates or clears marked text, AppKit has already consumed
+        // the key event. Forwarding the raw key duplicates input such as
+        // "n/i/space" alongside the composed candidate.
+        if hadMarkedTextBeforeInterpretation || hasMarkedTextAfterInterpretation {
+            return false
+        }
+
+        return true
+    }
+
+    static func shouldSyncPreeditAfterTextInterpretation(
+        hadMarkedTextBeforeInterpretation: Bool,
+        hasMarkedTextAfterInterpretation: Bool
+    ) -> Bool {
+        hadMarkedTextBeforeInterpretation || hasMarkedTextAfterInterpretation
+    }
+
     static func shouldTreatInsertedTextAsMarkedTextDuringDeletion(
         insertedText: String,
         keyCode: UInt16?,
@@ -52,6 +79,36 @@ enum LineyGhosttyTextInputRouting {
             return false
         }
     }
+}
+
+enum LineyGhosttyTextInputCommandAction: Equatable {
+    case none
+    case scrollToTop
+    case scrollToBottom
+    case deleteBackwardInMarkedText
+    case cancelMarkedText
+
+    static func resolve(selector: Selector, hasMarkedText: Bool) -> Self {
+        switch selector {
+        case #selector(NSResponder.moveToBeginningOfDocument(_:)):
+            return .scrollToTop
+        case #selector(NSResponder.moveToEndOfDocument(_:)):
+            return .scrollToBottom
+        case #selector(NSResponder.deleteBackward(_:)),
+             #selector(NSResponder.deleteBackwardByDecomposingPreviousCharacter(_:)):
+            return hasMarkedText ? .deleteBackwardInMarkedText : .none
+        case #selector(NSResponder.cancelOperation(_:)):
+            return hasMarkedText ? .cancelMarkedText : .none
+        default:
+            return .none
+        }
+    }
+}
+
+func lineyGhosttyShouldEnableIMEDebugLogging(
+    environment: [String: String]
+) -> Bool {
+    true
 }
 
 struct LineyGhosttyMarkedTextState: Equatable {

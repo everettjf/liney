@@ -43,6 +43,15 @@ ghostty_restore_xdg_data_dir
 # If we aren't interactive or we've already run, don't run.
 status --is-interactive || ghostty_exit
 
+if set -q LINEY_SESSION_METADATA_PATH
+    begin
+        printf 'shell_pid=%s\n' $fish_pid
+        if set -q TTY
+            printf 'tty=%s\n' $TTY
+        end
+    end > "$LINEY_SESSION_METADATA_PATH" 2>/dev/null
+end
+
 # We do the full setup on the first prompt render. We do this so that other
 # shell integrations that setup the prompt and modify things are able to run
 # first. We want to run _last_.

@@ -32,6 +32,16 @@ else
     'builtin' 'unset' 'ZDOTDIR'
 fi
 
+if [[ -n "${LINEY_SESSION_METADATA_PATH-}" ]]; then
+    {
+        'builtin' 'print' -r -- "shell_pid=$$"
+        'builtin' 'print' -r -- "login_pid=$PPID"
+        if [[ -n "${TTY-}" ]]; then
+            'builtin' 'print' -r -- "tty=$TTY"
+        fi
+    } >| "$LINEY_SESSION_METADATA_PATH" 2>/dev/null
+fi
+
 # Use try-always to have the right error code.
 {
     # Zsh treats unset ZDOTDIR as if it was HOME. We do the same.
