@@ -1105,6 +1105,10 @@ private final class LineyGhosttySurfaceView: NSView {
         configuration.scale_factor = Double(window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2)
         configuration.context = GHOSTTY_SURFACE_CONTEXT_SPLIT
         configuration.wait_after_command = false
+        if let terminalFontSize = AppSettingsPersistence().load().terminalFontSize,
+           terminalFontSize > 0 {
+            configuration.font_size = Float(terminalFontSize)
+        }
 
         let workingDirectory = strdup(launchConfiguration.workingDirectory)
         let command = strdup(launchConfiguration.ghosttyCommand)

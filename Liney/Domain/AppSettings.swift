@@ -241,6 +241,7 @@ struct AppSettings: Codable, Hashable {
     var autoDownloadUpdates: Bool
     var systemNotificationsEnabled: Bool
     var showArchivedWorkspaces: Bool
+    var terminalFontSize: Double?
     var sidebarShowsSecondaryLabels: Bool
     var sidebarShowsWorkspaceBadges: Bool
     var sidebarShowsWorktreeBadges: Bool
@@ -267,6 +268,7 @@ struct AppSettings: Codable, Hashable {
         autoDownloadUpdates: Bool = false,
         systemNotificationsEnabled: Bool = true,
         showArchivedWorkspaces: Bool = false,
+        terminalFontSize: Double? = nil,
         sidebarShowsSecondaryLabels: Bool = true,
         sidebarShowsWorkspaceBadges: Bool = true,
         sidebarShowsWorktreeBadges: Bool = true,
@@ -292,6 +294,7 @@ struct AppSettings: Codable, Hashable {
         self.autoDownloadUpdates = autoDownloadUpdates
         self.systemNotificationsEnabled = systemNotificationsEnabled
         self.showArchivedWorkspaces = showArchivedWorkspaces
+        self.terminalFontSize = terminalFontSize.map { min(max($0, 8), 32) }
         self.sidebarShowsSecondaryLabels = sidebarShowsSecondaryLabels
         self.sidebarShowsWorkspaceBadges = sidebarShowsWorkspaceBadges
         self.sidebarShowsWorktreeBadges = sidebarShowsWorktreeBadges
@@ -324,6 +327,7 @@ extension AppSettings {
         case autoDownloadUpdates
         case systemNotificationsEnabled
         case showArchivedWorkspaces
+        case terminalFontSize
         case sidebarShowsSecondaryLabels
         case sidebarShowsWorkspaceBadges
         case sidebarShowsWorktreeBadges
@@ -361,6 +365,7 @@ extension AppSettings {
             autoDownloadUpdates: try container.decodeIfPresent(Bool.self, forKey: .autoDownloadUpdates) ?? false,
             systemNotificationsEnabled: try container.decodeIfPresent(Bool.self, forKey: .systemNotificationsEnabled) ?? true,
             showArchivedWorkspaces: try container.decodeIfPresent(Bool.self, forKey: .showArchivedWorkspaces) ?? false,
+            terminalFontSize: try container.decodeIfPresent(Double.self, forKey: .terminalFontSize),
             sidebarShowsSecondaryLabels: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsSecondaryLabels) ?? true,
             sidebarShowsWorkspaceBadges: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsWorkspaceBadges) ?? true,
             sidebarShowsWorktreeBadges: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsWorktreeBadges) ?? true,

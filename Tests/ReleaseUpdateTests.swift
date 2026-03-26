@@ -79,9 +79,19 @@ final class ReleaseUpdateTests: XCTestCase {
         XCTAssertTrue(decoded.sidebarShowsSecondaryLabels)
         XCTAssertTrue(decoded.sidebarShowsWorkspaceBadges)
         XCTAssertTrue(decoded.sidebarShowsWorktreeBadges)
+        XCTAssertNil(decoded.terminalFontSize)
         XCTAssertEqual(decoded.defaultRepositoryIcon, .repositoryDefault)
         XCTAssertEqual(decoded.defaultLocalTerminalIcon, .localTerminalDefault)
         XCTAssertEqual(decoded.defaultWorktreeIcon, .worktreeDefault)
         XCTAssertEqual(decoded.releaseChannel, .stable)
+    }
+
+    func testAppSettingsPreservesCustomTerminalFontSize() throws {
+        let encoded = try JSONEncoder().encode(
+            AppSettings(terminalFontSize: 15)
+        )
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: encoded)
+        XCTAssertEqual(decoded.terminalFontSize, 15)
     }
 }

@@ -653,6 +653,7 @@ final class WorkspaceStore: ObservableObject {
             autoDownloadUpdates: settings.autoDownloadUpdates,
             systemNotificationsEnabled: settings.systemNotificationsEnabled,
             showArchivedWorkspaces: settings.showArchivedWorkspaces,
+            terminalFontSize: settings.terminalFontSize,
             sidebarShowsSecondaryLabels: settings.sidebarShowsSecondaryLabels,
             sidebarShowsWorkspaceBadges: settings.sidebarShowsWorkspaceBadges,
             sidebarShowsWorktreeBadges: settings.sidebarShowsWorktreeBadges,

@@ -234,6 +234,28 @@ struct SettingsSheet: View {
                 .padding(.top, 8)
             }
 
+            GroupBox("Terminal") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Use custom terminal font size", isOn: terminalFontSizeEnabledBinding)
+
+                    if appSettings.terminalFontSize != nil {
+                        HStack {
+                            Text("Font size")
+                            Spacer()
+                            Text("\(Int((appSettings.terminalFontSize ?? 13).rounded())) pt")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Slider(value: terminalFontSizeBinding, in: 10...24, step: 1)
+                    }
+
+                    Text("Applies to new or restarted terminal sessions. Leave this off to keep Ghostty's default size.")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
+            }
+
             GroupBox("Quick Commands") {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Toolbar shortcuts insert reusable command snippets into the focused terminal without running them.")
@@ -699,6 +721,26 @@ struct SettingsSheet: View {
                 guard let newShortcut else { return }
                 appSettings.hotKeyWindowShortcut = newShortcut
             }
+        )
+    }
+
+    private var terminalFontSizeEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { appSettings.terminalFontSize != nil },
+            set: { enabled in
+                if enabled {
+                    appSettings.terminalFontSize = appSettings.terminalFontSize ?? 13
+                } else {
+                    appSettings.terminalFontSize = nil
+                }
+            }
+        )
+    }
+
+    private var terminalFontSizeBinding: Binding<Double> {
+        Binding(
+            get: { appSettings.terminalFontSize ?? 13 },
+            set: { appSettings.terminalFontSize = min(max($0, 10), 24) }
         )
     }
 }
