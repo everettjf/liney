@@ -44,9 +44,29 @@ version_contains_four() {
   [[ "${version//./}" == *4* ]]
 }
 
+number_contains_four() {
+  local value="$1"
+  [[ "$value" == *4* ]]
+}
+
 validate_version_digits() {
   local version="$1"
   ! version_contains_four "$version"
+}
+
+validate_build_number_digits() {
+  local value="$1"
+  ! number_contains_four "$value"
+}
+
+next_number_without_four() {
+  local value="$1"
+
+  while number_contains_four "$value"; do
+    value=$((value + 1))
+  done
+
+  echo "$value"
 }
 
 next_major_without_four() {
@@ -149,10 +169,16 @@ elif [[ "$NO_BUILD_BUMP" != "1" ]]; then
     exit 1
   fi
   NEW_BUILD_NUMBER=$((CURRENT_BUILD_NUMBER + 1))
+  NEW_BUILD_NUMBER="$(next_number_without_four "$NEW_BUILD_NUMBER")"
 fi
 
 if [[ ! "$NEW_BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
   echo "Invalid build number: $NEW_BUILD_NUMBER" >&2
+  exit 1
+fi
+
+if ! validate_build_number_digits "$NEW_BUILD_NUMBER"; then
+  echo "Invalid build number: build number cannot contain digit 4: $NEW_BUILD_NUMBER" >&2
   exit 1
 fi
 
