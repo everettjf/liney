@@ -720,13 +720,13 @@ struct MainWindowView: View {
         }
 
         menu.addItem(.separator())
-        menu.addActionItem(title: localized("main.hapi.authStatus"), imageSystemName: "info.circle") {
-            guard let workspace = store.selectedWorkspace else { return }
-            store.showHAPIAuthStatus(workspaceID: workspace.id)
-        }
         menu.addActionItem(title: localized("main.hapi.showSettings"), imageSystemName: "doc.text.magnifyingglass") {
             guard let workspace = store.selectedWorkspace else { return }
             store.showHAPISettings(workspaceID: workspace.id)
+        }
+        menu.addActionItem(title: localized("main.hapi.authStatus"), imageSystemName: "info.circle") {
+            guard let workspace = store.selectedWorkspace else { return }
+            store.showHAPIAuthStatus(workspaceID: workspace.id)
         }
         menu.addActionItem(title: localized("main.hapi.authLogin"), imageSystemName: "key") {
             guard let workspace = store.selectedWorkspace else { return }
@@ -760,11 +760,13 @@ struct MainWindowView: View {
             }
             NSWorkspace.shared.open(url)
         }
-        menu.addActionItem(title: localized("main.hapi.cloudflareDocs"), imageSystemName: "book") {
-            guard let url = URL(string: "https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/") else {
-                return
+        if installation.cloudflaredExecutablePath != nil {
+            menu.addActionItem(title: localized("main.hapi.cloudflareDocs"), imageSystemName: "book") {
+                guard let url = URL(string: "https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/") else {
+                    return
+                }
+                NSWorkspace.shared.open(url)
             }
-            NSWorkspace.shared.open(url)
         }
 
         return menu
