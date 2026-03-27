@@ -39,6 +39,7 @@ protocol TerminalSurfaceController: AnyObject {
     var onFocus: (() -> Void)? { get set }
     var onStatusChange: ((TerminalSurfaceStatusSnapshot) -> Void)? { get set }
     func sendText(_ text: String)
+    func sendReturn()
     func focus()
     func setFocused(_ isFocused: Bool)
     func beginSearch(initialText: String?)

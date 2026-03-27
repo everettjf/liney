@@ -51,6 +51,10 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         terminalView.insertTerminalText(text)
     }
 
+    func sendReturn() {
+        terminalView.insertTerminalReturn()
+    }
+
     func beginSearch(initialText: String?) {
         if let initialText, !initialText.isEmpty {
             _ = terminalView.performBindingAction(lineyGhosttySearchBindingAction(for: initialText))
@@ -1289,6 +1293,30 @@ private final class LineyGhosttySurfaceView: NSView {
 
     func insertTerminalText(_ string: String) {
         sendText(string)
+    }
+
+    func insertTerminalReturn() {
+        guard let surface else { return }
+
+        var press = ghostty_input_key_s()
+        press.action = GHOSTTY_ACTION_PRESS
+        press.mods = GHOSTTY_MODS_NONE
+        press.consumed_mods = GHOSTTY_MODS_NONE
+        press.keycode = UInt32(kVK_Return)
+        press.text = nil
+        press.unshifted_codepoint = 0x0D
+        press.composing = false
+        _ = ghostty_surface_key(surface, press)
+
+        var release = ghostty_input_key_s()
+        release.action = GHOSTTY_ACTION_RELEASE
+        release.mods = GHOSTTY_MODS_NONE
+        release.consumed_mods = GHOSTTY_MODS_NONE
+        release.keycode = UInt32(kVK_Return)
+        release.text = nil
+        release.unshifted_codepoint = 0x0D
+        release.composing = false
+        _ = ghostty_surface_key(surface, release)
     }
 
     private func syncPreedit() {

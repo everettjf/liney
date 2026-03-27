@@ -299,7 +299,8 @@ final class ShellSession: ObservableObject, Identifiable {
     }
 
     func sendShellCommand(_ command: String) {
-        surfaceController.sendText(command + "\r")
+        surfaceController.sendText(command)
+        surfaceController.sendReturn()
     }
 
     func snapshot() -> PaneSnapshot {

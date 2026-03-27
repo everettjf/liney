@@ -315,7 +315,8 @@ final class ShellSessionTests: XCTestCase {
 
             session.sendShellCommand("codex")
 
-            XCTAssertEqual(surface.sentTexts, ["codex\r"])
+            XCTAssertEqual(surface.sentTexts, ["codex"])
+            XCTAssertEqual(surface.sendReturnCallCount, 1)
         }
     }
 
@@ -401,6 +402,7 @@ private final class FakeManagedTerminalSurfaceController: ManagedTerminalSession
     private(set) var restartCallCount = 0
     private(set) var terminateCallCount = 0
     private(set) var sentTexts: [String] = []
+    private(set) var sendReturnCallCount = 0
 
     func updateLaunchConfiguration(_ configuration: TerminalLaunchConfiguration) {}
 
@@ -424,6 +426,9 @@ private final class FakeManagedTerminalSurfaceController: ManagedTerminalSession
 
     func sendText(_ text: String) {
         sentTexts.append(text)
+    }
+    func sendReturn() {
+        sendReturnCallCount += 1
     }
     func focus() {}
     func setFocused(_ isFocused: Bool) {}
