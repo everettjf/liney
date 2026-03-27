@@ -25,7 +25,9 @@ scripts/bump_version.sh set 1.2.0
 ```
 
 该脚本会同时更新 `MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION`。
-补丁版本递增时会跳过包含数字 `4` 的 patch 编号，因此 `1.0.3` 会变成 `1.0.5`，`1.0.39` 会变成 `1.0.50`。
+所有版本递增都会跳过任意组件中包含数字 `4` 的语义版本，因此 `1.0.3` 会变成 `1.0.5`，`1.3.9` 做 minor 递增时会变成 `1.5.0`，`3.9.9` 做 major 递增时会变成 `5.0.0`。
+构建号同样遵循这一规则，因此 `23` 会变成 `25`，显式指定包含 `4` 的构建号也会被拒绝。
+使用 `set` 显式设置版本时也遵循同样的规则，因此 `1.2.4`、`1.2.14` 和 `1.4.0` 这类版本号都会被拒绝。
 
 ## Sparkle 配置
 
@@ -37,7 +39,7 @@ scripts/setup_sparkle_keys.sh
 
 该脚本会打印公钥，并将私钥导出到 `~/.liney_release/sparkle_private_key`。公钥必须与应用 target 中的 `SUPublicEDKey` 一致。
 
-由于 Liney 是开源项目，不要将这个私钥存放在主仓库中。推荐以下几种方式之一：
+由于 Liney 是开源项目，不要将这个私钥存放在主仓库中。推荐使用以下任一方式保存：
 
 - 私有的发布基础设施仓库
 - CI/CD 密钥管理服务
@@ -55,7 +57,7 @@ scripts/build_macos_app.sh
 - `OUTPUT_DIR=/custom/output/path`
 - `RELEASE_ARCHS="arm64 x86_64"`
 
-默认的发布产物现在是一个通用的 macOS 构建包，同时包含 `arm64` 和 `x86_64` 两种架构切片。
+默认的发布产物是一个通用的 macOS 构建包，同时包含 `arm64` 和 `x86_64` 两种架构切片。
 
 ## 签名与公证
 
@@ -90,7 +92,7 @@ scripts/sign_macos.sh \
 
 如果当前钥匙串中存在 `liney-notarytool` 配置，`scripts/sign_macos.sh` 和 `./deploy.sh` 会自动使用它。只有在你想覆盖这个默认值时，才需要显式传入 `NOTARYTOOL_PROFILE`。
 
-默认行为：
+默认行为如下：
 
 - 将 `MARKETING_VERSION` 做一次 patch 递增，并将 `CURRENT_PROJECT_VERSION` 加 1，除非设置 `SKIP_BUMP=1`
 - 构建并签名通用版发布 DMG
@@ -113,7 +115,7 @@ scripts/sign_macos.sh \
 - `LINEY_RELEASE_HOME=/secure/release-home ./deploy.sh`
 - `SPARKLE_PRIVATE_KEY_FILE=/secure/path/private_key ./deploy.sh`
 
-默认情况下，Sentry 的 dSYM 上传使用 `sentry-cli` 认证。`SENTRY_AUTH_TOKEN` 也同样可用。
+默认情况下，Sentry 的 dSYM 上传使用 `sentry-cli` 认证；也可以使用 `SENTRY_AUTH_TOKEN`。
 
 可选的 Sentry 环境变量：
 
@@ -122,6 +124,6 @@ scripts/sign_macos.sh \
 - `SENTRY_URL`：用于自托管 Sentry
 - `SENTRY_INCLUDE_SOURCES=1`：在上传 dSYM 的同时上传源码 bundle
 
-如果你更习惯旧路径，`scripts/deploy.sh` 仍保留为兼容包装脚本。
+如果你仍在使用旧路径，`scripts/deploy.sh` 依然保留为兼容包装脚本。
 
-对于首次公开发布，建议手动编写 GitHub Release Notes，而不是只依赖自动生成的提交摘要。
+对于首次公开发布，建议手动编写 GitHub Release Notes，而不是完全依赖自动生成的提交摘要。
