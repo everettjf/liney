@@ -688,19 +688,16 @@ struct MainWindowView: View {
     private func makeHAPIMenu(using installation: HAPIInstallationStatus) -> NSMenu {
         let menu = NSMenu()
 
-        menu.addActionItem(
-            title: installation.primaryActionTitle,
-            imageSystemName: "play.circle"
-        ) {
-            store.performPrimaryHAPIAction()
-        }
-
         menu.addActionItem(title: localized("main.hapi.startHubRelay"), imageSystemName: "dot.radiowaves.left.and.right") {
             guard let workspace = store.selectedWorkspace else { return }
             store.startHAPIHub(workspaceID: workspace.id)
         }
 
         menu.addItem(.separator())
+        menu.addActionItem(title: localized("main.hapi.claudeCode"), imageSystemName: "play.circle") {
+            guard let workspace = store.selectedWorkspace else { return }
+            store.launchHAPISession(workspaceID: workspace.id)
+        }
         menu.addActionItem(title: localized("main.hapi.codex"), imageSystemName: "terminal") {
             guard let workspace = store.selectedWorkspace else { return }
             store.launchHAPICodex(workspaceID: workspace.id)
@@ -719,8 +716,33 @@ struct MainWindowView: View {
         }
 
         menu.addItem(.separator())
-        menu.addActionItem(title: localized("main.hapi.openQuickStart"), imageSystemName: "book") {
-            store.openHAPIQuickStart()
+        menu.addActionItem(title: localized("main.hapi.authStatus"), imageSystemName: "info.circle") {
+            guard let workspace = store.selectedWorkspace else { return }
+            store.showHAPIAuthStatus(workspaceID: workspace.id)
+        }
+        menu.addActionItem(title: localized("main.hapi.authLogin"), imageSystemName: "key") {
+            guard let workspace = store.selectedWorkspace else { return }
+            store.loginToHAPI(workspaceID: workspace.id)
+        }
+        menu.addActionItem(title: localized("main.hapi.authLogout"), imageSystemName: "rectangle.portrait.and.arrow.right") {
+            guard let workspace = store.selectedWorkspace else { return }
+            store.logoutFromHAPI(workspaceID: workspace.id)
+        }
+
+        if installation.cloudflaredExecutablePath != nil {
+            menu.addItem(.separator())
+            menu.addActionItem(title: localized("main.hapi.cloudflaredTunnel"), imageSystemName: "network") {
+                guard let workspace = store.selectedWorkspace else { return }
+                store.launchCloudflaredTunnel(workspaceID: workspace.id)
+            }
+            menu.addActionItem(title: localized("main.hapi.cloudflaredLogin"), imageSystemName: "person.badge.key") {
+                guard let workspace = store.selectedWorkspace else { return }
+                store.loginToCloudflaredTunnel(workspaceID: workspace.id)
+            }
+            menu.addActionItem(title: localized("main.hapi.cloudflaredRun"), imageSystemName: "bolt.horizontal.circle") {
+                guard let workspace = store.selectedWorkspace else { return }
+                store.runCloudflaredTunnel(workspaceID: workspace.id)
+            }
         }
 
         return menu

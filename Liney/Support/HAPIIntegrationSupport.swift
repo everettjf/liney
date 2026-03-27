@@ -13,9 +13,10 @@ private func lineyLocalizedHAPIString(_ key: String) -> String {
 
 struct HAPIInstallationStatus: Hashable {
     var executablePath: String
+    var cloudflaredExecutablePath: String? = nil
 
     var primaryActionTitle: String {
-        lineyLocalizedHAPIString("main.hapi.launchCurrentProject")
+        lineyLocalizedHAPIString("main.hapi.claudeCode")
     }
 
     var primaryActionHelpText: String {
@@ -30,11 +31,17 @@ enum HAPIIntegrationState: Hashable {
 
 enum HAPIIntegrationCatalog {
     static func detect(using runner: ShellCommandRunner = ShellCommandRunner()) async -> HAPIIntegrationState {
-        guard let executablePath = await resolveExecutablePath(using: runner) else {
+        guard let executablePath = await resolveExecutablePath(named: "hapi", using: runner) else {
             return .unavailable
         }
 
-        return .available(HAPIInstallationStatus(executablePath: executablePath))
+        let cloudflaredExecutablePath = await resolveExecutablePath(named: "cloudflared", using: runner)
+        return .available(
+            HAPIInstallationStatus(
+                executablePath: executablePath,
+                cloudflaredExecutablePath: cloudflaredExecutablePath
+            )
+        )
     }
 
     static func parseExecutablePath(_ output: String) -> String? {
@@ -45,11 +52,14 @@ enum HAPIIntegrationCatalog {
         return path?.nilIfEmpty
     }
 
-    private static func resolveExecutablePath(using runner: ShellCommandRunner) async -> String? {
+    private static func resolveExecutablePath(
+        named executableName: String,
+        using runner: ShellCommandRunner
+    ) async -> String? {
         do {
             let result = try await runner.run(
                 executable: "/bin/zsh",
-                arguments: ["-lic", "whence -p hapi"]
+                arguments: ["-lic", "whence -p \(executableName.shellQuoted)"]
             )
             return parseExecutablePath(result.stdout)
         } catch {

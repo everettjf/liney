@@ -1364,9 +1364,73 @@ final class WorkspaceStore: ObservableObject {
         launchHAPISubcommand(in: workspace, name: "HAPI OpenCode", arguments: ["opencode"])
     }
 
-    func openHAPIQuickStart() {
-        guard let url = URL(string: "https://hapi.run/docs/guide/quick-start") else { return }
-        NSWorkspace.shared.open(url)
+    func showHAPIAuthStatus(workspaceID: UUID) {
+        guard let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+        launchWrappedHomeCommand(
+            in: workspace,
+            name: "HAPI Auth Status",
+            executablePath: availableHAPIInstallation?.executablePath,
+            arguments: ["auth", "status"],
+            activityTitle: localized("activity.hapi.showedAuthStatus")
+        )
+    }
+
+    func loginToHAPI(workspaceID: UUID) {
+        guard let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+        launchWrappedHomeCommand(
+            in: workspace,
+            name: "HAPI Auth Login",
+            executablePath: availableHAPIInstallation?.executablePath,
+            arguments: ["auth", "login"],
+            activityTitle: localized("activity.hapi.startedLogin")
+        )
+    }
+
+    func logoutFromHAPI(workspaceID: UUID) {
+        guard let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+        launchWrappedHomeCommand(
+            in: workspace,
+            name: "HAPI Auth Logout",
+            executablePath: availableHAPIInstallation?.executablePath,
+            arguments: ["auth", "logout"],
+            activityTitle: localized("activity.hapi.startedLogout")
+        )
+    }
+
+    func launchCloudflaredTunnel(workspaceID: UUID) {
+        guard let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+        launchWrappedHomeCommand(
+            in: workspace,
+            name: "Cloudflared Tunnel",
+            executablePath: availableHAPIInstallation?.cloudflaredExecutablePath,
+            arguments: ["tunnel", "--url", "http://localhost:3006"],
+            activityTitle: localized("activity.cloudflared.startedTunnelProxy"),
+            missingExecutableMessage: localized("status.hapi.installCloudflaredToLaunch")
+        )
+    }
+
+    func loginToCloudflaredTunnel(workspaceID: UUID) {
+        guard let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+        launchWrappedHomeCommand(
+            in: workspace,
+            name: "Cloudflared Tunnel Login",
+            executablePath: availableHAPIInstallation?.cloudflaredExecutablePath,
+            arguments: ["tunnel", "login"],
+            activityTitle: localized("activity.cloudflared.startedTunnelLogin"),
+            missingExecutableMessage: localized("status.hapi.installCloudflaredToLaunch")
+        )
+    }
+
+    func runCloudflaredTunnel(workspaceID: UUID) {
+        guard let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+        launchWrappedHomeCommand(
+            in: workspace,
+            name: "Cloudflared Tunnel Run",
+            executablePath: availableHAPIInstallation?.cloudflaredExecutablePath,
+            arguments: ["tunnel", "run"],
+            activityTitle: localized("activity.cloudflared.startedTunnelRun"),
+            missingExecutableMessage: localized("status.hapi.installCloudflaredToLaunch")
+        )
     }
 
     private func launchHAPISession(in workspace: WorkspaceModel) {
@@ -1433,6 +1497,59 @@ final class WorkspaceStore: ObservableObject {
             replayAction: .createSession(
                 backendConfiguration: .agent(configuration),
                 workingDirectory: workspace.activeWorktreePath
+            )
+        )
+    }
+
+    private func launchWrappedHomeCommand(
+        in workspace: WorkspaceModel,
+        name: String,
+        executablePath: String?,
+        arguments: [String],
+        activityTitle: String,
+        missingExecutableMessage: String? = nil
+    ) {
+        guard let executablePath else {
+            receive(.statusMessage(missingExecutableMessage ?? localized("status.hapi.installToLaunch"), .warning, deliverSystemNotification: false))
+            return
+        }
+
+        let workingDirectory = NSHomeDirectory()
+        let loginShellPath = CurrentUserLoginShell.path()?.nilIfEmpty ?? "/bin/zsh"
+        let invocation = ([executablePath] + arguments)
+            .map(\.shellQuoted)
+            .joined(separator: " ")
+        let shellScript = """
+        \(invocation)
+        status=$?
+        if [ "$status" -ne 0 ]; then
+          printf '\\nCommand exited with status %d.\\n' "$status"
+        fi
+        printf '\\n'
+        exec \(loginShellPath.shellQuoted) -l
+        """
+        let configuration = AgentSessionConfiguration(
+            name: name,
+            launchPath: "/bin/zsh",
+            arguments: ["-lc", shellScript],
+            environment: ["SHELL": loginShellPath],
+            workingDirectory: workingDirectory
+        )
+
+        createSession(
+            in: workspace,
+            backendConfiguration: .agent(configuration),
+            workingDirectory: workingDirectory
+        )
+        recordActivity(
+            in: workspace,
+            kind: .command,
+            title: activityTitle,
+            detail: ([executablePath] + arguments).joined(separator: " "),
+            worktreePath: workspace.activeWorktreePath,
+            replayAction: .createSession(
+                backendConfiguration: .agent(configuration),
+                workingDirectory: workingDirectory
             )
         )
     }

@@ -32,7 +32,7 @@ final class HAPIIntegrationSupportTests: XCTestCase {
     func testInstallationUsesLaunchAsPrimaryAction() {
         let installation = HAPIInstallationStatus(executablePath: "/opt/homebrew/bin/hapi")
 
-        XCTAssertEqual(installation.primaryActionTitle, "Launch HAPI in Current Project")
+        XCTAssertEqual(installation.primaryActionTitle, "HAPI Claude Code")
         XCTAssertEqual(installation.primaryActionHelpText, "Launch HAPI in the current worktree")
     }
 }
