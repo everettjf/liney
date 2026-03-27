@@ -8,8 +8,32 @@
 import AppKit
 import SwiftUI
 
+private enum SettingsSidebarGroup: String, CaseIterable, Identifiable {
+    case app
+    case customize
+    case workspace
+
+    var id: String { rawValue }
+
+    var titleKey: String {
+        switch self {
+        case .app:
+            return "settings.sidebarGroup.app"
+        case .customize:
+            return "settings.sidebarGroup.customize"
+        case .workspace:
+            return "settings.sidebarGroup.workspace"
+        }
+    }
+}
+
 private enum SettingsSheetSection: String, CaseIterable, Identifiable {
-    case general
+    case language
+    case behavior
+    case hotKeyWindow
+    case externalEditor
+    case terminal
+    case quickCommands
     case sidebar
     case shortcuts
     case updates
@@ -17,10 +41,31 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var group: SettingsSidebarGroup {
+        switch self {
+        case .language, .behavior, .hotKeyWindow, .externalEditor, .terminal, .quickCommands, .updates:
+            return .app
+        case .sidebar, .shortcuts:
+            return .customize
+        case .workspace:
+            return .workspace
+        }
+    }
+
     var titleKey: String {
         switch self {
-        case .general:
-            return "settings.section.general.title"
+        case .language:
+            return "settings.section.language.title"
+        case .behavior:
+            return "settings.section.behavior.title"
+        case .hotKeyWindow:
+            return "settings.section.hotKeyWindow.title"
+        case .externalEditor:
+            return "settings.section.externalEditor.title"
+        case .terminal:
+            return "settings.section.terminal.title"
+        case .quickCommands:
+            return "settings.section.quickCommands.title"
         case .sidebar:
             return "settings.section.sidebar.title"
         case .shortcuts:
@@ -34,8 +79,18 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
 
     var subtitleKey: String {
         switch self {
-        case .general:
-            return "settings.section.general.subtitle"
+        case .language:
+            return "settings.section.language.subtitle"
+        case .behavior:
+            return "settings.section.behavior.subtitle"
+        case .hotKeyWindow:
+            return "settings.section.hotKeyWindow.subtitle"
+        case .externalEditor:
+            return "settings.section.externalEditor.subtitle"
+        case .terminal:
+            return "settings.section.terminal.subtitle"
+        case .quickCommands:
+            return "settings.section.quickCommands.subtitle"
         case .sidebar:
             return "settings.section.sidebar.subtitle"
         case .shortcuts:
@@ -49,8 +104,18 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .general:
+        case .language:
+            return "globe"
+        case .behavior:
             return "gearshape"
+        case .hotKeyWindow:
+            return "macwindow.badge.plus"
+        case .externalEditor:
+            return "square.and.arrow.up"
+        case .terminal:
+            return "terminal"
+        case .quickCommands:
+            return "bolt"
         case .sidebar:
             return "sidebar.leading"
         case .shortcuts:
@@ -64,20 +129,56 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
 }
 
 private enum LineyTerminalFontCatalog {
+    private static let prioritizedFamilies = [
+        "SF Mono",
+        "Menlo",
+        "Monaco",
+        "JetBrains Mono",
+        "CommitMono",
+        "Cascadia Code",
+        "Cascadia Mono",
+        "Fira Code",
+        "Source Code Pro",
+        "IBM Plex Mono",
+    ]
+
     static func availableFamilies(fontManager: NSFontManager = .shared) -> [String] {
-        fontManager.availableFontFamilies
-            .filter { family in
-                guard let font = fontManager.font(
-                    withFamily: family,
-                    traits: .fixedPitchFontMask,
-                    weight: 5,
-                    size: 13
-                ) else {
-                    return false
+        let families = Set(
+            fontManager.availableFonts.compactMap { fontName -> String? in
+                guard let font = NSFont(name: fontName, size: 13), font.isFixedPitch else {
+                    return nil
                 }
-                return font.isFixedPitch
+                let familyName = font.familyName ?? fontName
+                return familyName.hasPrefix(".") ? nil : familyName
             }
-            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        )
+
+        return families.sorted { lhs, rhs in
+            let leftPriority = prioritizedFamilies.firstIndex(of: lhs) ?? .max
+            let rightPriority = prioritizedFamilies.firstIndex(of: rhs) ?? .max
+            if leftPriority != rightPriority {
+                return leftPriority < rightPriority
+            }
+            return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+        }
+    }
+
+    static func previewFont(
+        family: String?,
+        size: CGFloat,
+        fontManager: NSFontManager = .shared
+    ) -> NSFont {
+        if let family,
+           let font = fontManager.font(
+                withFamily: family,
+                traits: .fixedPitchFontMask,
+                weight: 5,
+                size: size
+           ) {
+            return font
+        }
+
+        return .monospacedSystemFont(ofSize: size, weight: .regular)
     }
 }
 
@@ -88,8 +189,9 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var appSettings = AppSettings()
-    @State private var selection: SettingsSheetSection = .general
+    @State private var selection: SettingsSheetSection = .behavior
     @State private var selectedWorkspaceID: UUID?
+    @State private var terminalFontSearchText = ""
     @State private var workspaceSettings = WorkspaceSettings()
     @State private var localizationVersion = 0
     @State private var originalAppLanguage: AppLanguage = .automatic
@@ -123,16 +225,33 @@ struct SettingsSheet: View {
         return [selectedFamily] + availableFamilies
     }
 
+    private var filteredTerminalFontFamilies: [String] {
+        let query = terminalFontSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return terminalFontFamilies }
+        return terminalFontFamilies.filter { family in
+            family.localizedCaseInsensitiveContains(query)
+        }
+    }
+
     var body: some View {
         let _ = localizationVersion
 
         HStack(spacing: 0) {
-            List(SettingsSheetSection.allCases, selection: $selection) { section in
-                Label(localized(section.titleKey), systemImage: section.systemImage)
-                    .tag(section)
+            List(selection: $selection) {
+                ForEach(SettingsSidebarGroup.allCases) { group in
+                    Section(localized(group.titleKey)) {
+                        ForEach(SettingsSheetSection.allCases.filter { $0.group == group }) { section in
+                            SettingsNavigationRow(
+                                title: localized(section.titleKey),
+                                systemImage: section.systemImage
+                            )
+                            .tag(section)
+                        }
+                    }
+                }
             }
             .listStyle(.sidebar)
-            .frame(width: 200)
+            .frame(width: 230)
 
             Divider()
 
@@ -154,6 +273,7 @@ struct SettingsSheet: View {
                     VStack(alignment: .leading, spacing: 18) {
                         detailContent
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(20)
                 }
 
@@ -173,7 +293,7 @@ struct SettingsSheet: View {
                 .padding(20)
             }
         }
-        .frame(width: 980, height: 720)
+        .frame(width: 1120, height: 760)
         .task(id: request.id) {
             reloadFromStore()
         }
@@ -188,8 +308,18 @@ struct SettingsSheet: View {
     @ViewBuilder
     private var detailContent: some View {
         switch selection {
-        case .general:
-            generalSettingsView
+        case .language:
+            languageSettingsView
+        case .behavior:
+            behaviorSettingsView
+        case .hotKeyWindow:
+            hotKeyWindowSettingsView
+        case .externalEditor:
+            externalEditorSettingsView
+        case .terminal:
+            terminalSettingsView
+        case .quickCommands:
+            quickCommandsSettingsView
         case .sidebar:
             sidebarSettingsView
         case .shortcuts:
@@ -201,115 +331,122 @@ struct SettingsSheet: View {
         }
     }
 
-    private var generalSettingsView: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            GroupBox(localized("settings.general.language.group")) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Picker(localized("settings.general.language.title"), selection: $appSettings.appLanguage) {
-                        ForEach(AppLanguage.allCases) { language in
-                            Text(language.displayName)
-                                .tag(language)
+    private var languageSettingsView: some View {
+        GroupBox(localized("settings.general.language.group")) {
+            VStack(alignment: .leading, spacing: 12) {
+                Picker(localized("settings.general.language.title"), selection: $appSettings.appLanguage) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.displayName)
+                            .tag(language)
+                    }
+                }
+
+                Text(localized("settings.general.language.appliesImmediately"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Text(localized("settings.general.language.fallback"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private var behaviorSettingsView: some View {
+        GroupBox(localized("settings.general.behavior.group")) {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(localized("settings.general.behavior.autoRefresh"), isOn: $appSettings.autoRefreshEnabled)
+                Toggle(localized("settings.general.behavior.autoClosePaneOnExit"), isOn: $appSettings.autoClosePaneOnProcessExit)
+                Toggle(localized("settings.general.behavior.confirmQuitRunningCommands"), isOn: $appSettings.confirmQuitWhenCommandsRunning)
+                Toggle(localized("settings.general.behavior.enableHotKeyWindow"), isOn: $appSettings.hotKeyWindowEnabled)
+                Toggle(localized("settings.general.behavior.enableFileWatchers"), isOn: $appSettings.fileWatcherEnabled)
+                Toggle(localized("settings.general.behavior.allowSystemNotifications"), isOn: $appSettings.systemNotificationsEnabled)
+                Toggle(localized("settings.general.behavior.showArchivedWorkspaces"), isOn: $appSettings.showArchivedWorkspaces)
+
+                HStack {
+                    Text(localized("settings.general.behavior.refreshInterval"))
+                    Spacer()
+                    TextField("30", value: $appSettings.autoRefreshIntervalSeconds, format: .number)
+                        .frame(width: 72)
+                        .textFieldStyle(.roundedBorder)
+                    Text(localized("settings.general.behavior.seconds"))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private var hotKeyWindowSettingsView: some View {
+        GroupBox(localized("settings.general.hotKeyWindow.group")) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(localized("settings.general.hotKeyWindow.description"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                HStack(alignment: .center, spacing: 12) {
+                    Text(localized("settings.general.hotKeyWindow.globalShortcut"))
+                    Spacer()
+                    ShortcutRecorderField(
+                        shortcut: hotKeyWindowShortcutBinding,
+                        fallbackShortcut: StoredShortcut(key: " ", command: true, shift: true, option: false, control: false),
+                        emptyTitle: localized("settings.general.hotKeyWindow.notSet"),
+                        displayString: { $0.displayString },
+                        transformRecordedShortcut: { $0 }
+                    )
+                    .frame(width: 132)
+                }
+
+                Text(appSettings.hotKeyWindowEnabled ? localized("settings.general.hotKeyWindow.enabledHint") : localized("settings.general.hotKeyWindow.disabledHint"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private var externalEditorSettingsView: some View {
+        GroupBox(localized("settings.general.externalEditor.group")) {
+            VStack(alignment: .leading, spacing: 12) {
+                if availableExternalEditors.isEmpty {
+                    Text(localized("settings.general.externalEditor.installHint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker(localized("settings.general.externalEditor.defaultEditor"), selection: $appSettings.preferredExternalEditor) {
+                        ForEach(availableExternalEditors) { editor in
+                            Text(editor.editor.displayName)
+                                .tag(editor.editor)
                         }
                     }
 
-                    Text(localized("settings.general.language.appliesImmediately"))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-
-                    Text(localized("settings.general.language.fallback"))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 8)
-            }
-
-            GroupBox(localized("settings.general.behavior.group")) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle(localized("settings.general.behavior.autoRefresh"), isOn: $appSettings.autoRefreshEnabled)
-                    Toggle(localized("settings.general.behavior.autoClosePaneOnExit"), isOn: $appSettings.autoClosePaneOnProcessExit)
-                    Toggle(localized("settings.general.behavior.confirmQuitRunningCommands"), isOn: $appSettings.confirmQuitWhenCommandsRunning)
-                    Toggle(localized("settings.general.behavior.enableHotKeyWindow"), isOn: $appSettings.hotKeyWindowEnabled)
-                    Toggle(localized("settings.general.behavior.enableFileWatchers"), isOn: $appSettings.fileWatcherEnabled)
-                    Toggle(localized("settings.general.behavior.allowSystemNotifications"), isOn: $appSettings.systemNotificationsEnabled)
-                    Toggle(localized("settings.general.behavior.showArchivedWorkspaces"), isOn: $appSettings.showArchivedWorkspaces)
-
-                    HStack {
-                        Text(localized("settings.general.behavior.refreshInterval"))
-                        Spacer()
-                        TextField("30", value: $appSettings.autoRefreshIntervalSeconds, format: .number)
-                            .frame(width: 72)
-                            .textFieldStyle(.roundedBorder)
-                        Text(localized("settings.general.behavior.seconds"))
-                            .foregroundStyle(.secondary)
-                    }
-
-                }
-                .padding(.top, 8)
-            }
-
-            GroupBox(localized("settings.general.hotKeyWindow.group")) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(localized("settings.general.hotKeyWindow.description"))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-
-                    HStack(alignment: .center, spacing: 12) {
-                        Text(localized("settings.general.hotKeyWindow.globalShortcut"))
-                        Spacer()
-                        ShortcutRecorderField(
-                            shortcut: hotKeyWindowShortcutBinding,
-                            fallbackShortcut: StoredShortcut(key: " ", command: true, shift: true, option: false, control: false),
-                            emptyTitle: localized("settings.general.hotKeyWindow.notSet"),
-                            displayString: { $0.displayString },
-                            transformRecordedShortcut: { $0 }
+                    if let resolvedExternalEditor,
+                       resolvedExternalEditor.editor != appSettings.preferredExternalEditor {
+                        Text(
+                            localizedFormat(
+                                "settings.general.externalEditor.fallbackFormat",
+                                appSettings.preferredExternalEditor.displayName,
+                                resolvedExternalEditor.editor.displayName
+                            )
                         )
-                        .frame(width: 132)
-                    }
-
-                    Text(appSettings.hotKeyWindowEnabled ? localized("settings.general.hotKeyWindow.enabledHint") : localized("settings.general.hotKeyWindow.disabledHint"))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 8)
-            }
-
-            GroupBox(localized("settings.general.externalEditor.group")) {
-                VStack(alignment: .leading, spacing: 12) {
-                    if availableExternalEditors.isEmpty {
-                        Text(localized("settings.general.externalEditor.installHint"))
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
                     } else {
-                        Picker(localized("settings.general.externalEditor.defaultEditor"), selection: $appSettings.preferredExternalEditor) {
-                            ForEach(availableExternalEditors) { editor in
-                                Text(editor.editor.displayName)
-                                    .tag(editor.editor)
-                            }
-                        }
-
-                        if let resolvedExternalEditor,
-                           resolvedExternalEditor.editor != appSettings.preferredExternalEditor {
-                            Text(
-                                localizedFormat(
-                                    "settings.general.externalEditor.fallbackFormat",
-                                    appSettings.preferredExternalEditor.displayName,
-                                    resolvedExternalEditor.editor.displayName
-                                )
-                            )
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text(localized("settings.general.externalEditor.activeHint"))
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.secondary)
-                        }
+                        Text(localized("settings.general.externalEditor.activeHint"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.top, 8)
             }
+            .padding(.top, 8)
+        }
+    }
 
+    private var terminalSettingsView: some View {
+        HStack(alignment: .top, spacing: 20) {
             GroupBox(localized("settings.general.terminal.group")) {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 14) {
                     Toggle(localized("settings.general.terminal.useCustomFont"), isOn: terminalFontFamilyEnabledBinding)
 
                     if appSettings.terminalFontFamily != nil {
@@ -318,12 +455,41 @@ struct SettingsSheet: View {
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(.secondary)
                         } else {
-                            Picker(localized("settings.general.terminal.font"), selection: terminalFontFamilyBinding) {
-                                ForEach(terminalFontFamilies, id: \.self) { family in
-                                    Text(family).tag(family)
+                            TextField(
+                                localized("settings.general.terminal.fontSearchPlaceholder"),
+                                text: $terminalFontSearchText
+                            )
+                            .textFieldStyle(.roundedBorder)
+
+                            Text(
+                                localizedFormat(
+                                    "settings.general.terminal.availableFontsFormat",
+                                    filteredTerminalFontFamilies.count
+                                )
+                            )
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 8) {
+                                    ForEach(filteredTerminalFontFamilies, id: \.self) { family in
+                                        TerminalFontOptionRow(
+                                            family: family,
+                                            isSelected: terminalFontFamilyBinding.wrappedValue == family
+                                        ) {
+                                            terminalFontFamilyBinding.wrappedValue = family
+                                        }
+                                    }
                                 }
+                                .padding(.vertical, 2)
                             }
-                            .pickerStyle(.menu)
+                            .frame(height: 240)
+
+                            if filteredTerminalFontFamilies.isEmpty {
+                                Text(localized("settings.general.terminal.noSearchResults"))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
 
                         Text(localized("settings.general.terminal.fontHint"))
@@ -331,18 +497,19 @@ struct SettingsSheet: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    Divider()
+
                     Toggle(localized("settings.general.terminal.useCustomFontSize"), isOn: terminalFontSizeEnabledBinding)
 
-                    if appSettings.terminalFontSize != nil {
-                        HStack {
-                            Text(localized("settings.general.terminal.fontSize"))
-                            Spacer()
-                            Text("\(Int((appSettings.terminalFontSize ?? 13).rounded())) pt")
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Slider(value: terminalFontSizeBinding, in: 10...24, step: 1)
+                    HStack {
+                        Text(localized("settings.general.terminal.fontSize"))
+                        Spacer()
+                        Text("\(Int((appSettings.terminalFontSize ?? 13).rounded())) pt")
+                            .foregroundStyle(.secondary)
                     }
+
+                    Slider(value: terminalFontSizeBinding, in: 10...24, step: 1)
+                        .disabled(appSettings.terminalFontSize == nil)
 
                     Text(localized("settings.general.terminal.fontSizeHint"))
                         .font(.system(size: 11, weight: .medium))
@@ -350,25 +517,41 @@ struct SettingsSheet: View {
                 }
                 .padding(.top, 8)
             }
+            .frame(maxWidth: 420, alignment: .topLeading)
 
-            GroupBox(localized("settings.general.quickCommands.group")) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(localized("settings.general.quickCommands.description"))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
+            TerminalFontPreviewCard(
+                title: localized("settings.general.terminal.previewTitle"),
+                subtitle: localized("settings.general.terminal.previewSubtitle"),
+                family: appSettings.terminalFontFamily,
+                usesCustomFamily: appSettings.terminalFontFamily != nil,
+                size: appSettings.terminalFontSize ?? 13,
+                usesCustomSize: appSettings.terminalFontSize != nil,
+                defaultFamilyLabel: localized("settings.general.terminal.defaultFontLabel"),
+                customSizeFormat: localized("settings.general.terminal.customSizeFormat"),
+                defaultSizeFormat: localized("settings.general.terminal.defaultSizeFormat")
+            )
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
 
-                    Text(
-                        localizedFormat(
-                            "settings.general.quickCommands.countFormat",
-                            appSettings.quickCommandPresets.count,
-                            appSettings.quickCommandRecentIDs.count
-                        )
+    private var quickCommandsSettingsView: some View {
+        GroupBox(localized("settings.general.quickCommands.group")) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(localized("settings.general.quickCommands.description"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Text(
+                    localizedFormat(
+                        "settings.general.quickCommands.countFormat",
+                        appSettings.quickCommandPresets.count,
+                        appSettings.quickCommandRecentIDs.count
                     )
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 8)
+                )
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
+            .padding(.top, 8)
         }
     }
 
@@ -795,6 +978,7 @@ struct SettingsSheet: View {
         appSettings = store.appSettings
         originalAppLanguage = store.appSettings.appLanguage
         selectedWorkspaceID = request.workspaceID ?? store.selectedWorkspace?.id
+        terminalFontSearchText = ""
         loadWorkspaceSettings()
     }
 
@@ -880,6 +1064,128 @@ struct SettingsSheet: View {
             get: { appSettings.terminalFontSize ?? 13 },
             set: { appSettings.terminalFontSize = min(max($0, 10), 24) }
         )
+    }
+}
+
+private struct SettingsNavigationRow: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+    }
+}
+
+private struct TerminalFontOptionRow: View {
+    let family: String
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    private var previewFont: Font {
+        Font(LineyTerminalFontCatalog.previewFont(family: family, size: 12))
+    }
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(family)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    Text("liney % git status --short")
+                        .font(previewFont)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(0.12) : LineyTheme.subtleFill)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct TerminalFontPreviewCard: View {
+    let title: String
+    let subtitle: String
+    let family: String?
+    let usesCustomFamily: Bool
+    let size: Double
+    let usesCustomSize: Bool
+    let defaultFamilyLabel: String
+    let customSizeFormat: String
+    let defaultSizeFormat: String
+
+    private var previewFont: Font {
+        Font(LineyTerminalFontCatalog.previewFont(family: family, size: CGFloat(size)))
+    }
+
+    private var activeFamilyLabel: String {
+        if usesCustomFamily, let family, !family.isEmpty {
+            return family
+        }
+        return defaultFamilyLabel
+    }
+
+    private var activeSizeLabel: String {
+        let roundedSize = Int(size.rounded())
+        if usesCustomSize {
+            return l10nFormat(customSizeFormat, locale: Locale.current, arguments: [roundedSize])
+        }
+        return l10nFormat(defaultSizeFormat, locale: Locale.current, arguments: [roundedSize])
+    }
+
+    var body: some View {
+        GroupBox(title) {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(activeFamilyLabel)
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(activeSizeLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text(subtitle)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Last login: Sat Mar 27 12:03 on ttys004")
+                        .foregroundStyle(.secondary)
+                    Text("liney % ssh dev@example.com")
+                        .foregroundStyle(.green)
+                    Text("dev@example.com % git status --short")
+                    Text(" M Liney/UI/Sheets/SettingsSheet.swift")
+                        .foregroundStyle(.orange)
+                    Text("dev@example.com % echo \"0123456789 -> []{}()\"")
+                    Text("0123456789 -> []{}()")
+                        .foregroundStyle(.secondary)
+                }
+                .font(previewFont)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(18)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.black.opacity(0.28))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08))
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 8)
+        }
     }
 }
 

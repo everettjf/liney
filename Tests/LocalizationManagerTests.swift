@@ -47,6 +47,8 @@ final class LocalizationManagerTests: XCTestCase {
 
     func testSettingsCoreStringsResolveInEnglish() {
         XCTAssertEqual(L10nTable.string(for: "settings.section.general.title", language: .english), "General")
+        XCTAssertEqual(L10nTable.string(for: "settings.sidebarGroup.app", language: .english), "App")
+        XCTAssertEqual(L10nTable.string(for: "settings.section.terminal.title", language: .english), "Terminal")
         XCTAssertEqual(L10nTable.string(for: "settings.button.cancel", language: .english), "Cancel")
         XCTAssertEqual(L10nTable.string(for: "settings.general.language.title", language: .english), "Language")
         XCTAssertEqual(L10nTable.string(for: "settings.general.language.appliesImmediately", language: .english), "Changes apply immediately throughout Liney.")
@@ -54,6 +56,7 @@ final class LocalizationManagerTests: XCTestCase {
         XCTAssertEqual(L10nTable.string(for: "settings.general.terminal.group", language: .english), "Terminal")
         XCTAssertEqual(L10nTable.string(for: "settings.general.terminal.useCustomFont", language: .english), "Use custom terminal font")
         XCTAssertEqual(L10nTable.string(for: "settings.general.terminal.useCustomFontSize", language: .english), "Use custom terminal font size")
+        XCTAssertEqual(L10nTable.string(for: "settings.general.terminal.previewTitle", language: .english), "Preview")
         XCTAssertEqual(L10nTable.string(for: "settings.sidebar.visibility.group", language: .english), "Sidebar")
         XCTAssertEqual(L10nTable.string(for: "settings.sidebar.defaultIcons.repository.title", language: .english), "Repository")
         XCTAssertEqual(L10nTable.string(for: "settings.updates.group", language: .english), "Automatic Updates")
@@ -82,6 +85,8 @@ final class LocalizationManagerTests: XCTestCase {
 
     func testSettingsCoreStringsResolveInSimplifiedChinese() {
         XCTAssertEqual(L10nTable.string(for: "settings.section.general.title", language: .simplifiedChinese), "通用")
+        XCTAssertEqual(L10nTable.string(for: "settings.sidebarGroup.app", language: .simplifiedChinese), "应用")
+        XCTAssertEqual(L10nTable.string(for: "settings.section.terminal.title", language: .simplifiedChinese), "终端")
         XCTAssertEqual(L10nTable.string(for: "settings.button.cancel", language: .simplifiedChinese), "取消")
         XCTAssertEqual(L10nTable.string(for: "settings.general.language.title", language: .simplifiedChinese), "语言")
         XCTAssertEqual(L10nTable.string(for: "settings.general.language.appliesImmediately", language: .simplifiedChinese), "更改会立即在 Liney 中生效。")
@@ -89,6 +94,7 @@ final class LocalizationManagerTests: XCTestCase {
         XCTAssertEqual(L10nTable.string(for: "settings.general.terminal.group", language: .simplifiedChinese), "终端")
         XCTAssertEqual(L10nTable.string(for: "settings.general.terminal.useCustomFont", language: .simplifiedChinese), "使用自定义终端字体")
         XCTAssertEqual(L10nTable.string(for: "settings.general.terminal.useCustomFontSize", language: .simplifiedChinese), "使用自定义终端字号")
+        XCTAssertEqual(L10nTable.string(for: "settings.general.terminal.previewTitle", language: .simplifiedChinese), "预览")
         XCTAssertEqual(L10nTable.string(for: "settings.sidebar.visibility.group", language: .simplifiedChinese), "侧边栏")
         XCTAssertEqual(L10nTable.string(for: "settings.sidebar.defaultIcons.repository.title", language: .simplifiedChinese), "仓库")
         XCTAssertEqual(L10nTable.string(for: "settings.updates.group", language: .simplifiedChinese), "自动更新")
