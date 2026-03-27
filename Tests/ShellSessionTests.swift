@@ -128,6 +128,36 @@ final class ShellSessionTests: XCTestCase {
         XCTAssertEqual(resolved.shellArguments, ["-lc", "echo hi"])
     }
 
+    func testSSHBackendForcesRemoteTTYForInteractiveSessions() {
+        let configuration = SessionBackendConfiguration.ssh(
+            SSHSessionConfiguration(
+                host: "example.com",
+                user: "dev",
+                port: 2222,
+                identityFilePath: "~/.ssh/id_ed25519",
+                remoteWorkingDirectory: "/srv/app",
+                remoteCommand: nil
+            )
+        )
+
+        let launchConfiguration = configuration.makeLaunchConfiguration(
+            preferredWorkingDirectory: "/tmp/liney-ssh",
+            baseEnvironment: [:]
+        )
+
+        XCTAssertEqual(launchConfiguration.command.executablePath, "/usr/bin/ssh")
+        XCTAssertEqual(
+            launchConfiguration.command.arguments,
+            [
+                "-tt",
+                "-p", "2222",
+                "-i", "~/.ssh/id_ed25519",
+                "dev@example.com",
+                "cd '/srv/app' && exec ${SHELL:-/bin/zsh} -l",
+            ]
+        )
+    }
+
     func testStartIfNeededOnlyAutoStartsIdleSession() async {
         await MainActor.run {
             let surface = FakeManagedTerminalSurfaceController()

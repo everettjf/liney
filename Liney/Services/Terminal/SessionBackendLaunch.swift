@@ -103,7 +103,9 @@ extension SessionBackendConfiguration {
 
 private extension SSHSessionConfiguration {
     func sshArguments() -> [String] {
-        var arguments: [String] = []
+        // Dedicated SSH panes are interactive terminal sessions, so always
+        // force a remote PTY to keep line editing and arrow keys working.
+        var arguments: [String] = ["-tt"]
         if let port {
             arguments.append(contentsOf: ["-p", String(port)])
         }
