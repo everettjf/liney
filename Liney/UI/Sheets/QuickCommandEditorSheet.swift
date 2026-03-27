@@ -429,13 +429,16 @@ private struct QuickCommandLoadingState: View {
     let localized: (String) -> String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ProgressView()
-                .controlSize(.small)
-
+        VStack(alignment: .leading, spacing: 8) {
             Text(localized("common.loading"))
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(LineyTheme.secondaryText)
+
+            VStack(spacing: 4) {
+                QuickCommandLoadingRow()
+                QuickCommandLoadingRow()
+                QuickCommandLoadingRow()
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -451,17 +454,129 @@ private struct QuickCommandDetailLoadingState: View {
     let localized: (String) -> String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ProgressView()
-                .controlSize(.regular)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 10) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(LineyTheme.subtleRaisedFill)
+                    .frame(width: 16, height: 16)
 
-            Text(localized("common.loading"))
-                .font(.system(size: 18, weight: .semibold))
+                VStack(alignment: .leading, spacing: 4) {
+                    QuickCommandSkeletonBar(width: 220, height: 18)
+                    QuickCommandSkeletonBar(width: 56, height: 10)
+                }
 
-            Text(localized("sheet.quickCommands.loadingDetail"))
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(LineyTheme.secondaryText)
+                Spacer()
+
+                HStack(spacing: 6) {
+                    QuickCommandSkeletonButton()
+                    QuickCommandSkeletonButton()
+                    QuickCommandSkeletonButton()
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                loadingField(width: 40)
+                loadingFieldPair()
+                loadingCommandEditor()
+                loadingToggleCard()
+            }
         }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(LineyTheme.panelRaised, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(LineyTheme.border, lineWidth: 1)
+        )
+    }
+
+    private func loadingField(width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            QuickCommandSkeletonBar(width: width, height: 10)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(LineyTheme.subtleFill)
+                .frame(height: 34)
+        }
+    }
+
+    private func loadingFieldPair() -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                QuickCommandSkeletonBar(width: 58, height: 10)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(LineyTheme.subtleFill)
+                    .frame(height: 34)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                QuickCommandSkeletonBar(width: 78, height: 10)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(LineyTheme.subtleFill)
+                    .frame(height: 34)
+            }
+        }
+    }
+
+    private func loadingCommandEditor() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            QuickCommandSkeletonBar(width: 62, height: 10)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(LineyTheme.subtleFill)
+                .frame(height: 178)
+        }
+    }
+
+    private func loadingToggleCard() -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                QuickCommandSkeletonBar(width: 280, height: 12)
+                Spacer()
+                Capsule()
+                    .fill(LineyTheme.subtleRaisedFill)
+                    .frame(width: 58, height: 30)
+            }
+
+            QuickCommandSkeletonBar(width: 240, height: 12)
+        }
+    }
+}
+
+private struct QuickCommandLoadingRow: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(LineyTheme.subtleRaisedFill)
+                .frame(width: 14, height: 14)
+
+            VStack(alignment: .leading, spacing: 4) {
+                QuickCommandSkeletonBar(width: 120, height: 11)
+                QuickCommandSkeletonBar(width: 90, height: 9)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(LineyTheme.appBackground.opacity(0.28), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private struct QuickCommandSkeletonBar: View {
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: height / 2, style: .continuous)
+            .fill(LineyTheme.subtleRaisedFill)
+            .frame(width: width, height: height)
+    }
+}
+
+private struct QuickCommandSkeletonButton: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(LineyTheme.subtleFill)
+            .frame(width: 32, height: 30)
     }
 }
 
