@@ -121,6 +121,12 @@ private extension ExternalEditor {
         switch self {
         case .cursor:
             return ["Cursor"]
+        case .iTerm2:
+            return ["iTerm", "iTerm2"]
+        case .terminal:
+            return ["Terminal"]
+        case .ghostty:
+            return ["Ghostty"]
         case .zed:
             return ["Zed"]
         case .visualStudioCode:

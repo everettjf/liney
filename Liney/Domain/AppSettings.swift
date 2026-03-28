@@ -197,6 +197,9 @@ extension SidebarItemIcon {
 
 nonisolated enum ExternalEditor: String, Codable, Hashable, CaseIterable, Identifiable {
     case cursor
+    case iTerm2
+    case terminal
+    case ghostty
     case zed
     case visualStudioCode
     case visualStudioCodeInsiders
@@ -212,6 +215,12 @@ nonisolated enum ExternalEditor: String, Codable, Hashable, CaseIterable, Identi
         switch self {
         case .cursor:
             return "Cursor"
+        case .iTerm2:
+            return "iTerm2"
+        case .terminal:
+            return "Terminal"
+        case .ghostty:
+            return "Ghostty"
         case .zed:
             return "Zed"
         case .visualStudioCode:
