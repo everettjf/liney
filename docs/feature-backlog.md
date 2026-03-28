@@ -8,7 +8,7 @@ This document turns the current product discussion into tracked, scoped GitHub i
 
 - [#38](https://github.com/everettjf/liney/issues/38) Restore `tmux`-backed sessions on relaunch
 - [#39](https://github.com/everettjf/liney/issues/39) Add global UI scale controls for non-terminal surfaces
-- [#40](https://github.com/everettjf/liney/issues/40) Support `Cmd+W` to close the active tab
+- [#40](https://github.com/everettjf/liney/issues/40) Audit and complete standard macOS keyboard shortcuts
 - [#41](https://github.com/everettjf/liney/issues/41) Support side-by-side worktrees in split panes
 - [#44](https://github.com/everettjf/liney/issues/44) Add SSH-backed remote session foundations
 
