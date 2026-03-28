@@ -1156,11 +1156,30 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func split(in workspace: WorkspaceModel, for worktree: WorktreeModel, axis: PaneSplitAxis) {
-        openWorktree(
-            workspace,
-            worktree: worktree,
-            requestedAction: axis == .vertical ? .splitVertical : .splitHorizontal
+        guard workspace.activeWorktreePath != worktree.path else {
+            workspace.createPane(splitAxis: axis)
+            persist()
+            return
+        }
+
+        let backendConfiguration: SessionBackendConfiguration = {
+            guard let focusedPaneID = workspace.sessionController.focusedPaneID,
+                  let session = workspace.sessionController.session(for: focusedPaneID),
+                  session.backendConfiguration.kind == .localShell else {
+                return .local()
+            }
+            return session.backendConfiguration
+        }()
+
+        let snapshot = PaneSnapshot(
+            id: UUID(),
+            preferredWorkingDirectory: worktree.path,
+            preferredEngine: .libghosttyPreferred,
+            backendConfiguration: backendConfiguration
         )
+        workspace.createPane(splitAxis: axis, snapshot: snapshot)
+        selectWorkspace(workspace)
+        persist()
     }
 
     func closePane(in workspace: WorkspaceModel, paneID: UUID) {
