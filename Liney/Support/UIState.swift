@@ -38,6 +38,14 @@ struct QuickCommandEditorRequest: Identifiable {
     let id = UUID()
 }
 
+struct LightweightEditorRequest: Identifiable {
+    let id = UUID()
+    let workspaceID: UUID
+    let workspaceName: String
+    let filePath: String
+    let initialContents: String
+}
+
 enum SidebarIconCustomizationTarget: Hashable {
     case workspace(UUID)
     case worktree(workspaceID: UUID, worktreePath: String)

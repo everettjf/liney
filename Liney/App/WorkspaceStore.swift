@@ -29,6 +29,7 @@ final class WorkspaceStore: ObservableObject {
     @Published var selectedCommandPaletteItemID: String?
     @Published var settingsRequest: WorkspaceSettingsRequest?
     @Published var quickCommandEditorRequest: QuickCommandEditorRequest?
+    @Published var lightweightEditorRequest: LightweightEditorRequest?
     @Published var sidebarIconCustomizationRequest: SidebarIconCustomizationRequest?
     @Published var presentedError: PresentedError?
     @Published var renameWorkspaceRequest: RenameWorkspaceRequest?
@@ -713,6 +714,55 @@ final class WorkspaceStore: ObservableObject {
 
     func presentQuickCommandEditor() {
         quickCommandEditorRequest = QuickCommandEditorRequest()
+    }
+
+    func presentLightweightEditor(for workspace: WorkspaceModel) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: workspace.activeWorktreePath, isDirectory: true)
+        panel.prompt = localized("sheet.editor.openPrompt")
+        panel.message = localizedFormat("sheet.editor.openMessageFormat", workspace.name)
+
+        guard panel.runModal() == .OK,
+              let fileURL = panel.url else {
+            return
+        }
+
+        do {
+            let contents = try LightweightEditorSupport.loadTextFile(at: fileURL)
+            lightweightEditorRequest = LightweightEditorRequest(
+                workspaceID: workspace.id,
+                workspaceName: workspace.name,
+                filePath: fileURL.path,
+                initialContents: contents
+            )
+        } catch {
+            presentError(
+                title: localized("sheet.editor.openErrorTitle"),
+                message: localizedFormat("sheet.editor.openErrorMessageFormat", fileURL.lastPathComponent, error.localizedDescription)
+            )
+        }
+    }
+
+    func saveLightweightEditor(request: LightweightEditorRequest, contents: String) {
+        let fileURL = URL(fileURLWithPath: request.filePath)
+        do {
+            try LightweightEditorSupport.saveTextFile(contents: contents, to: fileURL)
+            receive(
+                .statusMessage(
+                    localizedFormat("sheet.editor.savedFormat", fileURL.lastPathComponent),
+                    .success,
+                    deliverSystemNotification: false
+                )
+            )
+        } catch {
+            presentError(
+                title: localized("sheet.editor.saveErrorTitle"),
+                message: localizedFormat("sheet.editor.saveErrorMessageFormat", fileURL.lastPathComponent, error.localizedDescription)
+            )
+        }
     }
 
     func presentSidebarIconCustomization(for workspace: WorkspaceModel) {
