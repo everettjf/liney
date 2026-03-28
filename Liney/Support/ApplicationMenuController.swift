@@ -71,30 +71,29 @@ final class ApplicationMenuController: NSObject {
         NSApp.servicesMenu = servicesMenu
 
         appMenu.addItem(.separator())
-        addItem(
+        addShortcutItem(
             title: localizedFormat("menu.app.hideFormat", appName),
-            action: #selector(NSApplication.hide(_:)),
-            keyEquivalent: "h",
-            to: appMenu
+            shortcutAction: .hideApp,
+            to: appMenu,
+            target: target
         )
 
-        let hideOthersItem = addItem(
+        addShortcutItem(
             title: localized("menu.app.hideOthers"),
-            action: #selector(NSApplication.hideOtherApplications(_:)),
-            keyEquivalent: "h",
-            to: appMenu
+            shortcutAction: .hideOtherApps,
+            to: appMenu,
+            target: target
         )
-        hideOthersItem.keyEquivalentModifierMask = [.command, .option]
 
         addItem(title: localized("menu.app.showAll"), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "", to: appMenu)
         appMenu.addItem(.separator())
         addShortcutItem(title: localized("menu.app.settings"), shortcutAction: .openSettings, to: appMenu, target: target)
         appMenu.addItem(.separator())
-        addItem(
+        addShortcutItem(
             title: localizedFormat("menu.app.quitFormat", appName),
-            action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q",
-            to: appMenu
+            shortcutAction: .quitApp,
+            to: appMenu,
+            target: target
         )
 
         let fileMenu = NSMenu(title: localized("menu.file"))
@@ -111,24 +110,19 @@ final class ApplicationMenuController: NSObject {
 
         let editMenu = NSMenu(title: localized("menu.edit"))
         editMenuItem.submenu = editMenu
-        addItem(title: localized("menu.edit.undo"), action: Selector(("undo:")), keyEquivalent: "z", to: editMenu)
-
-        let redoItem = addItem(title: localized("menu.edit.redo"), action: Selector(("redo:")), keyEquivalent: "Z", to: editMenu)
-        redoItem.keyEquivalentModifierMask = [.command, .shift]
+        addShortcutItem(title: localized("menu.edit.undo"), shortcutAction: .undo, to: editMenu, target: target)
+        addShortcutItem(title: localized("menu.edit.redo"), shortcutAction: .redo, to: editMenu, target: target)
 
         editMenu.addItem(.separator())
-        addItem(title: localized("menu.edit.cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x", to: editMenu)
-        addItem(title: localized("menu.edit.copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c", to: editMenu)
-        addItem(title: localized("menu.edit.paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v", to: editMenu)
-        addItem(title: localized("menu.edit.selectAll"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a", to: editMenu)
+        addShortcutItem(title: localized("menu.edit.cut"), shortcutAction: .cut, to: editMenu, target: target)
+        addShortcutItem(title: localized("menu.edit.copy"), shortcutAction: .copy, to: editMenu, target: target)
+        addShortcutItem(title: localized("menu.edit.paste"), shortcutAction: .paste, to: editMenu, target: target)
+        addShortcutItem(title: localized("menu.edit.selectAll"), shortcutAction: .selectAll, to: editMenu, target: target)
         editMenu.addItem(.separator())
-        addItem(title: localized("menu.edit.find"), action: #selector(NSResponder.performTextFinderAction(_:)), keyEquivalent: "f", to: editMenu).tag = NSTextFinder.Action.showFindInterface.rawValue
-        let findNextItem = addItem(title: localized("menu.edit.findNext"), action: #selector(NSResponder.performTextFinderAction(_:)), keyEquivalent: "g", to: editMenu)
-        findNextItem.tag = NSTextFinder.Action.nextMatch.rawValue
-        let findPreviousItem = addItem(title: localized("menu.edit.findPrevious"), action: #selector(NSResponder.performTextFinderAction(_:)), keyEquivalent: "G", to: editMenu)
-        findPreviousItem.keyEquivalentModifierMask = [.command, .shift]
-        findPreviousItem.tag = NSTextFinder.Action.previousMatch.rawValue
-        addItem(title: localized("menu.edit.hideFind"), action: #selector(NSResponder.performTextFinderAction(_:)), keyEquivalent: "e", to: editMenu).tag = NSTextFinder.Action.hideFindInterface.rawValue
+        addShortcutItem(title: localized("menu.edit.find"), shortcutAction: .find, to: editMenu, target: target)
+        addShortcutItem(title: localized("menu.edit.findNext"), shortcutAction: .findNext, to: editMenu, target: target)
+        addShortcutItem(title: localized("menu.edit.findPrevious"), shortcutAction: .findPrevious, to: editMenu, target: target)
+        addShortcutItem(title: localized("menu.edit.hideFind"), shortcutAction: .hideFind, to: editMenu, target: target)
 
         let viewMenu = NSMenu(title: localized("menu.view"))
         viewMenuItem.submenu = viewMenu
@@ -163,7 +157,7 @@ final class ApplicationMenuController: NSObject {
 
         let windowMenu = NSMenu(title: localized("menu.window"))
         windowMenuItem.submenu = windowMenu
-        addItem(title: localized("menu.window.minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m", to: windowMenu)
+        addShortcutItem(title: localized("menu.window.minimize"), shortcutAction: .minimizeWindow, to: windowMenu, target: target)
         addItem(title: localized("menu.window.zoom"), action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "", to: windowMenu)
         addShortcutItem(title: localized("menu.window.closeWindow"), shortcutAction: .closeWindow, to: windowMenu, target: target)
         windowMenu.addItem(.separator())

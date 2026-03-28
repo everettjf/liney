@@ -406,6 +406,35 @@ final class QuickCommandSupportTests: XCTestCase {
         )
     }
 
+    func testStandardMenuShortcutsUseConfigurableDefaults() {
+        let settings = AppSettings()
+
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .hideApp, in: settings),
+            StoredShortcut(key: "h", command: true, shift: false, option: false, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .hideOtherApps, in: settings),
+            StoredShortcut(key: "h", command: true, shift: false, option: true, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .quitApp, in: settings),
+            StoredShortcut(key: "q", command: true, shift: false, option: false, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .copy, in: settings),
+            StoredShortcut(key: "c", command: true, shift: false, option: false, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .findPrevious, in: settings),
+            StoredShortcut(key: "g", command: true, shift: true, option: false, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .minimizeWindow, in: settings),
+            StoredShortcut(key: "m", command: true, shift: false, option: false, control: false)
+        )
+    }
+
     func testShortcutMatchingSupportsArrowKeys() {
         let settings = AppSettings()
 

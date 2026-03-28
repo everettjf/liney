@@ -255,6 +255,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         return false
     }
 
+    private func canPerformResponderAction(_ selector: Selector, sender: Any?) -> Bool {
+        NSApp.target(forAction: selector, to: nil, from: sender) != nil
+    }
+
+    private func dispatchResponderAction(_ selector: Selector, sender: Any?) {
+        NSApp.sendAction(selector, to: nil, from: sender)
+    }
+
+    private func textFinderMenuItem(for action: NSTextFinder.Action) -> NSMenuItem {
+        let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        item.tag = action.rawValue
+        return item
+    }
+
     @MainActor
     func shouldDispatchGhosttySplitAction(_ direction: ghostty_action_split_direction_e) -> Bool {
         guard let desktopApplication else { return true }
@@ -277,13 +291,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         case #selector(performShortcutAction(_:)):
             guard let shortcutAction = shortcutAction(for: menuItem) else { return false }
             switch shortcutAction {
-            case .newWindow,
+            case .hideApp,
+                 .hideOtherApps,
+                 .quitApp,
+                 .newWindow,
                  .openSettings,
                  .toggleCommandPalette,
                  .toggleSidebar,
                  .toggleOverview,
                  .openDiff:
                 return true
+            case .undo:
+                return canPerformResponderAction(Selector(("undo:")), sender: menuItem)
+            case .redo:
+                return canPerformResponderAction(Selector(("redo:")), sender: menuItem)
+            case .cut:
+                return canPerformResponderAction(#selector(NSText.cut(_:)), sender: menuItem)
+            case .copy:
+                return canPerformResponderAction(#selector(NSText.copy(_:)), sender: menuItem)
+            case .paste:
+                return canPerformResponderAction(#selector(NSText.paste(_:)), sender: menuItem)
+            case .selectAll:
+                return canPerformResponderAction(#selector(NSText.selectAll(_:)), sender: menuItem)
+            case .find:
+                return canPerformResponderAction(#selector(NSResponder.performTextFinderAction(_:)), sender: textFinderMenuItem(for: .showFindInterface))
+            case .findNext:
+                return canPerformResponderAction(#selector(NSResponder.performTextFinderAction(_:)), sender: textFinderMenuItem(for: .nextMatch))
+            case .findPrevious:
+                return canPerformResponderAction(#selector(NSResponder.performTextFinderAction(_:)), sender: textFinderMenuItem(for: .previousMatch))
+            case .hideFind:
+                return canPerformResponderAction(#selector(NSResponder.performTextFinderAction(_:)), sender: textFinderMenuItem(for: .hideFindInterface))
             case .refreshSelectedWorkspace:
                 return desktopApplication.selectedWorkspaceSupportsRepositoryFeatures
             case .refreshAllRepositories:
@@ -306,7 +343,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                  .togglePaneZoom,
                  .closePane:
                 return desktopApplication.hasFocusedPane
-            case .closeWindow, .enterFullScreen:
+            case .minimizeWindow, .closeWindow, .enterFullScreen:
                 return NSApp.keyWindow != nil
             }
         default:
@@ -322,11 +359,50 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @MainActor
     private func performShortcutAction(_ shortcutAction: LineyShortcutAction, tabNumber: Int) {
         switch shortcutAction {
+        case .hideApp:
+            NSApp.hide(nil)
+
+        case .hideOtherApps:
+            NSApp.hideOtherApplications(nil)
+
+        case .quitApp:
+            NSApp.terminate(nil)
+
         case .newWindow:
             desktopApplication?.createNewWindow()
 
         case .openSettings:
             desktopApplication?.presentSettings()
+
+        case .undo:
+            dispatchResponderAction(Selector(("undo:")), sender: nil)
+
+        case .redo:
+            dispatchResponderAction(Selector(("redo:")), sender: nil)
+
+        case .cut:
+            dispatchResponderAction(#selector(NSText.cut(_:)), sender: nil)
+
+        case .copy:
+            dispatchResponderAction(#selector(NSText.copy(_:)), sender: nil)
+
+        case .paste:
+            dispatchResponderAction(#selector(NSText.paste(_:)), sender: nil)
+
+        case .selectAll:
+            dispatchResponderAction(#selector(NSText.selectAll(_:)), sender: nil)
+
+        case .find:
+            dispatchResponderAction(#selector(NSResponder.performTextFinderAction(_:)), sender: textFinderMenuItem(for: .showFindInterface))
+
+        case .findNext:
+            dispatchResponderAction(#selector(NSResponder.performTextFinderAction(_:)), sender: textFinderMenuItem(for: .nextMatch))
+
+        case .findPrevious:
+            dispatchResponderAction(#selector(NSResponder.performTextFinderAction(_:)), sender: textFinderMenuItem(for: .previousMatch))
+
+        case .hideFind:
+            dispatchResponderAction(#selector(NSResponder.performTextFinderAction(_:)), sender: textFinderMenuItem(for: .hideFindInterface))
 
         case .toggleCommandPalette:
             desktopApplication?.toggleCommandPalette()
@@ -390,6 +466,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         case .closePane:
             desktopApplication?.closeFocusedPane()
+
+        case .minimizeWindow:
+            NSApp.keyWindow?.performMiniaturize(nil)
 
         case .closeWindow:
             NSApp.keyWindow?.performClose(nil)

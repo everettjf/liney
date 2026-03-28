@@ -420,6 +420,10 @@ struct SettingsSheet: View {
                         Text(localized("settings.general.behavior.seconds"))
                             .foregroundStyle(.secondary)
                     }
+
+                    Text(localized("settings.general.behavior.refreshIntervalHint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
                 .padding(.top, 8)
             }
