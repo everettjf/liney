@@ -28,7 +28,7 @@ final class QuickCommandSupportTests: XCTestCase {
         )
         XCTAssertEqual(
             LineyKeyboardShortcuts.effectiveShortcut(for: .closeWindow, in: settings),
-            StoredShortcut(key: "w", command: true, shift: false, option: false, control: true)
+            StoredShortcut(key: "w", command: true, shift: true, option: false, control: false)
         )
     }
 
@@ -317,7 +317,7 @@ final class QuickCommandSupportTests: XCTestCase {
 
         XCTAssertEqual(
             LineyKeyboardShortcuts.effectiveShortcut(for: .closePane, in: settings),
-            StoredShortcut(key: "w", command: true, shift: true, option: false, control: false)
+            StoredShortcut(key: "w", command: true, shift: false, option: true, control: false)
         )
     }
 
@@ -362,6 +362,36 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertEqual(
             LineyKeyboardShortcuts.effectiveShortcut(for: .focusPaneDown, in: settings),
             StoredShortcut(key: "↓", command: true, shift: false, option: true, control: false)
+        )
+    }
+
+    func testTabNavigationShortcutsUseControlTabVariants() {
+        let settings = AppSettings()
+
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .nextTab, in: settings),
+            StoredShortcut(key: "\t", command: false, shift: false, option: false, control: true)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .previousTab, in: settings),
+            StoredShortcut(key: "\t", command: false, shift: true, option: false, control: true)
+        )
+    }
+
+    func testPaneAndDiffShortcutsUseNewDefaults() {
+        let settings = AppSettings()
+
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .duplicatePane, in: settings),
+            StoredShortcut(key: "d", command: true, shift: false, option: true, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .togglePaneZoom, in: settings),
+            StoredShortcut(key: "\r", command: true, shift: false, option: false, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .openDiff, in: settings),
+            StoredShortcut(key: ".", command: true, shift: true, option: false, control: false)
         )
     }
 
@@ -412,6 +442,54 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertEqual(
             lineyShortcutMatch(for: event, in: settings),
             LineyShortcutMatch(action: .splitRight, tabNumber: nil)
+        )
+    }
+
+    func testShortcutMatchingSupportsControlTab() {
+        let settings = AppSettings()
+
+        let event = try! XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [.control],
+                timestamp: 1,
+                windowNumber: 0,
+                context: nil,
+                characters: "\t",
+                charactersIgnoringModifiers: "\t",
+                isARepeat: false,
+                keyCode: UInt16(kVK_Tab)
+            )
+        )
+
+        XCTAssertEqual(
+            lineyShortcutMatch(for: event, in: settings),
+            LineyShortcutMatch(action: .nextTab, tabNumber: nil)
+        )
+    }
+
+    func testShortcutMatchingSupportsCommandReturn() {
+        let settings = AppSettings()
+
+        let event = try! XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [.command],
+                timestamp: 1,
+                windowNumber: 0,
+                context: nil,
+                characters: "\r",
+                charactersIgnoringModifiers: "\r",
+                isARepeat: false,
+                keyCode: UInt16(kVK_Return)
+            )
+        )
+
+        XCTAssertEqual(
+            lineyShortcutMatch(for: event, in: settings),
+            LineyShortcutMatch(action: .togglePaneZoom, tabNumber: nil)
         )
     }
 

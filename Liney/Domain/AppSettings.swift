@@ -827,7 +827,7 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
         case .toggleOverview:
             return StoredShortcut(key: "o", command: true, shift: true, option: false, control: false)
         case .openDiff:
-            return nil
+            return StoredShortcut(key: ".", command: true, shift: true, option: false, control: false)
         case .refreshSelectedWorkspace:
             return StoredShortcut(key: "r", command: true, shift: false, option: false, control: false)
         case .refreshAllRepositories:
@@ -837,9 +837,9 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
         case .closeTab:
             return StoredShortcut(key: "w", command: true, shift: false, option: false, control: false)
         case .nextTab:
-            return StoredShortcut(key: "]", command: true, shift: false, option: false, control: false)
+            return StoredShortcut(key: "\t", command: false, shift: false, option: false, control: true)
         case .previousTab:
-            return StoredShortcut(key: "[", command: true, shift: false, option: false, control: false)
+            return StoredShortcut(key: "\t", command: false, shift: true, option: false, control: true)
         case .selectTabByNumber:
             return StoredShortcut(key: "1", command: true, shift: false, option: false, control: false)
         case .focusPaneLeft:
@@ -855,13 +855,13 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
         case .splitDown:
             return StoredShortcut(key: "d", command: true, shift: true, option: false, control: false)
         case .duplicatePane:
-            return nil
+            return StoredShortcut(key: "d", command: true, shift: false, option: true, control: false)
         case .togglePaneZoom:
-            return nil
+            return StoredShortcut(key: "\r", command: true, shift: false, option: false, control: false)
         case .closePane:
-            return StoredShortcut(key: "w", command: true, shift: true, option: false, control: false)
+            return StoredShortcut(key: "w", command: true, shift: false, option: true, control: false)
         case .closeWindow:
-            return StoredShortcut(key: "w", command: true, shift: false, option: false, control: true)
+            return StoredShortcut(key: "w", command: true, shift: true, option: false, control: false)
         case .enterFullScreen:
             return StoredShortcut(key: "f", command: true, shift: false, option: false, control: true)
         }
