@@ -25,6 +25,7 @@ This document turns the current product discussion into tracked, scoped GitHub i
 
 ## Dependency Notes
 
+- Shortcut completion in [#40](https://github.com/everettjf/liney/issues/40) is tracked through [#49](https://github.com/everettjf/liney/issues/49), [#50](https://github.com/everettjf/liney/issues/50), and [#51](https://github.com/everettjf/liney/issues/51).
 - Remote repository browsing depends on the remote-session foundation in [#44](https://github.com/everettjf/liney/issues/44).
 - Multi-worktree overview in [#42](https://github.com/everettjf/liney/issues/42) becomes more valuable after cross-worktree splits in [#41](https://github.com/everettjf/liney/issues/41), but it is still independently shippable.
 - Canvas performance work in [#46](https://github.com/everettjf/liney/issues/46) should inform any denser multi-worktree UI before scope expands further.
