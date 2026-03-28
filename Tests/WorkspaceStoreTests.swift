@@ -66,6 +66,14 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertEqual(LocalizationManager.shared.selectedLanguage, .simplifiedChinese)
     }
 
+    func testUpdateAppSettingsPreservesInterfaceScale() {
+        let store = WorkspaceStore(persistsWorkspaceState: false)
+
+        store.updateAppSettings(AppSettings(uiScale: 1.25))
+
+        XCTAssertEqual(store.appSettings.uiScale, 1.25)
+    }
+
     func testCommandPaletteItemsLocalizeForSimplifiedChinese() {
         LocalizationManager.shared.updateSelectedLanguage(.simplifiedChinese)
         let store = WorkspaceStore(persistsWorkspaceState: false)

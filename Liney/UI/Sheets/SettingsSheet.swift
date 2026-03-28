@@ -28,8 +28,7 @@ private enum SettingsSidebarGroup: String, CaseIterable, Identifiable {
 }
 
 private enum SettingsSheetSection: String, CaseIterable, Identifiable {
-    case language
-    case behavior
+    case general
     case hotKeyWindow
     case externalEditor
     case terminal
@@ -43,7 +42,7 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
 
     var group: SettingsSidebarGroup {
         switch self {
-        case .language, .behavior, .hotKeyWindow, .externalEditor, .terminal, .quickCommands, .updates:
+        case .general, .hotKeyWindow, .externalEditor, .terminal, .quickCommands, .updates:
             return .app
         case .sidebar, .shortcuts:
             return .customize
@@ -54,10 +53,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
 
     var titleKey: String {
         switch self {
-        case .language:
-            return "settings.section.language.title"
-        case .behavior:
-            return "settings.section.behavior.title"
+        case .general:
+            return "settings.section.general.title"
         case .hotKeyWindow:
             return "settings.section.hotKeyWindow.title"
         case .externalEditor:
@@ -79,10 +76,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
 
     var subtitleKey: String {
         switch self {
-        case .language:
-            return "settings.section.language.subtitle"
-        case .behavior:
-            return "settings.section.behavior.subtitle"
+        case .general:
+            return "settings.section.general.subtitle"
         case .hotKeyWindow:
             return "settings.section.hotKeyWindow.subtitle"
         case .externalEditor:
@@ -104,9 +99,7 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .language:
-            return "globe"
-        case .behavior:
+        case .general:
             return "gearshape"
         case .hotKeyWindow:
             return "macwindow.badge.plus"
@@ -223,7 +216,7 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var appSettings = AppSettings()
-    @State private var selection: SettingsSheetSection = .behavior
+    @State private var selection: SettingsSheetSection = .general
     @State private var selectedWorkspaceID: UUID?
     @State private var terminalFontSearchText = ""
     @State private var workspaceSettings = WorkspaceSettings()
@@ -359,10 +352,8 @@ struct SettingsSheet: View {
     @ViewBuilder
     private var detailContent: some View {
         switch selection {
-        case .language:
-            languageSettingsView
-        case .behavior:
-            behaviorSettingsView
+        case .general:
+            generalSettingsView
         case .hotKeyWindow:
             hotKeyWindowSettingsView
         case .externalEditor:
@@ -382,65 +373,65 @@ struct SettingsSheet: View {
         }
     }
 
-    private var languageSettingsView: some View {
-        GroupBox(localized("settings.general.language.group")) {
-            VStack(alignment: .leading, spacing: 12) {
-                Picker(localized("settings.general.language.title"), selection: $appSettings.appLanguage) {
-                    ForEach(AppLanguage.allCases) { language in
-                        Text(language.displayName)
-                            .tag(language)
+    private var generalSettingsView: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            GroupBox(localized("settings.general.language.group")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker(localized("settings.general.language.title"), selection: $appSettings.appLanguage) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.displayName)
+                                .tag(language)
+                        }
+                    }
+
+                    Text(localized("settings.general.language.appliesImmediately"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Text(localized("settings.general.language.fallback"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
+            }
+
+            GroupBox(localized("settings.general.behavior.group")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(localized("settings.general.behavior.autoRefresh"), isOn: $appSettings.autoRefreshEnabled)
+                    Toggle(localized("settings.general.behavior.autoClosePaneOnExit"), isOn: $appSettings.autoClosePaneOnProcessExit)
+                    Toggle(localized("settings.general.behavior.confirmQuitRunningCommands"), isOn: $appSettings.confirmQuitWhenCommandsRunning)
+                    Toggle(localized("settings.general.behavior.enableHotKeyWindow"), isOn: $appSettings.hotKeyWindowEnabled)
+                    Toggle(localized("settings.general.behavior.enableFileWatchers"), isOn: $appSettings.fileWatcherEnabled)
+                    Toggle(localized("settings.general.behavior.allowSystemNotifications"), isOn: $appSettings.systemNotificationsEnabled)
+                    Toggle(localized("settings.general.behavior.showArchivedWorkspaces"), isOn: $appSettings.showArchivedWorkspaces)
+
+                    Divider()
+
+                    HStack {
+                        Text(localized("settings.general.behavior.uiScale"))
+                        Spacer()
+                        Text(localizedFormat("settings.general.behavior.uiScalePercentFormat", Int((appSettings.uiScale * 100).rounded())))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Slider(value: $appSettings.uiScale, in: 0.85...1.5, step: 0.05)
+
+                    Text(localized("settings.general.behavior.uiScaleHint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        Text(localized("settings.general.behavior.refreshInterval"))
+                        Spacer()
+                        TextField("30", value: $appSettings.autoRefreshIntervalSeconds, format: .number)
+                            .frame(width: 72)
+                            .textFieldStyle(.roundedBorder)
+                        Text(localized("settings.general.behavior.seconds"))
+                            .foregroundStyle(.secondary)
                     }
                 }
-
-                Text(localized("settings.general.language.appliesImmediately"))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-
-                Text(localized("settings.general.language.fallback"))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+                .padding(.top, 8)
             }
-            .padding(.top, 8)
-        }
-    }
-
-    private var behaviorSettingsView: some View {
-        GroupBox(localized("settings.general.behavior.group")) {
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle(localized("settings.general.behavior.autoRefresh"), isOn: $appSettings.autoRefreshEnabled)
-                Toggle(localized("settings.general.behavior.autoClosePaneOnExit"), isOn: $appSettings.autoClosePaneOnProcessExit)
-                Toggle(localized("settings.general.behavior.confirmQuitRunningCommands"), isOn: $appSettings.confirmQuitWhenCommandsRunning)
-                Toggle(localized("settings.general.behavior.enableHotKeyWindow"), isOn: $appSettings.hotKeyWindowEnabled)
-                Toggle(localized("settings.general.behavior.enableFileWatchers"), isOn: $appSettings.fileWatcherEnabled)
-                Toggle(localized("settings.general.behavior.allowSystemNotifications"), isOn: $appSettings.systemNotificationsEnabled)
-                Toggle(localized("settings.general.behavior.showArchivedWorkspaces"), isOn: $appSettings.showArchivedWorkspaces)
-
-                Divider()
-
-                HStack {
-                    Text(localized("settings.general.behavior.uiScale"))
-                    Spacer()
-                    Text(localizedFormat("settings.general.behavior.uiScalePercentFormat", Int((appSettings.uiScale * 100).rounded())))
-                        .foregroundStyle(.secondary)
-                }
-
-                Slider(value: $appSettings.uiScale, in: 0.85...1.5, step: 0.05)
-
-                Text(localized("settings.general.behavior.uiScaleHint"))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-
-                HStack {
-                    Text(localized("settings.general.behavior.refreshInterval"))
-                    Spacer()
-                    TextField("30", value: $appSettings.autoRefreshIntervalSeconds, format: .number)
-                        .frame(width: 72)
-                        .textFieldStyle(.roundedBorder)
-                    Text(localized("settings.general.behavior.seconds"))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.top, 8)
         }
     }
 
