@@ -907,7 +907,9 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             let identifier = NSUserInterfaceItemIdentifier("WorkspaceOutlineCell")
             let cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? SidebarOutlineCellView ?? SidebarOutlineCellView()
             cell.identifier = identifier
-            cell.apply(node: node, store: store)
+            let row = outlineView.row(forItem: node)
+            let isSelected = row >= 0 && outlineView.selectedRowIndexes.contains(row)
+            cell.apply(node: node, store: store, isSelected: isSelected)
             return cell
         }
 
@@ -930,6 +932,11 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
         func outlineViewSelectionDidChange(_ notification: Notification) {
             guard !isApplyingSelection,
                   let outlineView = notification.object as? NSOutlineView else { return }
+
+            let rowIndexes = IndexSet(integersIn: 0..<outlineView.numberOfRows)
+            if !rowIndexes.isEmpty {
+                outlineView.reloadData(forRowIndexes: rowIndexes, columnIndexes: IndexSet(integer: 0))
+            }
 
             let nodes = selectedNodes(from: outlineView)
             guard nodes.count == 1, let node = nodes.first else { return }
@@ -1268,8 +1275,8 @@ private final class SidebarOutlineRowView: NSTableRowView {
 private final class SidebarOutlineCellView: NSTableCellView {
     private var hostingView: NSHostingView<AnyView>?
 
-    func apply(node: SidebarNodeItem, store: WorkspaceStore?) {
-        let rootView = AnyView(SidebarNodeRow(node: node, store: store))
+    func apply(node: SidebarNodeItem, store: WorkspaceStore?, isSelected: Bool) {
+        let rootView = AnyView(SidebarNodeRow(node: node, store: store, isSelected: isSelected))
         if let hostingView {
             hostingView.rootView = rootView
         } else {
@@ -1290,6 +1297,7 @@ private final class SidebarOutlineCellView: NSTableCellView {
 private struct SidebarNodeRow: View {
     let node: SidebarNodeItem
     let store: WorkspaceStore?
+    let isSelected: Bool
 
     var body: some View {
         switch node.kind {
@@ -1298,7 +1306,7 @@ private struct SidebarNodeRow: View {
         case .branch:
             EmptyView()
         case .worktree(let workspace, let worktree):
-            WorktreeRowContent(workspace: workspace, worktree: worktree, store: store)
+            WorktreeRowContent(workspace: workspace, worktree: worktree, store: store, isSelected: isSelected)
         }
     }
 }
@@ -1399,6 +1407,7 @@ private struct WorktreeRowContent: View {
     @ObservedObject private var localization = LocalizationManager.shared
     let worktree: WorktreeModel
     let store: WorkspaceStore?
+    let isSelected: Bool
     @State private var isHovering = false
 
     private func localized(_ key: String) -> String {
@@ -1420,6 +1429,15 @@ private struct WorktreeRowContent: View {
     private var iconSize: CGFloat { 16 * uiScale }
     private var leadingInset: CGFloat { 5 * uiScale }
     private var iconColumnWidth: CGFloat { 24 * uiScale }
+    private var iconActivityIndicator: SidebarIconActivityIndicator {
+        if workspace.activeSessionCount(forWorktreePath: worktree.path) > 0 {
+            return .working
+        }
+        if workspace.activeWorktreePath == worktree.path {
+            return .current
+        }
+        return .none
+    }
 
     var body: some View {
         HStack(spacing: 8 * uiScale) {
@@ -1427,7 +1445,8 @@ private struct WorktreeRowContent: View {
                 icon: icon,
                 size: iconSize,
                 usesCircularShape: true,
-                isActive: workspace.activeWorktreePath == worktree.path
+                activityIndicator: iconActivityIndicator,
+                isEmphasized: isSelected
             )
             .frame(width: iconColumnWidth, alignment: .leading)
             Text(worktree.displayName)
@@ -1470,7 +1489,8 @@ struct SidebarItemIconView: View {
     let icon: SidebarItemIcon
     let size: CGFloat
     var usesCircularShape: Bool = false
-    var isActive: Bool = false
+    var activityIndicator: SidebarIconActivityIndicator = .none
+    var isEmphasized: Bool = false
 
     private var palette: SidebarIconPaletteDescriptor {
         icon.palette.descriptor
@@ -1496,11 +1516,8 @@ struct SidebarItemIconView: View {
                         .strokeBorder(palette.border, lineWidth: 1)
                 )
 
-            if isActive {
-                Circle()
-                    .fill(LineyTheme.success)
-                    .frame(width: max(6, size * 0.28), height: max(6, size * 0.28))
-                    .overlay(Circle().stroke(LineyTheme.sidebarBackground, lineWidth: 1))
+            if activityIndicator != .none {
+                SidebarIconActivityBadge(kind: activityIndicator, size: size, isEmphasized: isEmphasized)
                     .offset(x: 2, y: 2)
             }
         }
@@ -1520,6 +1537,73 @@ struct SidebarItemIconView: View {
                     endPoint: .bottomTrailing
                 )
             )
+        }
+    }
+}
+
+enum SidebarIconActivityIndicator {
+    case none
+    case current
+    case working
+}
+
+struct SidebarIconActivityBadge: View {
+    let kind: SidebarIconActivityIndicator
+    let size: CGFloat
+    let isEmphasized: Bool
+    @State private var isAnimating = false
+
+    private var badgeSize: CGFloat {
+        max(6, size * 0.28)
+    }
+
+    private var pulseLineWidth: CGFloat {
+        isEmphasized ? 1.35 : 1.1
+    }
+
+    private var pulseOpacity: Double {
+        isEmphasized ? 0.68 : 0.4
+    }
+
+    private var pulseScale: CGFloat {
+        isEmphasized ? 1.75 : 1.45
+    }
+
+    private var pulseDuration: Double {
+        isEmphasized ? 1.2 : 1.6
+    }
+
+    var body: some View {
+        ZStack {
+            if kind == .working {
+                Circle()
+                    .stroke(LineyTheme.success.opacity(pulseOpacity), lineWidth: pulseLineWidth)
+                    .frame(width: badgeSize, height: badgeSize)
+                    .scaleEffect(isAnimating ? pulseScale : 1.0)
+                    .opacity(isAnimating ? 0 : pulseOpacity)
+            }
+
+            Circle()
+                .fill(LineyTheme.success)
+                .frame(width: badgeSize, height: badgeSize)
+                .overlay(Circle().stroke(LineyTheme.sidebarBackground, lineWidth: 1))
+        }
+        .onAppear {
+            updateAnimationState()
+        }
+        .onChange(of: kind) { _, _ in
+            updateAnimationState()
+        }
+    }
+
+    private func updateAnimationState() {
+        guard kind == .working else {
+            isAnimating = false
+            return
+        }
+        isAnimating = false
+        withAnimation(.easeOut(duration: pulseDuration).repeatForever(autoreverses: false)) {
+            isAnimating = true
         }
     }
 }
