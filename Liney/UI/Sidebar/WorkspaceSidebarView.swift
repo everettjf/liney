@@ -1302,7 +1302,7 @@ private struct SidebarNodeRow: View {
     var body: some View {
         switch node.kind {
         case .workspace(let workspace):
-            WorkspaceRowContent(workspace: workspace, store: store)
+            WorkspaceRowContent(workspace: workspace, store: store, isSelected: isSelected)
         case .branch:
             EmptyView()
         case .worktree(let workspace, let worktree):
@@ -1315,6 +1315,7 @@ private struct WorkspaceRowContent: View {
     @ObservedObject var workspace: WorkspaceModel
     @ObservedObject private var localization = LocalizationManager.shared
     let store: WorkspaceStore?
+    let isSelected: Bool
     @State private var isHovering = false
 
     private func localized(_ key: String) -> String {
@@ -1334,9 +1335,24 @@ private struct WorkspaceRowContent: View {
         CGFloat(appSettings.uiScale)
     }
 
+    private var iconActivityIndicator: SidebarIconActivityIndicator {
+        if workspace.quitConfirmationSessionCount > 0 {
+            return .working
+        }
+        if workspace.activeWorktreePath == workspace.repositoryRoot {
+            return .current
+        }
+        return .none
+    }
+
     var body: some View {
         HStack(spacing: 8 * uiScale) {
-            SidebarItemIconView(icon: icon, size: 22 * uiScale)
+            SidebarItemIconView(
+                icon: icon,
+                size: 22 * uiScale,
+                activityIndicator: iconActivityIndicator,
+                isEmphasized: isSelected
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(workspace.name)
