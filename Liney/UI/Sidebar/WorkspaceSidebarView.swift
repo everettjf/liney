@@ -1351,6 +1351,7 @@ private struct WorkspaceRowContent: View {
                 icon: icon,
                 size: 22 * uiScale,
                 activityIndicator: iconActivityIndicator,
+                activityPalette: appSettings.sidebarActivityIndicatorPalette,
                 isEmphasized: isSelected
             )
 
@@ -1462,6 +1463,7 @@ private struct WorktreeRowContent: View {
                 size: iconSize,
                 usesCircularShape: true,
                 activityIndicator: iconActivityIndicator,
+                activityPalette: appSettings.sidebarActivityIndicatorPalette,
                 isEmphasized: isSelected
             )
             .frame(width: iconColumnWidth, alignment: .leading)
@@ -1506,6 +1508,7 @@ struct SidebarItemIconView: View {
     let size: CGFloat
     var usesCircularShape: Bool = false
     var activityIndicator: SidebarIconActivityIndicator = .none
+    var activityPalette: SidebarIconPalette = .amber
     var isEmphasized: Bool = false
 
     private var palette: SidebarIconPaletteDescriptor {
@@ -1533,7 +1536,12 @@ struct SidebarItemIconView: View {
                 )
 
             if activityIndicator == .working {
-                SidebarIconActivityBadge(kind: activityIndicator, size: size, isEmphasized: isEmphasized)
+                SidebarIconActivityBadge(
+                    kind: activityIndicator,
+                    size: size,
+                    palette: activityPalette,
+                    isEmphasized: isEmphasized
+                )
                     .offset(x: 2, y: 2)
             }
         }
@@ -1566,8 +1574,13 @@ enum SidebarIconActivityIndicator {
 struct SidebarIconActivityBadge: View {
     let kind: SidebarIconActivityIndicator
     let size: CGFloat
+    let palette: SidebarIconPalette
     let isEmphasized: Bool
     @State private var isAnimating = false
+
+    private var activityColor: Color {
+        palette.descriptor.gradientEnd
+    }
 
     private var badgeSize: CGFloat {
         switch kind {
@@ -1613,25 +1626,25 @@ struct SidebarIconActivityBadge: View {
         ZStack {
             if kind == .working {
                 Circle()
-                    .fill(LineyTheme.success.opacity(isAnimating ? 0.18 : 0.06))
+                    .fill(activityColor.opacity(isAnimating ? 0.18 : 0.06))
                     .frame(width: badgeSize, height: badgeSize)
                     .scaleEffect(isAnimating ? pulseScale * 0.9 : 1.0)
                     .blur(radius: isEmphasized ? 1.2 : 0.8)
 
                 Circle()
-                    .stroke(LineyTheme.success.opacity(pulseOpacity), lineWidth: pulseLineWidth)
+                    .stroke(activityColor.opacity(pulseOpacity), lineWidth: pulseLineWidth)
                     .frame(width: badgeSize, height: badgeSize)
                     .scaleEffect(isAnimating ? pulseScale : 1.0)
                     .opacity(isAnimating ? 0 : pulseOpacity)
             }
 
             Circle()
-                .fill(LineyTheme.success)
+                .fill(activityColor)
                 .frame(width: badgeSize, height: badgeSize)
                 .overlay(Circle().stroke(LineyTheme.sidebarBackground, lineWidth: 1))
                 .scaleEffect(coreScale)
                 .opacity(coreOpacity)
-                .shadow(color: LineyTheme.success.opacity(kind == .working ? 0.9 : 0), radius: glowRadius)
+                .shadow(color: activityColor.opacity(kind == .working ? 0.9 : 0), radius: glowRadius)
         }
         .onAppear {
             updateAnimationState()

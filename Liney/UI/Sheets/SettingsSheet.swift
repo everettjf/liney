@@ -604,6 +604,21 @@ struct SettingsSheet: View {
                 .padding(.top, 8)
             }
 
+            GroupBox(localized("settings.sidebar.activity.group")) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Picker(localized("settings.sidebar.activity.color"), selection: $appSettings.sidebarActivityIndicatorPalette) {
+                        ForEach(SidebarIconPalette.allCases) { palette in
+                            Text(palette.title).tag(palette)
+                        }
+                    }
+
+                    Text(localized("settings.sidebar.activity.hint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
+            }
+
             GroupBox(localized("settings.sidebar.defaultIcons.group")) {
                 VStack(alignment: .leading, spacing: 12) {
                     SidebarIconEditorCard(
