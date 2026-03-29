@@ -541,6 +541,12 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         } ?? 0
     }
 
+    func runningSessionCount(forWorktreePath path: String) -> Int {
+        worktreeControllers[path]?.values.reduce(0) { partialResult, controller in
+            partialResult + controller.runningSessionCount(using: path)
+        } ?? 0
+    }
+
     func createTab() {
         saveActiveWorktreeState()
         var state = activeWorktreeState

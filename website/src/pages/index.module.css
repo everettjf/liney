@@ -1,0 +1,513 @@
+.pageShell {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 14%, rgba(44, 126, 255, 0.3), transparent 24%),
+    radial-gradient(circle at 82% 18%, rgba(0, 229, 255, 0.18), transparent 20%),
+    radial-gradient(circle at 52% 74%, rgba(77, 255, 145, 0.12), transparent 24%),
+    linear-gradient(180deg, #040810 0%, #07111d 30%, #091828 60%, #04070d 100%);
+}
+
+.spaceBackdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.spaceGlow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(80px);
+  opacity: 0.8;
+  animation: pulseGlow 8s ease-in-out infinite;
+}
+
+.spaceGlow1 {
+  top: 6%;
+  left: -8%;
+  width: 24rem;
+  height: 24rem;
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.spaceGlow2 {
+  top: 20%;
+  right: -6%;
+  width: 22rem;
+  height: 22rem;
+  background: rgba(0, 229, 255, 0.15);
+  animation-delay: -2s;
+}
+
+.spaceGlow3 {
+  bottom: 10%;
+  left: 30%;
+  width: 30rem;
+  height: 30rem;
+  background: rgba(77, 255, 145, 0.1);
+  animation-delay: -4s;
+}
+
+.stars {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+}
+
+.starsDense {
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.9) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 30% 62%, rgba(255, 255, 255, 0.8) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 50% 20%, rgba(0, 229, 255, 0.9) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 72% 38%, rgba(255, 255, 255, 0.7) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 88% 14%, rgba(59, 130, 246, 0.9) 0 1px, transparent 1.9px);
+  background-size: 22rem 22rem;
+  opacity: 0.65;
+  animation: driftStars 60s linear infinite;
+}
+
+.starsSoft {
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.35) 0 2px, transparent 3px),
+    radial-gradient(circle at 62% 18%, rgba(255, 255, 255, 0.26) 0 2px, transparent 3px),
+    radial-gradient(circle at 78% 58%, rgba(255, 255, 255, 0.25) 0 2px, transparent 3px),
+    radial-gradient(circle at 36% 84%, rgba(255, 255, 255, 0.18) 0 2px, transparent 3px);
+  background-size: 32rem 32rem;
+  opacity: 0.45;
+  animation: driftStarsReverse 90s linear infinite;
+}
+
+.page {
+  position: relative;
+  z-index: 1;
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 48px 0 96px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 32px;
+  align-items: center;
+  margin-bottom: 26px;
+}
+
+.eyebrow,
+.orbitLabel {
+  color: rgba(232, 237, 243, 0.48);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  margin-bottom: 18px;
+  color: #fff;
+  font-size: clamp(3.4rem, 9vw, 6.6rem);
+  font-weight: 900;
+  line-height: 0.94;
+}
+
+.gradientText {
+  display: inline-block;
+  background: linear-gradient(135deg, #f3fbff 0%, #60dfff 42%, #4dff91 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.heroLead {
+  max-width: 38rem;
+  margin-bottom: 20px;
+  color: rgba(240, 246, 255, 0.82);
+  font-size: clamp(1.12rem, 2vw, 1.35rem);
+  line-height: 1.5;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.heroVisualWrap {
+  perspective: 1200px;
+}
+
+.heroVisual {
+  position: relative;
+  transition: transform 180ms ease-out;
+  will-change: transform;
+}
+
+.heroOrbitCard,
+.orbitStat,
+.coreCard,
+.showcaseCard,
+.installCard,
+.faqCard,
+.docsCard {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(10, 12, 32, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 48px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(18px);
+}
+
+.heroOrbitCard {
+  padding: 22px;
+}
+
+.heroChip {
+  position: absolute;
+  z-index: 2;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(5, 8, 24, 0.8);
+  color: rgba(232, 237, 243, 0.86);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.heroChipTop {
+  top: 1rem;
+  right: 1rem;
+}
+
+.heroChipBottom {
+  bottom: 1rem;
+  left: 1rem;
+}
+
+.heroShotFrame {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  cursor: zoom-in;
+  transition: transform 180ms ease-out;
+}
+
+.heroShotFrame img,
+.showcaseShot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.heroSparkle {
+  position: absolute;
+  z-index: 1;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(0, 229, 255, 0.55) 60%, rgba(0, 229, 255, 0) 100%);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.45);
+  animation: sparklePulse ease-in-out infinite;
+}
+
+.orbitStrip,
+.coreGrid,
+.docsGrid,
+.faqGrid,
+.showcaseGrid,
+.installGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.orbitStrip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.orbitStat {
+  padding: 24px;
+}
+
+.orbitValue {
+  margin-bottom: 6px;
+  color: #fff;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  font-weight: 800;
+}
+
+.section {
+  margin-top: 28px;
+}
+
+.sectionHeading {
+  max-width: 760px;
+  margin-bottom: 24px;
+}
+
+.coreGrid,
+.faqGrid,
+.docsGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.coreCard,
+.faqCard,
+.docsCard {
+  padding: 24px;
+}
+
+.cardOrb {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 22px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.4), rgba(0, 229, 255, 0.18) 35%, rgba(59, 130, 246, 0.22));
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.showcaseGrid {
+  grid-template-columns: 1.35fr 1fr 1fr;
+}
+
+.showcaseCard {
+  padding: 24px;
+}
+
+.showcaseCardLarge {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 20px;
+  grid-column: span 3;
+  align-items: center;
+}
+
+.showcaseShot {
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.showcaseShotButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.docsLink {
+  display: inline-flex;
+  margin-top: 10px;
+  color: #baf6ff;
+  font-weight: 700;
+}
+
+.installGrid {
+  grid-template-columns: 1.1fr 0.9fr;
+}
+
+.installCard {
+  padding: 24px;
+}
+
+.installCardHighlight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.installCardCode pre {
+  overflow-x: auto;
+  margin-top: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: rgba(1, 4, 14, 0.78);
+  color: #d4f9ff;
+}
+
+.installTitle {
+  margin-bottom: 0;
+  color: #fff;
+  font-weight: 700;
+}
+
+.installCodeHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #dffbff;
+  cursor: pointer;
+}
+
+.siteFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(232, 237, 243, 0.55);
+}
+
+.siteFooter a {
+  color: #dffbff;
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(3, 5, 16, 0.84);
+  backdrop-filter: blur(18px);
+}
+
+.lightboxPanel {
+  max-width: min(1280px, calc(100vw - 64px));
+  max-height: calc(100vh - 64px);
+  border-radius: 28px;
+  overflow: hidden;
+}
+
+.lightboxImage {
+  display: block;
+  max-width: min(1280px, calc(100vw - 64px));
+  max-height: calc(100vh - 64px);
+  width: auto;
+  height: auto;
+}
+
+.lightboxClose {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(10, 12, 28, 0.86);
+  color: #f5fbff;
+  font-size: 1.8rem;
+  cursor: pointer;
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.92;
+  }
+}
+
+@keyframes driftStars {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-3rem, 2rem, 0);
+  }
+}
+
+@keyframes driftStarsReverse {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(3rem, -2rem, 0);
+  }
+}
+
+@keyframes sparklePulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.75);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+}
+
+@media (max-width: 1024px) {
+  .hero,
+  .showcaseCardLarge,
+  .installGrid,
+  .coreGrid,
+  .faqGrid,
+  .orbitStrip,
+  .showcaseGrid,
+  .docsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .showcaseCardLarge {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    width: min(100% - 20px, 1180px);
+    padding: 28px 0 64px;
+  }
+
+  .heroOrbitCard,
+  .orbitStat,
+  .coreCard,
+  .showcaseCard,
+  .installCard,
+  .faqCard,
+  .docsCard {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .heroChip {
+    display: none;
+  }
+
+  .siteFooter {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

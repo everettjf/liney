@@ -20,6 +20,7 @@ struct OverviewWorkspaceSnapshot: Identifiable {
     let id: UUID
     let name: String
     let supportsRepositoryFeatures: Bool
+    let activeWorktreePath: String
     let hasUncommittedChanges: Bool
     let changedFileCount: Int
     let currentBranch: String
@@ -27,12 +28,14 @@ struct OverviewWorkspaceSnapshot: Identifiable {
     let preferredWorkflow: WorkspaceWorkflow?
     let recentActivity: [WorkspaceActivityEntry]
     let worktrees: [WorktreeModel]
+    let worktreeStatuses: [String: RepositoryStatusSnapshot]
     let gitHubStatuses: [String: GitHubWorktreeStatus]
 
     init(
         id: UUID,
         name: String,
         supportsRepositoryFeatures: Bool,
+        activeWorktreePath: String,
         hasUncommittedChanges: Bool,
         changedFileCount: Int,
         currentBranch: String,
@@ -40,11 +43,13 @@ struct OverviewWorkspaceSnapshot: Identifiable {
         preferredWorkflow: WorkspaceWorkflow?,
         recentActivity: [WorkspaceActivityEntry],
         worktrees: [WorktreeModel],
+        worktreeStatuses: [String: RepositoryStatusSnapshot],
         gitHubStatuses: [String: GitHubWorktreeStatus]
     ) {
         self.id = id
         self.name = name
         self.supportsRepositoryFeatures = supportsRepositoryFeatures
+        self.activeWorktreePath = activeWorktreePath
         self.hasUncommittedChanges = hasUncommittedChanges
         self.changedFileCount = changedFileCount
         self.currentBranch = currentBranch
@@ -52,6 +57,7 @@ struct OverviewWorkspaceSnapshot: Identifiable {
         self.preferredWorkflow = preferredWorkflow
         self.recentActivity = recentActivity
         self.worktrees = worktrees
+        self.worktreeStatuses = worktreeStatuses
         self.gitHubStatuses = gitHubStatuses
     }
 
@@ -60,6 +66,7 @@ struct OverviewWorkspaceSnapshot: Identifiable {
             id: workspace.id,
             name: workspace.name,
             supportsRepositoryFeatures: workspace.supportsRepositoryFeatures,
+            activeWorktreePath: workspace.activeWorktreePath,
             hasUncommittedChanges: workspace.hasUncommittedChanges,
             changedFileCount: workspace.changedFileCount,
             currentBranch: workspace.currentBranch,
@@ -67,6 +74,7 @@ struct OverviewWorkspaceSnapshot: Identifiable {
             preferredWorkflow: workspace.preferredWorkflow,
             recentActivity: workspace.activityLog,
             worktrees: workspace.worktrees,
+            worktreeStatuses: workspace.worktreeStatuses,
             gitHubStatuses: workspace.gitHubStatuses
         )
     }
@@ -129,6 +137,33 @@ struct OverviewViewModel {
             .sorted { $0.entry.timestamp > $1.entry.timestamp }
             .prefix(12)
             .map { $0 }
+    }
+
+    var worktreeRows: [OverviewWorktreeRow] {
+        workspaces
+            .filter(\.supportsRepositoryFeatures)
+            .flatMap { workspace in
+                workspace.worktrees.map { worktree in
+                    OverviewWorktreeRow(
+                        workspace: workspace,
+                        worktree: worktree,
+                        status: workspace.worktreeStatuses[worktree.path],
+                        isActive: workspace.activeWorktreePath == worktree.path
+                    )
+                }
+            }
+            .sorted { lhs, rhs in
+                if lhs.isActive != rhs.isActive {
+                    return lhs.isActive && !rhs.isActive
+                }
+                if lhs.sortPriority != rhs.sortPriority {
+                    return lhs.sortPriority > rhs.sortPriority
+                }
+                if lhs.workspace.name != rhs.workspace.name {
+                    return lhs.workspace.name.localizedCaseInsensitiveCompare(rhs.workspace.name) == .orderedAscending
+                }
+                return lhs.worktree.displayName.localizedCaseInsensitiveCompare(rhs.worktree.displayName) == .orderedAscending
+            }
     }
 
     var executionCards: [OverviewTaskCard] {
@@ -518,6 +553,46 @@ struct OverviewWorkflowLauncher: Identifiable {
 
     var id: String {
         "\(workspaceID.uuidString):\(workflowID.uuidString)"
+    }
+}
+
+struct OverviewWorktreeRow: Identifiable {
+    let workspace: OverviewWorkspaceSnapshot
+    let worktree: WorktreeModel
+    let status: RepositoryStatusSnapshot?
+    let isActive: Bool
+
+    var id: String {
+        "\(workspace.id.uuidString):\(worktree.path)"
+    }
+
+    var sortPriority: Int {
+        var score = 0
+        if status?.hasUncommittedChanges == true { score += 3 }
+        if (status?.aheadCount ?? 0) > 0 { score += 2 }
+        if (status?.behindCount ?? 0) > 0 { score += 1 }
+        return score
+    }
+
+    var statusSummary: String {
+        let changed = status?.changedFileCount ?? 0
+        let ahead = status?.aheadCount ?? 0
+        let behind = status?.behindCount ?? 0
+
+        var parts: [String] = []
+        if changed > 0 {
+            parts.append(overviewLocalizedFormat("overview.worktrees.changedFormat", changed))
+        }
+        if ahead > 0 {
+            parts.append(overviewLocalizedFormat("overview.worktrees.aheadFormat", ahead))
+        }
+        if behind > 0 {
+            parts.append(overviewLocalizedFormat("overview.worktrees.behindFormat", behind))
+        }
+        if parts.isEmpty {
+            return overviewLocalized("overview.worktrees.clean")
+        }
+        return parts.joined(separator: " · ")
     }
 }
 

@@ -387,6 +387,52 @@ final class ShellSessionTests: XCTestCase {
         }
     }
 
+    func testSnapshotPromotesLocalTmuxSessionToRestorableLaunch() async {
+        await MainActor.run {
+            let surface = FakeManagedTerminalSurfaceController()
+            let session = ShellSession(
+                snapshot: PaneSnapshot.makeDefault(cwd: "/tmp/liney-shell-session-tmux"),
+                surfaceController: surface
+            )
+
+            session.title = "tmux"
+            let snapshot = session.snapshot()
+
+            XCTAssertEqual(snapshot.backendConfiguration.kind, .localShell)
+            XCTAssertEqual(snapshot.backendConfiguration.localShell?.shellArguments, ["-lc", "tmux attach || tmux"])
+        }
+    }
+
+    func testSnapshotPromotesSSHSessionToRestorableTmuxAttach() async {
+        await MainActor.run {
+            let surface = FakeManagedTerminalSurfaceController()
+            let session = ShellSession(
+                snapshot: PaneSnapshot(
+                    id: UUID(),
+                    preferredWorkingDirectory: "/srv/app",
+                    preferredEngine: .libghosttyPreferred,
+                    backendConfiguration: .ssh(
+                        SSHSessionConfiguration(
+                            host: "example.com",
+                            user: "dev",
+                            port: nil,
+                            identityFilePath: nil,
+                            remoteWorkingDirectory: "/srv/app",
+                            remoteCommand: nil
+                        )
+                    )
+                ),
+                surfaceController: surface
+            )
+
+            session.title = "tmux"
+            let snapshot = session.snapshot()
+
+            XCTAssertEqual(snapshot.backendConfiguration.kind, .ssh)
+            XCTAssertEqual(snapshot.backendConfiguration.ssh?.remoteCommand, "tmux attach || tmux")
+        }
+    }
+
     func testProcessReaperTerminatesShellProcessGroupAndLoginProcess() throws {
         let metadataDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

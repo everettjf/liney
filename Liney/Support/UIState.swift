@@ -8,8 +8,7 @@
 import Foundation
 
 enum LineyFeatureFlags {
-    // TODO: Re-enable after the SSH / agent session flows have a defined QA plan.
-    static let showsRemoteSessionCreationUI = false
+    static let showsRemoteSessionCreationUI = true
 }
 
 struct PresentedError: Identifiable {
@@ -70,6 +69,7 @@ struct CreateSSHSessionRequest: Identifiable {
     let workspaceID: UUID
     let workspaceName: String
     let defaultWorkingDirectory: String
+    let remoteTargets: [RemoteWorkspaceTarget]
 }
 
 struct CreateAgentSessionRequest: Identifiable {
@@ -196,12 +196,20 @@ struct CreateWorktreeDraft {
 }
 
 struct CreateSSHSessionDraft {
+    var selectedTargetID: UUID? = nil
+    var saveAsTarget: Bool = false
+    var targetName: String = ""
     var host: String = ""
     var user: String = ""
     var port: String = ""
     var identityFilePath: String = ""
     var remoteWorkingDirectory: String = ""
     var remoteCommand: String = ""
+
+    var normalizedTargetName: String {
+        targetName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var normalizedHost: String {
         host.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -217,6 +225,35 @@ struct CreateSSHSessionDraft {
             remoteWorkingDirectory: remoteWorkingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
             remoteCommand: remoteCommand.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         )
+    }
+
+    var targetToSave: RemoteWorkspaceTarget? {
+        guard saveAsTarget,
+              let configuration,
+              let name = normalizedTargetName.nilIfEmpty else {
+            return nil
+        }
+        return RemoteWorkspaceTarget(
+            id: selectedTargetID ?? UUID(),
+            name: name,
+            ssh: configuration,
+            agentPresetID: nil
+        )
+    }
+
+    mutating func apply(remoteTarget: RemoteWorkspaceTarget) {
+        selectedTargetID = remoteTarget.id
+        targetName = remoteTarget.name
+        host = remoteTarget.ssh.host
+        user = remoteTarget.ssh.user ?? ""
+        if let port = remoteTarget.ssh.port {
+            self.port = String(port)
+        } else {
+            port = ""
+        }
+        identityFilePath = remoteTarget.ssh.identityFilePath ?? ""
+        remoteWorkingDirectory = remoteTarget.ssh.remoteWorkingDirectory ?? ""
+        remoteCommand = remoteTarget.ssh.remoteCommand ?? ""
     }
 }
 

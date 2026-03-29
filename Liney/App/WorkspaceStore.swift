@@ -295,6 +295,15 @@ final class WorkspaceStore: ObservableObject {
             ),
         ]
 
+        items.append(
+            contentsOf: LineyFeatureRegistry.shared.commandPaletteItems(
+                context: LineyExtensionContext(
+                    selectedWorkspace: selectedWorkspace,
+                    workspaces: workspaces
+                )
+            )
+        )
+
         if let selectedWorkspace {
             items.append(
                 CommandPaletteItem(
@@ -427,6 +436,41 @@ final class WorkspaceStore: ObservableObject {
                         kind: .command(.openRemoteTargetShell(workspace.id, remoteTarget.id))
                     )
                 )
+                items.append(
+                    CommandPaletteItem(
+                        id: "remote-browse:\(workspace.id.uuidString):\(remoteTarget.id.uuidString)",
+                        title: localizedFormat("main.commandPalette.browseRemoteRepositoryFormat", remoteTarget.name),
+                        subtitle: remoteTarget.ssh.remoteWorkingDirectory ?? remoteTarget.ssh.destination,
+                        group: .sessions,
+                        keywords: ["ssh", "remote", "repo", "browse", "git", workspace.name],
+                        isGlobal: false,
+                        kind: .command(.browseRemoteTargetRepository(workspace.id, remoteTarget.id))
+                    )
+                )
+                items.append(
+                    CommandPaletteItem(
+                        id: "remote-copy-destination:\(workspace.id.uuidString):\(remoteTarget.id.uuidString)",
+                        title: localizedFormat("main.commandPalette.copyRemoteDestinationFormat", remoteTarget.name),
+                        subtitle: remoteTarget.ssh.destination,
+                        group: .navigation,
+                        keywords: ["ssh", "remote", "copy", "host", workspace.name],
+                        isGlobal: false,
+                        kind: .command(.copyRemoteTargetDestination(workspace.id, remoteTarget.id))
+                    )
+                )
+                if remoteTarget.ssh.remoteWorkingDirectory?.isEmpty == false {
+                    items.append(
+                        CommandPaletteItem(
+                            id: "remote-copy-path:\(workspace.id.uuidString):\(remoteTarget.id.uuidString)",
+                            title: localizedFormat("main.commandPalette.copyRemotePathFormat", remoteTarget.name),
+                            subtitle: remoteTarget.ssh.remoteWorkingDirectory,
+                            group: .navigation,
+                            keywords: ["ssh", "remote", "copy", "path", "workspace", workspace.name],
+                            isGlobal: false,
+                            kind: .command(.copyRemoteTargetWorkingDirectory(workspace.id, remoteTarget.id))
+                        )
+                    )
+                }
                 if let presetID = remoteTarget.agentPresetID,
                    let preset = workspace.agentPresets.first(where: { $0.id == presetID }) {
                     items.append(
@@ -745,6 +789,7 @@ final class WorkspaceStore: ObservableObject {
             autoDownloadUpdates: settings.autoDownloadUpdates,
             systemNotificationsEnabled: settings.systemNotificationsEnabled,
             showArchivedWorkspaces: settings.showArchivedWorkspaces,
+            uiScale: settings.uiScale,
             terminalFontFamily: settings.terminalFontFamily,
             terminalFontSize: settings.terminalFontSize,
             sidebarShowsSecondaryLabels: settings.sidebarShowsSecondaryLabels,
@@ -1156,11 +1201,30 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func split(in workspace: WorkspaceModel, for worktree: WorktreeModel, axis: PaneSplitAxis) {
-        openWorktree(
-            workspace,
-            worktree: worktree,
-            requestedAction: axis == .vertical ? .splitVertical : .splitHorizontal
+        guard workspace.activeWorktreePath != worktree.path else {
+            workspace.createPane(splitAxis: axis)
+            persist()
+            return
+        }
+
+        let backendConfiguration: SessionBackendConfiguration = {
+            guard let focusedPaneID = workspace.sessionController.focusedPaneID,
+                  let session = workspace.sessionController.session(for: focusedPaneID),
+                  session.backendConfiguration.kind == .localShell else {
+                return .local()
+            }
+            return session.backendConfiguration
+        }()
+
+        let snapshot = PaneSnapshot(
+            id: UUID(),
+            preferredWorkingDirectory: worktree.path,
+            preferredEngine: .libghosttyPreferred,
+            backendConfiguration: backendConfiguration
         )
+        workspace.createPane(splitAxis: axis, snapshot: snapshot)
+        selectWorkspace(workspace)
+        persist()
     }
 
     func closePane(in workspace: WorkspaceModel, paneID: UUID) {
@@ -1279,7 +1343,10 @@ final class WorkspaceStore: ObservableObject {
         createSSHSessionRequest = CreateSSHSessionRequest(
             workspaceID: workspace.id,
             workspaceName: workspace.name,
-            defaultWorkingDirectory: workspace.activeWorktreePath
+            defaultWorkingDirectory: workspace.activeWorktreePath,
+            remoteTargets: workspace.remoteTargets.sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
         )
     }
 
@@ -1295,23 +1362,38 @@ final class WorkspaceStore: ObservableObject {
 
     func createSSHSession(workspaceID: UUID, draft: CreateSSHSessionDraft) {
         guard let configuration = draft.configuration,
-              let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+              let workspaceIndex = workspaces.firstIndex(where: { $0.id == workspaceID }) else { return }
+        let workspace = workspaces[workspaceIndex]
+
+        if let target = draft.targetToSave {
+            if let existingIndex = workspace.remoteTargets.firstIndex(where: { $0.id == target.id }) {
+                workspaces[workspaceIndex].remoteTargets[existingIndex] = target
+            } else if let matchingIndex = workspace.remoteTargets.firstIndex(where: {
+                $0.name.caseInsensitiveCompare(target.name) == .orderedSame
+            }) {
+                workspaces[workspaceIndex].remoteTargets[matchingIndex] = target
+            } else {
+                workspaces[workspaceIndex].remoteTargets.append(target)
+            }
+        }
+
         createSession(
-            in: workspace,
+            in: workspaces[workspaceIndex],
             backendConfiguration: .ssh(configuration),
-            workingDirectory: workspace.activeWorktreePath
+            workingDirectory: workspaces[workspaceIndex].activeWorktreePath
         )
         recordActivity(
-            in: workspace,
+            in: workspaces[workspaceIndex],
             kind: .remote,
             title: "Opened SSH session",
             detail: configuration.destination,
-            worktreePath: workspace.activeWorktreePath,
+            worktreePath: workspaces[workspaceIndex].activeWorktreePath,
             replayAction: .createSession(
                 backendConfiguration: .ssh(configuration),
-                workingDirectory: workspace.activeWorktreePath
+                workingDirectory: workspaces[workspaceIndex].activeWorktreePath
             )
         )
+        persist()
     }
 
     func createAgentSession(workspaceID: UUID, draft: CreateAgentSessionDraft) {
@@ -1792,6 +1874,14 @@ final class WorkspaceStore: ObservableObject {
 
     func dispatch(_ command: WorkspaceCommand) {
         switch command {
+        case .openLineyWebsite:
+            dismissCommandPalette()
+            openLineyWebsite()
+
+        case .submitLineyFeedback:
+            dismissCommandPalette()
+            submitLineyFeedback()
+
         case .toggleCommandPalette:
             isCommandPalettePresented.toggle()
             if isCommandPalettePresented {
@@ -1886,6 +1976,18 @@ final class WorkspaceStore: ObservableObject {
         case .openRemoteTargetAgent(let workspaceID, let targetID):
             dismissCommandPalette()
             openRemoteTargetAgent(workspaceID: workspaceID, targetID: targetID)
+
+        case .browseRemoteTargetRepository(let workspaceID, let targetID):
+            dismissCommandPalette()
+            browseRemoteTargetRepository(workspaceID: workspaceID, targetID: targetID)
+
+        case .copyRemoteTargetDestination(let workspaceID, let targetID):
+            dismissCommandPalette()
+            copyRemoteTargetDestination(workspaceID: workspaceID, targetID: targetID)
+
+        case .copyRemoteTargetWorkingDirectory(let workspaceID, let targetID):
+            dismissCommandPalette()
+            copyRemoteTargetWorkingDirectory(workspaceID: workspaceID, targetID: targetID)
 
         case .runWorkspaceScript(let id):
             dismissCommandPalette()
@@ -2517,6 +2619,18 @@ final class WorkspaceStore: ObservableObject {
         receive(.statusMessage(localized("main.status.releaseNotesOpened"), .neutral, deliverSystemNotification: false))
     }
 
+    private func openLineyWebsite() {
+        guard let url = URL(string: "https://liney.dev") else { return }
+        NSWorkspace.shared.open(url)
+        receive(.statusMessage(localized("extension.support.websiteOpened"), .neutral, deliverSystemNotification: false))
+    }
+
+    private func submitLineyFeedback() {
+        guard let url = URL(string: "https://github.com/everettjf/liney/issues/new") else { return }
+        NSWorkspace.shared.open(url)
+        receive(.statusMessage(localized("extension.support.feedbackOpened"), .neutral, deliverSystemNotification: false))
+    }
+
     private func checkForUpdates() {
         configureUpdater(checkInBackground: false)
         updaterController.checkForUpdates()
@@ -2557,6 +2671,38 @@ final class WorkspaceStore: ObservableObject {
         } catch {
             receive(.statusMessage(error.localizedDescription, .warning, deliverSystemNotification: false))
         }
+    }
+
+    private func browseRemoteTargetRepository(workspaceID: UUID, targetID: UUID) {
+        guard let workspace = workspace(for: workspaceID) else { return }
+        do {
+            let plan = try remoteSessionCoordinator.repositoryBrowserPlan(workspace: workspace, targetID: targetID)
+            createSession(in: workspace, backendConfiguration: plan.backendConfiguration, workingDirectory: plan.workingDirectory)
+            recordActivity(
+                in: workspace,
+                kind: plan.activityKind,
+                title: plan.activityTitle,
+                detail: plan.activityDetail,
+                worktreePath: workspace.activeWorktreePath,
+                replayAction: plan.replayAction
+            )
+        } catch {
+            receive(.statusMessage(error.localizedDescription, .warning, deliverSystemNotification: false))
+        }
+    }
+
+    private func copyRemoteTargetDestination(workspaceID: UUID, targetID: UUID) {
+        guard let target = workspace(for: workspaceID)?.remoteTargets.first(where: { $0.id == targetID }) else { return }
+        copyPath(target.ssh.destination)
+        receive(.statusMessage(localizedFormat("remote.status.copiedDestinationFormat", target.name), .success, deliverSystemNotification: false))
+    }
+
+    private func copyRemoteTargetWorkingDirectory(workspaceID: UUID, targetID: UUID) {
+        guard let target = workspace(for: workspaceID)?.remoteTargets.first(where: { $0.id == targetID }),
+              let path = target.ssh.remoteWorkingDirectory,
+              !path.isEmpty else { return }
+        copyPath(path)
+        receive(.statusMessage(localizedFormat("remote.status.copiedPathFormat", target.name), .success, deliverSystemNotification: false))
     }
 
     private func runWorkspaceScript(in workspace: WorkspaceModel) {

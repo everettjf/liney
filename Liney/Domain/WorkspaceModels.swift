@@ -500,9 +500,6 @@ struct WorktreeModel: Codable, Hashable, Identifiable {
     var lockReason: String?
 
     var displayName: String {
-        if isMainWorktree {
-            return lineyLocalizedModelString("worktree.main")
-        }
         if let branch, !branch.isEmpty {
             return branch
         }

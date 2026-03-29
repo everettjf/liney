@@ -16,6 +16,10 @@ struct CommandPaletteView: View {
         localization.string(key)
     }
 
+    private var uiScale: CGFloat {
+        CGFloat(store.appSettings.uiScale)
+    }
+
     var body: some View {
         ZStack {
             Color.black.opacity(0.35)
@@ -90,6 +94,7 @@ struct CommandPaletteView: View {
                     .stroke(LineyTheme.border, lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.28), radius: 30, y: 14)
+            .scaleEffect(uiScale)
         }
         .task {
             isSearchFocused = true

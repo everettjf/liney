@@ -17,30 +17,34 @@ struct WorkspaceSidebarView: View {
         localization.string(key)
     }
 
+    private var uiScale: CGFloat {
+        CGFloat(store.appSettings.uiScale)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11 * uiScale, weight: .semibold))
                     .foregroundStyle(LineyTheme.mutedText)
 
                 TextField(
                     text: $query,
                     prompt: Text(localized("sidebar.filterWorkspaces"))
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 11 * uiScale, weight: .medium))
                         .foregroundStyle(LineyTheme.mutedText)
                 ) {
                     EmptyView()
                 }
                 .textFieldStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 12 * uiScale, weight: .medium))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12 * uiScale)
+            .padding(.vertical, 8 * uiScale)
             .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .padding(.horizontal, 8)
-            .padding(.top, 12)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 8 * uiScale)
+            .padding(.top, 12 * uiScale)
+            .padding(.bottom, 10 * uiScale)
             .background(LineyTheme.sidebarBackground)
             .overlay(alignment: .bottom) {
                 Rectangle()
@@ -84,24 +88,29 @@ private struct WorkspaceOutlineSidebar: NSViewRepresentable {
 
 private struct SidebarOpenRepositoryRow: View {
     @ObservedObject private var localization = LocalizationManager.shared
+    @EnvironmentObject private var store: WorkspaceStore
     let action: () -> Void
 
     private func localized(_ key: String) -> String {
         localization.string(key)
     }
 
+    private var uiScale: CGFloat {
+        CGFloat(store.appSettings.uiScale)
+    }
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: "folder.badge.plus")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11 * uiScale, weight: .semibold))
                 Text(localized("sidebar.openFolder"))
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11 * uiScale, weight: .semibold))
 
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+            .padding(.horizontal, 10 * uiScale)
+            .frame(maxWidth: .infinity, minHeight: 30 * uiScale, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -306,10 +315,14 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             let selectedNodes = selectedNodes(from: outlineView)
             let effectiveNodes: [SidebarNodeItem]
 
-            if selectedNodes.isEmpty, row >= 0, let node = outlineView.item(atRow: row) as? SidebarNodeItem {
-                effectiveNodes = [node]
+            if row >= 0, let node = outlineView.item(atRow: row) as? SidebarNodeItem {
+                if outlineView.selectedRowIndexes.contains(row) {
+                    effectiveNodes = selectedNodes.isEmpty ? [node] : selectedNodes
+                } else {
+                    effectiveNodes = [node]
+                }
             } else {
-                effectiveNodes = selectedNodes
+                effectiveNodes = []
             }
 
             guard !effectiveNodes.isEmpty else { return nil }
@@ -544,6 +557,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
 
         private func makeWorktreeMenu(workspace: WorkspaceModel, worktree: WorktreeModel) -> NSMenu {
             let menu = NSMenu()
+            let actionPayload = SidebarActionWorktree(workspaceID: workspace.id, worktreePath: worktree.path)
 
             addMenuItem(
                 to: menu,
@@ -561,9 +575,23 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             menu.addItem(.separator())
             addMenuItem(
                 to: menu,
+                title: localized("menu.file.splitRight"),
+                action: #selector(splitRightForWorktree(_:)),
+                representedObject: actionPayload
+            )
+            addMenuItem(
+                to: menu,
+                title: localized("menu.file.splitDown"),
+                action: #selector(splitDownForWorktree(_:)),
+                representedObject: actionPayload
+            )
+
+            menu.addItem(.separator())
+            addMenuItem(
+                to: menu,
                 title: localized("sidebar.menu.customizeIcon"),
                 action: #selector(customizeWorktreeIcon(_:)),
-                representedObject: SidebarActionWorktree(workspaceID: workspace.id, worktreePath: worktree.path)
+                representedObject: actionPayload
             )
 
             if workspace.supportsRepositoryFeatures, !worktree.isMainWorktree {
@@ -572,7 +600,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
                     to: menu,
                     title: localized("sidebar.menu.removeWorktree"),
                     action: #selector(removeWorktree(_:)),
-                    representedObject: SidebarActionWorktree(workspaceID: workspace.id, worktreePath: worktree.path)
+                    representedObject: actionPayload
                 )
             }
             return menu
@@ -879,7 +907,9 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             let identifier = NSUserInterfaceItemIdentifier("WorkspaceOutlineCell")
             let cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? SidebarOutlineCellView ?? SidebarOutlineCellView()
             cell.identifier = identifier
-            cell.apply(node: node, store: store)
+            let row = outlineView.row(forItem: node)
+            let isSelected = row >= 0 && outlineView.selectedRowIndexes.contains(row)
+            cell.apply(node: node, store: store, isSelected: isSelected)
             return cell
         }
 
@@ -902,6 +932,11 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
         func outlineViewSelectionDidChange(_ notification: Notification) {
             guard !isApplyingSelection,
                   let outlineView = notification.object as? NSOutlineView else { return }
+
+            let rowIndexes = IndexSet(integersIn: 0..<outlineView.numberOfRows)
+            if !rowIndexes.isEmpty {
+                outlineView.reloadData(forRowIndexes: rowIndexes, columnIndexes: IndexSet(integer: 0))
+            }
 
             let nodes = selectedNodes(from: outlineView)
             guard nodes.count == 1, let node = nodes.first else { return }
@@ -1203,9 +1238,6 @@ private final class SidebarOutlineView: NSOutlineView {
     override func menu(for event: NSEvent) -> NSMenu? {
         let point = convert(event.locationInWindow, from: nil)
         let row = row(at: point)
-        if row >= 0, !selectedRowIndexes.contains(row) {
-            selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-        }
         return menuProvider?(row)
     }
 
@@ -1243,8 +1275,8 @@ private final class SidebarOutlineRowView: NSTableRowView {
 private final class SidebarOutlineCellView: NSTableCellView {
     private var hostingView: NSHostingView<AnyView>?
 
-    func apply(node: SidebarNodeItem, store: WorkspaceStore?) {
-        let rootView = AnyView(SidebarNodeRow(node: node, store: store))
+    func apply(node: SidebarNodeItem, store: WorkspaceStore?, isSelected: Bool) {
+        let rootView = AnyView(SidebarNodeRow(node: node, store: store, isSelected: isSelected))
         if let hostingView {
             hostingView.rootView = rootView
         } else {
@@ -1265,15 +1297,16 @@ private final class SidebarOutlineCellView: NSTableCellView {
 private struct SidebarNodeRow: View {
     let node: SidebarNodeItem
     let store: WorkspaceStore?
+    let isSelected: Bool
 
     var body: some View {
         switch node.kind {
         case .workspace(let workspace):
-            WorkspaceRowContent(workspace: workspace, store: store)
+            WorkspaceRowContent(workspace: workspace, store: store, isSelected: isSelected)
         case .branch:
             EmptyView()
         case .worktree(let workspace, let worktree):
-            WorktreeRowContent(workspace: workspace, worktree: worktree, store: store)
+            WorktreeRowContent(workspace: workspace, worktree: worktree, store: store, isSelected: isSelected)
         }
     }
 }
@@ -1282,6 +1315,7 @@ private struct WorkspaceRowContent: View {
     @ObservedObject var workspace: WorkspaceModel
     @ObservedObject private var localization = LocalizationManager.shared
     let store: WorkspaceStore?
+    let isSelected: Bool
     @State private var isHovering = false
 
     private func localized(_ key: String) -> String {
@@ -1297,17 +1331,37 @@ private struct WorkspaceRowContent: View {
             ?? (workspace.supportsRepositoryFeatures ? .repositoryDefault : .localTerminalDefault)
     }
 
+    private var uiScale: CGFloat {
+        CGFloat(appSettings.uiScale)
+    }
+
+    private var iconActivityIndicator: SidebarIconActivityIndicator {
+        if workspace.quitConfirmationSessionCount > 0 {
+            return .working
+        }
+        if workspace.activeWorktreePath == workspace.repositoryRoot {
+            return .current
+        }
+        return .none
+    }
+
     var body: some View {
-        HStack(spacing: 8) {
-            SidebarItemIconView(icon: icon, size: 22)
+        HStack(spacing: 8 * uiScale) {
+            SidebarItemIconView(
+                icon: icon,
+                size: 22 * uiScale,
+                activityIndicator: iconActivityIndicator,
+                activityPalette: appSettings.sidebarActivityIndicatorPalette,
+                isEmphasized: isSelected
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(workspace.name)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 12 * uiScale, weight: .semibold))
                     .lineLimit(1)
                 if appSettings.sidebarShowsSecondaryLabels {
                     Text(workspace.supportsRepositoryFeatures ? workspace.currentBranch : workspace.activeWorktreePath.lastPathComponentValue)
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .font(.system(size: 10 * uiScale, weight: .medium, design: .monospaced))
                         .foregroundStyle(LineyTheme.mutedText)
                         .lineLimit(1)
                 }
@@ -1316,16 +1370,16 @@ private struct WorkspaceRowContent: View {
             Spacer()
 
             if appSettings.sidebarShowsWorkspaceBadges {
-                HStack(spacing: 6) {
+                HStack(spacing: 6 * uiScale) {
                     if workspace.isPinned {
                         Image(systemName: "pin.fill")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: 9 * uiScale, weight: .bold))
                             .foregroundStyle(LineyTheme.accent)
                     }
 
                     if workspace.isArchived {
                         Image(systemName: "archivebox.fill")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: 9 * uiScale, weight: .bold))
                             .foregroundStyle(LineyTheme.mutedText)
                     }
 
@@ -1352,9 +1406,9 @@ private struct WorkspaceRowContent: View {
                 }
             }
         }
-        .padding(.vertical, 4)
-        .padding(.leading, 2)
-        .padding(.trailing, 4)
+        .padding(.vertical, 4 * uiScale)
+        .padding(.leading, 2 * uiScale)
+        .padding(.trailing, 4 * uiScale)
         .background(
             LineyTheme.subtleFill.opacity(isHovering ? 1 : 0),
             in: RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -1370,6 +1424,7 @@ private struct WorktreeRowContent: View {
     @ObservedObject private var localization = LocalizationManager.shared
     let worktree: WorktreeModel
     let store: WorkspaceStore?
+    let isSelected: Bool
     @State private var isHovering = false
 
     private func localized(_ key: String) -> String {
@@ -1384,30 +1439,45 @@ private struct WorktreeRowContent: View {
         store?.sidebarIcon(for: worktree, in: workspace) ?? .worktreeDefault
     }
 
-    private let iconSize: CGFloat = 16
-    private let leadingInset: CGFloat = 5
-    private let iconColumnWidth: CGFloat = 24
+    private var uiScale: CGFloat {
+        CGFloat(appSettings.uiScale)
+    }
+
+    private var iconSize: CGFloat { 16 * uiScale }
+    private var leadingInset: CGFloat { 5 * uiScale }
+    private var iconColumnWidth: CGFloat { 24 * uiScale }
+    private var iconActivityIndicator: SidebarIconActivityIndicator {
+        if workspace.runningSessionCount(forWorktreePath: worktree.path) > 0 {
+            return .working
+        }
+        if workspace.activeWorktreePath == worktree.path {
+            return .current
+        }
+        return .none
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8 * uiScale) {
             SidebarItemIconView(
                 icon: icon,
                 size: iconSize,
                 usesCircularShape: true,
-                isActive: workspace.activeWorktreePath == worktree.path
+                activityIndicator: iconActivityIndicator,
+                activityPalette: appSettings.sidebarActivityIndicatorPalette,
+                isEmphasized: isSelected
             )
             .frame(width: iconColumnWidth, alignment: .leading)
             Text(worktree.displayName)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 10 * uiScale, weight: .medium))
                 .lineLimit(1)
             if worktree.isLocked {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 8))
+                    .font(.system(size: 8 * uiScale))
                     .foregroundStyle(LineyTheme.mutedText)
             }
             Spacer()
             if appSettings.sidebarShowsWorktreeBadges {
-                HStack(spacing: 5) {
+                HStack(spacing: 5 * uiScale) {
                     if workspace.activeWorktreePath == worktree.path {
                         SidebarInfoBadge(text: localized("sidebar.badge.current"), tone: .subtleSuccess)
                     }
@@ -1419,10 +1489,10 @@ private struct WorktreeRowContent: View {
                 }
             }
         }
-        .padding(.vertical, 1)
+        .padding(.vertical, 1 * uiScale)
         .padding(.leading, leadingInset)
-        .padding(.trailing, 4)
-        .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
+        .padding(.trailing, 4 * uiScale)
+        .frame(maxWidth: .infinity, minHeight: 24 * uiScale, alignment: .leading)
         .background(
             LineyTheme.subtleFill.opacity(isHovering ? 1 : 0),
             in: RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -1437,7 +1507,9 @@ struct SidebarItemIconView: View {
     let icon: SidebarItemIcon
     let size: CGFloat
     var usesCircularShape: Bool = false
-    var isActive: Bool = false
+    var activityIndicator: SidebarIconActivityIndicator = .none
+    var activityPalette: SidebarIconPalette = .amber
+    var isEmphasized: Bool = false
 
     private var palette: SidebarIconPaletteDescriptor {
         icon.palette.descriptor
@@ -1463,11 +1535,13 @@ struct SidebarItemIconView: View {
                         .strokeBorder(palette.border, lineWidth: 1)
                 )
 
-            if isActive {
-                Circle()
-                    .fill(LineyTheme.success)
-                    .frame(width: max(6, size * 0.28), height: max(6, size * 0.28))
-                    .overlay(Circle().stroke(LineyTheme.sidebarBackground, lineWidth: 1))
+            if activityIndicator == .working {
+                SidebarIconActivityBadge(
+                    kind: activityIndicator,
+                    size: size,
+                    palette: activityPalette,
+                    isEmphasized: isEmphasized
+                )
                     .offset(x: 2, y: 2)
             }
         }
@@ -1487,6 +1561,107 @@ struct SidebarItemIconView: View {
                     endPoint: .bottomTrailing
                 )
             )
+        }
+    }
+}
+
+enum SidebarIconActivityIndicator {
+    case none
+    case current
+    case working
+}
+
+struct SidebarIconActivityBadge: View {
+    let kind: SidebarIconActivityIndicator
+    let size: CGFloat
+    let palette: SidebarIconPalette
+    let isEmphasized: Bool
+    @State private var isAnimating = false
+
+    private var activityColor: Color {
+        palette.descriptor.gradientEnd
+    }
+
+    private var badgeSize: CGFloat {
+        switch kind {
+        case .working:
+            return max(7, size * 0.34)
+        case .current, .none:
+            return max(6, size * 0.28)
+        }
+    }
+
+    private var pulseLineWidth: CGFloat {
+        isEmphasized ? 1.4 : 1.15
+    }
+
+    private var pulseOpacity: Double {
+        isEmphasized ? 0.8 : 0.5
+    }
+
+    private var pulseScale: CGFloat {
+        isEmphasized ? 2.15 : 1.85
+    }
+
+    private var pulseDuration: Double {
+        isEmphasized ? 0.95 : 1.15
+    }
+
+    private var coreScale: CGFloat {
+        guard kind == .working else { return 1 }
+        return isAnimating ? 1.18 : 0.9
+    }
+
+    private var coreOpacity: Double {
+        guard kind == .working else { return 1 }
+        return isAnimating ? 1 : 0.82
+    }
+
+    private var glowRadius: CGFloat {
+        guard kind == .working else { return 0 }
+        return isEmphasized ? 6 : 4
+    }
+
+    var body: some View {
+        ZStack {
+            if kind == .working {
+                Circle()
+                    .fill(activityColor.opacity(isAnimating ? 0.18 : 0.06))
+                    .frame(width: badgeSize, height: badgeSize)
+                    .scaleEffect(isAnimating ? pulseScale * 0.9 : 1.0)
+                    .blur(radius: isEmphasized ? 1.2 : 0.8)
+
+                Circle()
+                    .stroke(activityColor.opacity(pulseOpacity), lineWidth: pulseLineWidth)
+                    .frame(width: badgeSize, height: badgeSize)
+                    .scaleEffect(isAnimating ? pulseScale : 1.0)
+                    .opacity(isAnimating ? 0 : pulseOpacity)
+            }
+
+            Circle()
+                .fill(activityColor)
+                .frame(width: badgeSize, height: badgeSize)
+                .overlay(Circle().stroke(LineyTheme.sidebarBackground, lineWidth: 1))
+                .scaleEffect(coreScale)
+                .opacity(coreOpacity)
+                .shadow(color: activityColor.opacity(kind == .working ? 0.9 : 0), radius: glowRadius)
+        }
+        .onAppear {
+            updateAnimationState()
+        }
+        .onChange(of: kind) { _, _ in
+            updateAnimationState()
+        }
+    }
+
+    private func updateAnimationState() {
+        guard kind == .working else {
+            isAnimating = false
+            return
+        }
+        isAnimating = false
+        withAnimation(.easeInOut(duration: pulseDuration).repeatForever(autoreverses: true)) {
+            isAnimating = true
         }
     }
 }

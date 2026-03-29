@@ -1,0 +1,57 @@
+:root {
+  --ifm-color-primary: #27d7ff;
+  --ifm-color-primary-dark: #0ac8f3;
+  --ifm-color-primary-darker: #09bde6;
+  --ifm-color-primary-darkest: #089cc0;
+  --ifm-color-primary-light: #44ddff;
+  --ifm-color-primary-lighter: #5fe2ff;
+  --ifm-color-primary-lightest: #90ebff;
+  --ifm-background-color: #060b14;
+  --ifm-background-surface-color: rgba(12, 19, 34, 0.9);
+  --ifm-navbar-background-color: rgba(7, 12, 24, 0.7);
+  --ifm-footer-background-color: #05070f;
+  --ifm-font-color-base: #e8edf3;
+  --ifm-heading-color: #ffffff;
+  --ifm-code-font-size: 95%;
+  --ifm-link-color: #7de7ff;
+  --ifm-menu-color-active: #7de7ff;
+  --ifm-menu-color-background-active: rgba(39, 215, 255, 0.08);
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme='dark'] {
+  --ifm-background-color: #060b14;
+  --ifm-background-surface-color: rgba(12, 19, 34, 0.9);
+}
+
+body {
+  background: #050910;
+}
+
+.navbar {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px);
+}
+
+.footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.theme-doc-sidebar-container {
+  border-right-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  letter-spacing: -0.03em;
+}
+
+.markdown p,
+.markdown li {
+  color: rgba(232, 237, 243, 0.84);
+}
+
+.markdown code {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}

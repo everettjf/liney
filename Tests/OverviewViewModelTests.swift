@@ -156,6 +156,7 @@ final class OverviewViewModelTests: XCTestCase {
             id: UUID(),
             name: "Alpha",
             supportsRepositoryFeatures: true,
+            activeWorktreePath: "/tmp/alpha",
             hasUncommittedChanges: false,
             changedFileCount: 0,
             currentBranch: "main",
@@ -172,6 +173,7 @@ final class OverviewViewModelTests: XCTestCase {
                     lockReason: nil
                 )
             ],
+            worktreeStatuses: [:],
             gitHubStatuses: [:]
         )
 
@@ -227,6 +229,44 @@ final class OverviewViewModelTests: XCTestCase {
         XCTAssertEqual(readyItem.detail, "3 个检查已通过 · 已获 sam 批准 · 已可加入合并队列并复制发布上下文")
         XCTAssertEqual(readyItem.statusBadge, "可发布")
     }
+
+    func testWorktreeRowsSurfaceDirtyAndAheadWorktreesBeforeCleanOnes() {
+        LocalizationManager.shared.updateSelectedLanguage(.english)
+
+        let rootPath = "/tmp/repo"
+        let featurePath = "/tmp/repo-feature"
+        let cleanPath = "/tmp/repo-clean"
+        let snapshot = OverviewWorkspaceSnapshot(
+            id: UUID(),
+            name: "Alpha",
+            supportsRepositoryFeatures: true,
+            activeWorktreePath: rootPath,
+            hasUncommittedChanges: true,
+            changedFileCount: 2,
+            currentBranch: "main",
+            activeSessionCount: 2,
+            preferredWorkflow: nil,
+            recentActivity: [],
+            worktrees: [
+                WorktreeModel(path: rootPath, branch: "main", head: "abc", isMainWorktree: true, isLocked: false, lockReason: nil),
+                WorktreeModel(path: featurePath, branch: "feature/x", head: "def", isMainWorktree: false, isLocked: false, lockReason: nil),
+                WorktreeModel(path: cleanPath, branch: "feature/y", head: "ghi", isMainWorktree: false, isLocked: false, lockReason: nil)
+            ],
+            worktreeStatuses: [
+                rootPath: RepositoryStatusSnapshot(hasUncommittedChanges: true, changedFileCount: 2, aheadCount: 0, behindCount: 0, localBranches: [], remoteBranches: []),
+                featurePath: RepositoryStatusSnapshot(hasUncommittedChanges: false, changedFileCount: 0, aheadCount: 3, behindCount: 1, localBranches: [], remoteBranches: []),
+                cleanPath: RepositoryStatusSnapshot(hasUncommittedChanges: false, changedFileCount: 0, aheadCount: 0, behindCount: 0, localBranches: [], remoteBranches: [])
+            ],
+            gitHubStatuses: [:]
+        )
+
+        let model = OverviewViewModel(snapshots: [snapshot])
+
+        XCTAssertEqual(model.worktreeRows.map(\.worktree.path), [rootPath, featurePath, cleanPath])
+        XCTAssertEqual(model.worktreeRows[0].statusSummary, "2 changed")
+        XCTAssertEqual(model.worktreeRows[1].statusSummary, "3 ahead · 1 behind")
+        XCTAssertEqual(model.worktreeRows[2].statusSummary, "Clean and in sync")
+    }
 }
 
 @MainActor
@@ -242,6 +282,7 @@ private func makeWorkspace(
         id: UUID(),
         name: name,
         supportsRepositoryFeatures: true,
+        activeWorktreePath: rootPath,
         hasUncommittedChanges: changedFileCount > 0,
         changedFileCount: changedFileCount,
         currentBranch: "feature",
@@ -256,6 +297,16 @@ private func makeWorkspace(
                 isMainWorktree: true,
                 isLocked: false,
                 lockReason: nil
+            )
+        ],
+        worktreeStatuses: [
+            rootPath: RepositoryStatusSnapshot(
+                hasUncommittedChanges: changedFileCount > 0,
+                changedFileCount: changedFileCount,
+                aheadCount: 0,
+                behindCount: 0,
+                localBranches: [],
+                remoteBranches: []
             )
         ],
         gitHubStatuses: [

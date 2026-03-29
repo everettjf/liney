@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import Combine
 import SwiftUI
 
 struct GlobalCanvasView: View {
@@ -23,6 +24,7 @@ struct GlobalCanvasView: View {
     @State private var viewportSize: CGSize = .zero
     @State private var hasPerformedInitialFit = false
     @State private var dragOrigins: [GlobalCanvasCardID: CGPoint] = [:]
+    @State private var cachedCards: [GlobalCanvasCardSnapshot] = []
 
     private let defaultCardSize = CGSize(width: 560, height: 360)
     private let minimizedCardHeight: CGFloat = 96
@@ -42,45 +44,7 @@ struct GlobalCanvasView: View {
     }
 
     private var allCards: [GlobalCanvasCardSnapshot] {
-        store.workspaces.flatMap { workspace in
-            workspace.canvasStates().flatMap { state in
-                state.tabs.compactMap { tab in
-                    guard let controller = workspace.existingTabController(for: state.worktreePath, tabID: tab.id) else {
-                        return nil
-                    }
-                    let cardID = GlobalCanvasCardID(
-                        workspaceID: workspace.id,
-                        worktreePath: state.worktreePath,
-                        tabID: tab.id
-                    )
-                    return GlobalCanvasCardSnapshot(
-                        id: cardID,
-                        workspaceID: workspace.id,
-                        workspaceName: workspace.name,
-                        worktreePath: state.worktreePath,
-                        worktreeTitle: workspace.worktrees.first(where: { $0.path == state.worktreePath })?.displayName
-                            ?? URL(fileURLWithPath: state.worktreePath).lastPathComponent,
-                        tab: tab,
-                        controller: controller,
-                        isSelected: workspace.isActiveCanvasCard(worktreePath: state.worktreePath, tabID: tab.id),
-                        paneCount: workspace.paneCount(for: tab.id, worktreePath: state.worktreePath),
-                        activeSessionCount: controller.activeSessionCount(using: state.worktreePath)
-                    )
-                }
-            }
-        }
-        .sorted { lhs, rhs in
-            if lhs.isSelected != rhs.isSelected {
-                return lhs.isSelected
-            }
-            if lhs.workspaceName != rhs.workspaceName {
-                return lhs.workspaceName.localizedCaseInsensitiveCompare(rhs.workspaceName) == .orderedAscending
-            }
-            if lhs.worktreeTitle != rhs.worktreeTitle {
-                return lhs.worktreeTitle.localizedCaseInsensitiveCompare(rhs.worktreeTitle) == .orderedAscending
-            }
-            return lhs.tab.title.localizedCaseInsensitiveCompare(rhs.tab.title) == .orderedAscending
-        }
+        cachedCards
     }
 
     private var workspaceFilters: [GlobalCanvasWorkspaceFilter] {
@@ -223,7 +187,11 @@ struct GlobalCanvasView: View {
             .simultaneousGesture(canvasZoomGesture)
             .onAppear {
                 viewportSize = proxy.size
+                refreshCards()
                 restoreCanvasState()
+            }
+            .onReceive(store.objectWillChange) { _ in
+                refreshCards()
             }
             .onChange(of: proxy.size) { _, newSize in
                 viewportSize = newSize
@@ -503,6 +471,48 @@ struct GlobalCanvasView: View {
         }
 
         hasPerformedInitialFit = true
+    }
+
+    private func refreshCards() {
+        cachedCards = store.workspaces.flatMap { workspace in
+            workspace.canvasStates().flatMap { state in
+                state.tabs.compactMap { tab in
+                    guard let controller = workspace.existingTabController(for: state.worktreePath, tabID: tab.id) else {
+                        return nil
+                    }
+                    let cardID = GlobalCanvasCardID(
+                        workspaceID: workspace.id,
+                        worktreePath: state.worktreePath,
+                        tabID: tab.id
+                    )
+                    return GlobalCanvasCardSnapshot(
+                        id: cardID,
+                        workspaceID: workspace.id,
+                        workspaceName: workspace.name,
+                        worktreePath: state.worktreePath,
+                        worktreeTitle: workspace.worktrees.first(where: { $0.path == state.worktreePath })?.displayName
+                            ?? URL(fileURLWithPath: state.worktreePath).lastPathComponent,
+                        tab: tab,
+                        controller: controller,
+                        isSelected: workspace.isActiveCanvasCard(worktreePath: state.worktreePath, tabID: tab.id),
+                        paneCount: workspace.paneCount(for: tab.id, worktreePath: state.worktreePath),
+                        activeSessionCount: controller.activeSessionCount(using: state.worktreePath)
+                    )
+                }
+            }
+        }
+        .sorted { lhs, rhs in
+            if lhs.isSelected != rhs.isSelected {
+                return lhs.isSelected
+            }
+            if lhs.workspaceName != rhs.workspaceName {
+                return lhs.workspaceName.localizedCaseInsensitiveCompare(rhs.workspaceName) == .orderedAscending
+            }
+            if lhs.worktreeTitle != rhs.worktreeTitle {
+                return lhs.worktreeTitle.localizedCaseInsensitiveCompare(rhs.worktreeTitle) == .orderedAscending
+            }
+            return lhs.tab.title.localizedCaseInsensitiveCompare(rhs.tab.title) == .orderedAscending
+        }
     }
 
     @discardableResult

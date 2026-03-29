@@ -197,6 +197,9 @@ extension SidebarItemIcon {
 
 nonisolated enum ExternalEditor: String, Codable, Hashable, CaseIterable, Identifiable {
     case cursor
+    case iTerm2
+    case terminal
+    case ghostty
     case zed
     case visualStudioCode
     case visualStudioCodeInsiders
@@ -212,6 +215,12 @@ nonisolated enum ExternalEditor: String, Codable, Hashable, CaseIterable, Identi
         switch self {
         case .cursor:
             return "Cursor"
+        case .iTerm2:
+            return "iTerm2"
+        case .terminal:
+            return "Terminal"
+        case .ghostty:
+            return "Ghostty"
         case .zed:
             return "Zed"
         case .visualStudioCode:
@@ -246,11 +255,13 @@ struct AppSettings: Codable, Hashable {
     var autoDownloadUpdates: Bool
     var systemNotificationsEnabled: Bool
     var showArchivedWorkspaces: Bool
+    var uiScale: Double
     var terminalFontFamily: String?
     var terminalFontSize: Double?
     var sidebarShowsSecondaryLabels: Bool
     var sidebarShowsWorkspaceBadges: Bool
     var sidebarShowsWorktreeBadges: Bool
+    var sidebarActivityIndicatorPalette: SidebarIconPalette
     var defaultRepositoryIcon: SidebarItemIcon
     var defaultLocalTerminalIcon: SidebarItemIcon
     var defaultWorktreeIcon: SidebarItemIcon
@@ -276,11 +287,13 @@ struct AppSettings: Codable, Hashable {
         autoDownloadUpdates: Bool = false,
         systemNotificationsEnabled: Bool = true,
         showArchivedWorkspaces: Bool = false,
+        uiScale: Double = 1,
         terminalFontFamily: String? = nil,
         terminalFontSize: Double? = nil,
         sidebarShowsSecondaryLabels: Bool = true,
         sidebarShowsWorkspaceBadges: Bool = true,
         sidebarShowsWorktreeBadges: Bool = true,
+        sidebarActivityIndicatorPalette: SidebarIconPalette = .amber,
         defaultRepositoryIcon: SidebarItemIcon = .repositoryDefault,
         defaultLocalTerminalIcon: SidebarItemIcon = .localTerminalDefault,
         defaultWorktreeIcon: SidebarItemIcon = .worktreeDefault,
@@ -307,6 +320,7 @@ struct AppSettings: Codable, Hashable {
         self.autoDownloadUpdates = autoDownloadUpdates
         self.systemNotificationsEnabled = systemNotificationsEnabled
         self.showArchivedWorkspaces = showArchivedWorkspaces
+        self.uiScale = min(max(uiScale, 0.85), 1.5)
         self.terminalFontFamily = terminalFontFamily?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
@@ -314,6 +328,7 @@ struct AppSettings: Codable, Hashable {
         self.sidebarShowsSecondaryLabels = sidebarShowsSecondaryLabels
         self.sidebarShowsWorkspaceBadges = sidebarShowsWorkspaceBadges
         self.sidebarShowsWorktreeBadges = sidebarShowsWorktreeBadges
+        self.sidebarActivityIndicatorPalette = sidebarActivityIndicatorPalette
         self.defaultRepositoryIcon = defaultRepositoryIcon
         self.defaultLocalTerminalIcon = defaultLocalTerminalIcon
         self.defaultWorktreeIcon = defaultWorktreeIcon
@@ -349,11 +364,13 @@ extension AppSettings {
         case autoDownloadUpdates
         case systemNotificationsEnabled
         case showArchivedWorkspaces
+        case uiScale
         case terminalFontFamily
         case terminalFontSize
         case sidebarShowsSecondaryLabels
         case sidebarShowsWorkspaceBadges
         case sidebarShowsWorktreeBadges
+        case sidebarActivityIndicatorPalette
         case defaultRepositoryIcon
         case defaultLocalTerminalIcon
         case defaultWorktreeIcon
@@ -390,11 +407,13 @@ extension AppSettings {
             autoDownloadUpdates: try container.decodeIfPresent(Bool.self, forKey: .autoDownloadUpdates) ?? false,
             systemNotificationsEnabled: try container.decodeIfPresent(Bool.self, forKey: .systemNotificationsEnabled) ?? true,
             showArchivedWorkspaces: try container.decodeIfPresent(Bool.self, forKey: .showArchivedWorkspaces) ?? false,
+            uiScale: try container.decodeIfPresent(Double.self, forKey: .uiScale) ?? 1,
             terminalFontFamily: try container.decodeIfPresent(String.self, forKey: .terminalFontFamily),
             terminalFontSize: try container.decodeIfPresent(Double.self, forKey: .terminalFontSize),
             sidebarShowsSecondaryLabels: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsSecondaryLabels) ?? true,
             sidebarShowsWorkspaceBadges: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsWorkspaceBadges) ?? true,
             sidebarShowsWorktreeBadges: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsWorktreeBadges) ?? true,
+            sidebarActivityIndicatorPalette: try container.decodeIfPresent(SidebarIconPalette.self, forKey: .sidebarActivityIndicatorPalette) ?? .amber,
             defaultRepositoryIcon: try container.decodeIfPresent(SidebarItemIcon.self, forKey: .defaultRepositoryIcon) ?? .repositoryDefault,
             defaultLocalTerminalIcon: try container.decodeIfPresent(SidebarItemIcon.self, forKey: .defaultLocalTerminalIcon) ?? .localTerminalDefault,
             defaultWorktreeIcon: try container.decodeIfPresent(SidebarItemIcon.self, forKey: .defaultWorktreeIcon) ?? .worktreeDefault,
@@ -647,8 +666,21 @@ enum LineyShortcutCategory: String, CaseIterable, Hashable, Identifiable {
 }
 
 enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
+    case hideApp
+    case hideOtherApps
+    case quitApp
     case newWindow
     case openSettings
+    case undo
+    case redo
+    case cut
+    case copy
+    case paste
+    case selectAll
+    case find
+    case findNext
+    case findPrevious
+    case hideFind
     case toggleCommandPalette
     case toggleSidebar
     case toggleOverview
@@ -669,6 +701,7 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
     case duplicatePane
     case togglePaneZoom
     case closePane
+    case minimizeWindow
     case closeWindow
     case enterFullScreen
 
@@ -676,7 +709,20 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
 
     var category: LineyShortcutCategory {
         switch self {
-        case .openSettings,
+        case .hideApp,
+             .hideOtherApps,
+             .quitApp,
+             .openSettings,
+             .undo,
+             .redo,
+             .cut,
+             .copy,
+             .paste,
+             .selectAll,
+             .find,
+             .findNext,
+             .findPrevious,
+             .hideFind,
              .toggleCommandPalette,
              .toggleSidebar,
              .toggleOverview,
@@ -702,6 +748,7 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
              .closePane:
             return .panes
         case .newWindow,
+             .minimizeWindow,
              .closeWindow,
              .enterFullScreen:
             return .window
@@ -710,10 +757,36 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
 
     var title: String {
         switch self {
+        case .hideApp:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.hideApp.title")
+        case .hideOtherApps:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.hideOtherApps.title")
+        case .quitApp:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.quitApp.title")
         case .newWindow:
             return lineyLocalizedSettingsString("settings.shortcuts.action.newWindow.title")
         case .openSettings:
             return lineyLocalizedSettingsString("settings.shortcuts.action.openSettings.title")
+        case .undo:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.undo.title")
+        case .redo:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.redo.title")
+        case .cut:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.cut.title")
+        case .copy:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.copy.title")
+        case .paste:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.paste.title")
+        case .selectAll:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.selectAll.title")
+        case .find:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.find.title")
+        case .findNext:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.findNext.title")
+        case .findPrevious:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.findPrevious.title")
+        case .hideFind:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.hideFind.title")
         case .toggleCommandPalette:
             return lineyLocalizedSettingsString("settings.shortcuts.action.toggleCommandPalette.title")
         case .toggleSidebar:
@@ -754,6 +827,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.togglePaneZoom.title")
         case .closePane:
             return lineyLocalizedSettingsString("settings.shortcuts.action.closePane.title")
+        case .minimizeWindow:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.minimizeWindow.title")
         case .closeWindow:
             return lineyLocalizedSettingsString("settings.shortcuts.action.closeWindow.title")
         case .enterFullScreen:
@@ -763,10 +838,36 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
 
     var subtitle: String {
         switch self {
+        case .hideApp:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.hideApp.subtitle")
+        case .hideOtherApps:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.hideOtherApps.subtitle")
+        case .quitApp:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.quitApp.subtitle")
         case .newWindow:
             return lineyLocalizedSettingsString("settings.shortcuts.action.newWindow.subtitle")
         case .openSettings:
             return lineyLocalizedSettingsString("settings.shortcuts.action.openSettings.subtitle")
+        case .undo:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.undo.subtitle")
+        case .redo:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.redo.subtitle")
+        case .cut:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.cut.subtitle")
+        case .copy:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.copy.subtitle")
+        case .paste:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.paste.subtitle")
+        case .selectAll:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.selectAll.subtitle")
+        case .find:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.find.subtitle")
+        case .findNext:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.findNext.subtitle")
+        case .findPrevious:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.findPrevious.subtitle")
+        case .hideFind:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.hideFind.subtitle")
         case .toggleCommandPalette:
             return lineyLocalizedSettingsString("settings.shortcuts.action.toggleCommandPalette.subtitle")
         case .toggleSidebar:
@@ -807,6 +908,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.togglePaneZoom.subtitle")
         case .closePane:
             return lineyLocalizedSettingsString("settings.shortcuts.action.closePane.subtitle")
+        case .minimizeWindow:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.minimizeWindow.subtitle")
         case .closeWindow:
             return lineyLocalizedSettingsString("settings.shortcuts.action.closeWindow.subtitle")
         case .enterFullScreen:
@@ -816,10 +919,36 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
 
     var defaultShortcut: StoredShortcut? {
         switch self {
+        case .hideApp:
+            return StoredShortcut(key: "h", command: true, shift: false, option: false, control: false)
+        case .hideOtherApps:
+            return StoredShortcut(key: "h", command: true, shift: false, option: true, control: false)
+        case .quitApp:
+            return StoredShortcut(key: "q", command: true, shift: false, option: false, control: false)
         case .newWindow:
             return StoredShortcut(key: "n", command: true, shift: false, option: false, control: false)
         case .openSettings:
             return StoredShortcut(key: ",", command: true, shift: false, option: false, control: false)
+        case .undo:
+            return StoredShortcut(key: "z", command: true, shift: false, option: false, control: false)
+        case .redo:
+            return StoredShortcut(key: "z", command: true, shift: true, option: false, control: false)
+        case .cut:
+            return StoredShortcut(key: "x", command: true, shift: false, option: false, control: false)
+        case .copy:
+            return StoredShortcut(key: "c", command: true, shift: false, option: false, control: false)
+        case .paste:
+            return StoredShortcut(key: "v", command: true, shift: false, option: false, control: false)
+        case .selectAll:
+            return StoredShortcut(key: "a", command: true, shift: false, option: false, control: false)
+        case .find:
+            return StoredShortcut(key: "f", command: true, shift: false, option: false, control: false)
+        case .findNext:
+            return StoredShortcut(key: "g", command: true, shift: false, option: false, control: false)
+        case .findPrevious:
+            return StoredShortcut(key: "g", command: true, shift: true, option: false, control: false)
+        case .hideFind:
+            return StoredShortcut(key: "e", command: true, shift: false, option: false, control: false)
         case .toggleCommandPalette:
             return StoredShortcut(key: "p", command: true, shift: false, option: false, control: false)
         case .toggleSidebar:
@@ -827,7 +956,7 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
         case .toggleOverview:
             return StoredShortcut(key: "o", command: true, shift: true, option: false, control: false)
         case .openDiff:
-            return nil
+            return StoredShortcut(key: ".", command: true, shift: true, option: false, control: false)
         case .refreshSelectedWorkspace:
             return StoredShortcut(key: "r", command: true, shift: false, option: false, control: false)
         case .refreshAllRepositories:
@@ -837,9 +966,9 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
         case .closeTab:
             return StoredShortcut(key: "w", command: true, shift: false, option: false, control: false)
         case .nextTab:
-            return StoredShortcut(key: "]", command: true, shift: false, option: false, control: false)
+            return StoredShortcut(key: "\t", command: false, shift: false, option: false, control: true)
         case .previousTab:
-            return StoredShortcut(key: "[", command: true, shift: false, option: false, control: false)
+            return StoredShortcut(key: "\t", command: false, shift: true, option: false, control: true)
         case .selectTabByNumber:
             return StoredShortcut(key: "1", command: true, shift: false, option: false, control: false)
         case .focusPaneLeft:
@@ -855,13 +984,15 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
         case .splitDown:
             return StoredShortcut(key: "d", command: true, shift: true, option: false, control: false)
         case .duplicatePane:
-            return nil
+            return StoredShortcut(key: "d", command: true, shift: false, option: true, control: false)
         case .togglePaneZoom:
-            return nil
+            return StoredShortcut(key: "\r", command: true, shift: false, option: false, control: false)
         case .closePane:
-            return StoredShortcut(key: "w", command: true, shift: true, option: false, control: false)
+            return StoredShortcut(key: "w", command: true, shift: false, option: true, control: false)
+        case .minimizeWindow:
+            return StoredShortcut(key: "m", command: true, shift: false, option: false, control: false)
         case .closeWindow:
-            return StoredShortcut(key: "w", command: true, shift: false, option: false, control: true)
+            return StoredShortcut(key: "w", command: true, shift: true, option: false, control: false)
         case .enterFullScreen:
             return StoredShortcut(key: "f", command: true, shift: false, option: false, control: true)
         }

@@ -63,6 +63,7 @@ Liney/
 - Testing guide: [`docs/testing.md`](./docs/testing.md)
 - Terminal architecture: [`docs/terminal-architecture.md`](./docs/terminal-architecture.md)
 - Ghostty vendor rebuild: [`docs/build_ghostty.md`](./docs/build_ghostty.md)
+- Feature backlog: [`docs/feature-backlog.md`](./docs/feature-backlog.md)
 - Release process: [`RELEASING.md`](./RELEASING.md)
 - Contributing guide: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - Security policy: [`SECURITY.md`](./SECURITY.md)

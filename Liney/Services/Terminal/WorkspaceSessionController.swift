@@ -33,6 +33,10 @@ final class WorkspaceSessionController: ObservableObject {
         sessions.values.filter(\.needsQuitConfirmation).count
     }
 
+    var runningSessionCount: Int {
+        sessions.values.filter(\.isRunning).count
+    }
+
     func session(for paneID: UUID) -> ShellSession? {
         sessions[paneID]
     }
@@ -179,6 +183,10 @@ final class WorkspaceSessionController: ObservableObject {
 
     func activeSessionCount(using path: String) -> Int {
         sessions.values.filter { $0.hasActiveProcess && $0.isUsing(pathPrefix: path) }.count
+    }
+
+    func runningSessionCount(using path: String) -> Int {
+        sessions.values.filter { $0.isRunning && $0.isUsing(pathPrefix: path) }.count
     }
 
     private func updateSessionFocusStates() {

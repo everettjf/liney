@@ -15,6 +15,10 @@ struct OverviewView: View {
     private let columns = [GridItem(.adaptive(minimum: 260, maximum: 340), spacing: 16)]
     private var model: OverviewViewModel { OverviewViewModel(workspaces: store.workspaces) }
 
+    private var uiScale: CGFloat {
+        CGFloat(store.appSettings.uiScale)
+    }
+
     private func localized(_ key: String) -> String {
         localization.string(key)
     }
@@ -49,6 +53,13 @@ struct OverviewView: View {
                             onReplay: { item in
                                 store.replayActivity(workspaceID: item.workspace.id, activityID: item.entry.id)
                             }
+                        )
+                    }
+
+                    if !model.worktreeRows.isEmpty {
+                        OverviewWorktreePanel(
+                            items: model.worktreeRows,
+                            onOpenWorkspace: openWorkspace
                         )
                     }
 
@@ -103,6 +114,7 @@ struct OverviewView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(LineyTheme.appBackground)
+        .scaleEffect(uiScale)
     }
 
     private var overviewHeader: some View {
@@ -320,6 +332,84 @@ private struct OverviewTimelinePanel: View {
                         onOpenWorkspace: { onOpenWorkspace(item.workspace.id) },
                         onReplay: item.entry.replayAction == nil ? nil : { onReplay(item) }
                     )
+                }
+            }
+        }
+        .padding(14)
+        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(LineyTheme.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct OverviewWorktreePanel: View {
+    @ObservedObject private var localization = LocalizationManager.shared
+    let items: [OverviewWorktreeRow]
+    let onOpenWorkspace: (UUID) -> Void
+
+    private func localized(_ key: String) -> String {
+        localization.string(key)
+    }
+
+    private func localizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
+        l10nFormat(localized(key), locale: Locale.current, arguments: arguments)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(localized("overview.worktrees.title"))
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(localized("overview.worktrees.subtitle"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(LineyTheme.mutedText)
+                }
+                Spacer()
+                Text(localizedFormat("overview.worktrees.countFormat", items.count))
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(LineyTheme.mutedText)
+            }
+
+            VStack(spacing: 8) {
+                ForEach(items.prefix(8)) { item in
+                    HStack(alignment: .top, spacing: 10) {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(item.isActive ? LineyTheme.accent : LineyTheme.border)
+                            .frame(width: 6, height: 28)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(item.worktree.displayName)
+                                    .font(.system(size: 12, weight: .semibold))
+                                if item.isActive {
+                                    Text(localized("overview.worktrees.active"))
+                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                        .foregroundStyle(LineyTheme.accent)
+                                }
+                                Spacer()
+                                Button(item.workspace.name) {
+                                    onOpenWorkspace(item.workspace.id)
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .foregroundStyle(LineyTheme.accent)
+                            }
+
+                            Text(item.statusSummary)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(LineyTheme.secondaryText)
+
+                            Text(item.worktree.path)
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .foregroundStyle(LineyTheme.mutedText)
+                                .lineLimit(1)
+                        }
+                    }
+                    .padding(10)
+                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
         }

@@ -308,7 +308,7 @@ final class ShellSession: ObservableObject, Identifiable {
             id: id,
             preferredWorkingDirectory: preferredWorkingDirectory,
             preferredEngine: requestedEngine,
-            backendConfiguration: backendConfiguration
+            backendConfiguration: restorableBackendConfiguration()
         )
     }
 
@@ -353,6 +353,47 @@ final class ShellSession: ObservableObject, Identifiable {
         self.exitCode = exitCode
         lifecycle = .exited
         pid = nil
+    }
+
+    private func restorableBackendConfiguration() -> SessionBackendConfiguration {
+        guard isLikelyTmuxSession else {
+            return backendConfiguration
+        }
+
+        switch backendConfiguration.kind {
+        case .localShell:
+            var configuration = backendConfiguration.localShellConfiguration
+            configuration.shellArguments = ["-lc", "tmux attach || tmux"]
+            return SessionBackendConfiguration(
+                kind: .localShell,
+                localShell: configuration,
+                ssh: nil,
+                agent: nil
+            )
+
+        case .ssh:
+            guard var configuration = backendConfiguration.ssh else {
+                return backendConfiguration
+            }
+            if configuration.remoteCommand?.localizedCaseInsensitiveContains("tmux") != true {
+                configuration.remoteCommand = "tmux attach || tmux"
+            }
+            return .ssh(configuration)
+
+        case .agent:
+            return backendConfiguration
+        }
+    }
+
+    private var isLikelyTmuxSession: Bool {
+        let candidates = [
+            title,
+            launchConfiguration.command.displayName,
+            launchConfiguration.command.arguments.joined(separator: " "),
+            backendConfiguration.ssh?.remoteCommand ?? "",
+            backendConfiguration.localShell?.shellArguments.joined(separator: " ") ?? "",
+        ]
+        return candidates.contains { $0.localizedCaseInsensitiveContains("tmux") }
     }
 }
 

@@ -11,4 +11,7 @@ DerivedData/
 *.pkg
 Liney.xcodeproj/project.xcworkspace/xcuserdata/
 Liney.xcodeproj/xcuserdata/
-website/
+website/node_modules/
+website/.docusaurus/
+website/build/
+website/dist/

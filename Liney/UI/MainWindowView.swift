@@ -26,6 +26,10 @@ struct MainWindowView: View {
         store.selectedWorkspace != nil
     }
 
+    private var uiScale: CGFloat {
+        CGFloat(store.appSettings.uiScale)
+    }
+
     private var hasFocusedPane: Bool {
         store.selectedWorkspace?.sessionController.focusedPaneID != nil
     }
@@ -188,8 +192,9 @@ struct MainWindowView: View {
                     )
                 } label: {
                     Image(systemName: "sidebar.leading")
-                        .padding(4)
+                        .padding(4 * uiScale)
                 }
+                .scaleEffect(uiScale)
                 .accessibilityLabel(localized("menu.view.toggleSidebar"))
                 .help(localized("menu.view.toggleSidebar"))
             }
@@ -293,6 +298,7 @@ struct MainWindowView: View {
                         }
                     )
                 }
+                .scaleEffect(uiScale)
                 Button {
                     withAnimation(.easeInOut(duration: 0.25)) {
                         dismissCanvas(restoreFocus: false)
@@ -300,8 +306,9 @@ struct MainWindowView: View {
                     }
                 } label: {
                     Image(systemName: store.isOverviewPresented ? "building.2.fill" : "building.2")
-                        .padding(4)
+                        .padding(4 * uiScale)
                 }
+                .scaleEffect(uiScale)
                 .accessibilityLabel(localized("main.overview.title"))
                 .help(localized("main.overview.title"))
 
@@ -316,8 +323,9 @@ struct MainWindowView: View {
                     }
                 } label: {
                     Image(systemName: isCanvasPresented ? "square.grid.3x2.fill" : "square.grid.3x2")
-                        .padding(4)
+                        .padding(4 * uiScale)
                 }
+                .scaleEffect(uiScale)
                 .accessibilityLabel(localized("main.canvas.title"))
                 .help(isCanvasPresented ? localized("main.canvas.hide") : localized("main.canvas.show"))
 
@@ -325,8 +333,9 @@ struct MainWindowView: View {
                     openDiffWindow()
                 } label: {
                     Image(systemName: "doc.text.magnifyingglass")
-                        .padding(4)
+                        .padding(4 * uiScale)
                 }
+                .scaleEffect(uiScale)
                 .accessibilityLabel(localized("menu.view.openDiff"))
                 .help(localized("menu.view.openDiff"))
 
@@ -334,8 +343,9 @@ struct MainWindowView: View {
                     store.dispatch(.toggleCommandPalette)
                 } label: {
                     Image(systemName: "command")
-                        .padding(4)
+                        .padding(4 * uiScale)
                 }
+                .scaleEffect(uiScale)
                 .accessibilityLabel(localized("menu.view.commandPalette"))
                 .help(localized("menu.view.commandPalette"))
 
@@ -344,8 +354,9 @@ struct MainWindowView: View {
                     store.splitFocusedPane(in: workspace, axis: .vertical)
                 } label: {
                     Image(systemName: "rectangle.split.2x1.fill")
-                        .padding(4)
+                        .padding(4 * uiScale)
                 }
+                .scaleEffect(uiScale)
                 .disabled(!hasFocusedPane)
                 .accessibilityLabel(localized("menu.file.splitRight"))
                 .help(localized("menu.file.splitRight"))
@@ -355,8 +366,9 @@ struct MainWindowView: View {
                     store.splitFocusedPane(in: workspace, axis: .horizontal)
                 } label: {
                     Image(systemName: "rectangle.split.1x2.fill")
-                        .padding(4)
+                        .padding(4 * uiScale)
                 }
+                .scaleEffect(uiScale)
                 .disabled(!hasFocusedPane)
                 .accessibilityLabel(localized("menu.file.splitDown"))
                 .help(localized("menu.file.splitDown"))
@@ -366,8 +378,9 @@ struct MainWindowView: View {
                     store.createTab(in: workspace)
                 } label: {
                     Image(systemName: "plus.rectangle.on.rectangle")
-                        .padding(4)
+                        .padding(4 * uiScale)
                 }
+                .scaleEffect(uiScale)
                 .disabled(!hasSelectedWorkspace)
                 .accessibilityLabel(localized("menu.file.newTab"))
                 .help(localized("menu.file.newTab"))
@@ -462,7 +475,28 @@ struct MainWindowView: View {
                     Button(localized("menu.view.openDiff")) {
                         openDiffWindow()
                     }
-                    Divider()
+
+                    if let workspace = store.selectedWorkspace,
+                       !workspace.remoteTargets.isEmpty {
+                        Menu(localized("main.menu.remoteTargets")) {
+                            ForEach(workspace.remoteTargets) { target in
+                                Button(localizedFormat("main.menu.remoteShellFormat", target.name)) {
+                                    store.dispatch(.openRemoteTargetShell(workspace.id, target.id))
+                                }
+                                Button(localizedFormat("main.menu.remoteBrowseFormat", target.name)) {
+                                    store.dispatch(.browseRemoteTargetRepository(workspace.id, target.id))
+                                }
+                                Button(localizedFormat("main.menu.remoteCopyDestinationFormat", target.name)) {
+                                    store.dispatch(.copyRemoteTargetDestination(workspace.id, target.id))
+                                }
+                                if target.ssh.remoteWorkingDirectory?.isEmpty == false {
+                                    Button(localizedFormat("main.menu.remoteCopyPathFormat", target.name)) {
+                                        store.dispatch(.copyRemoteTargetWorkingDirectory(workspace.id, target.id))
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     Button(localized("menu.app.settings")) {
                         store.presentSettings(for: store.selectedWorkspace)
@@ -470,6 +504,7 @@ struct MainWindowView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .scaleEffect(uiScale)
                 .help(localized("main.menu.moreActions"))
             }
         }

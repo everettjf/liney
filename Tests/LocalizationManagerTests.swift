@@ -81,6 +81,12 @@ final class LocalizationManagerTests: XCTestCase {
         XCTAssertEqual(L10nTable.string(for: "settings.sidebarIcon.palette.blue", language: .english), "Blue")
         XCTAssertEqual(L10nTable.string(for: "settings.shortcuts.action.toggleCommandPalette.title", language: .english), "Command Palette")
         XCTAssertEqual(L10nTable.string(for: "settings.shortcuts.action.toggleCommandPalette.subtitle", language: .english), "Search and run workspace actions.")
+        XCTAssertEqual(
+            L10nTable.string(for: "settings.general.behavior.refreshIntervalHint", language: .english),
+            "Controls how often Liney automatically refreshes repository and worktree status when automatic refresh is enabled. Minimum 10 seconds."
+        )
+        XCTAssertEqual(L10nTable.string(for: "settings.shortcuts.action.hideApp.title", language: .english), "Hide App")
+        XCTAssertEqual(L10nTable.string(for: "settings.shortcuts.action.minimizeWindow.title", language: .english), "Minimize Window")
     }
 
     func testSettingsCoreStringsResolveInSimplifiedChinese() {
@@ -119,6 +125,12 @@ final class LocalizationManagerTests: XCTestCase {
         XCTAssertEqual(L10nTable.string(for: "settings.sidebarIcon.palette.blue", language: .simplifiedChinese), "蓝色")
         XCTAssertEqual(L10nTable.string(for: "settings.shortcuts.action.toggleCommandPalette.title", language: .simplifiedChinese), "命令面板")
         XCTAssertEqual(L10nTable.string(for: "settings.shortcuts.action.toggleCommandPalette.subtitle", language: .simplifiedChinese), "搜索并执行工作区动作。")
+        XCTAssertEqual(
+            L10nTable.string(for: "settings.general.behavior.refreshIntervalHint", language: .simplifiedChinese),
+            "控制在启用自动刷新时，Liney 自动刷新仓库和 worktree 状态的频率。最小为 10 秒。"
+        )
+        XCTAssertEqual(L10nTable.string(for: "settings.shortcuts.action.hideApp.title", language: .simplifiedChinese), "隐藏应用")
+        XCTAssertEqual(L10nTable.string(for: "settings.shortcuts.action.minimizeWindow.title", language: .simplifiedChinese), "最小化窗口")
     }
 
     func testModelAndAppStringsResolveInSimplifiedChinese() {

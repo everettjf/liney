@@ -14,12 +14,36 @@ struct CreateSSHSessionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft = CreateSSHSessionDraft()
 
+    private var existingTargets: [RemoteWorkspaceTarget] {
+        request.remoteTargets
+    }
+
+    private var shouldRequireTargetName: Bool {
+        draft.saveAsTarget || draft.selectedTargetID != nil
+    }
+
     private func localized(_ key: String) -> String {
         LocalizationManager.shared.string(key)
     }
 
     private func localizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
         l10nFormat(localized(key), locale: Locale.current, arguments: arguments)
+    }
+
+    private func applySelectedTarget(_ targetID: UUID?) {
+        guard let targetID,
+              let target = existingTargets.first(where: { $0.id == targetID }) else {
+            return
+        }
+        draft.apply(remoteTarget: target)
+    }
+
+    private var canCreate: Bool {
+        guard draft.configuration != nil else { return false }
+        if shouldRequireTargetName {
+            return draft.normalizedTargetName.nilIfEmpty != nil
+        }
+        return true
     }
 
     var body: some View {
@@ -30,6 +54,30 @@ struct CreateSSHSessionSheet: View {
             Text(localizedFormat("sheet.ssh.descriptionFormat", request.workspaceName))
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
+
+            if !existingTargets.isEmpty {
+                GroupBox(localized("sheet.ssh.savedTargets")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker(localized("sheet.ssh.savedTargets"), selection: $draft.selectedTargetID) {
+                            Text(localized("sheet.ssh.savedTargetsNone"))
+                                .tag(UUID?.none)
+                            ForEach(existingTargets) { target in
+                                Text("\(target.name) · \(target.ssh.destination)")
+                                    .tag(Optional(target.id))
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Text(localized("sheet.ssh.savedTargetsHint"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 8)
+                }
+                .onChange(of: draft.selectedTargetID) { _, newValue in
+                    applySelectedTarget(newValue)
+                }
+            }
 
             GroupBox(localized("sheet.ssh.connection")) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -52,6 +100,19 @@ struct CreateSSHSessionSheet: View {
                 .padding(.top, 8)
             }
 
+            GroupBox(localized("sheet.ssh.target")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(localized("sheet.ssh.saveAsTarget"), isOn: $draft.saveAsTarget)
+                    TextField(localized("sheet.ssh.targetName"), text: $draft.targetName)
+                        .disabled(!shouldRequireTargetName)
+                    Text(localized("sheet.ssh.targetHint"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .textFieldStyle(.roundedBorder)
+                .padding(.top, 8)
+            }
+
             HStack {
                 Spacer()
                 Button(localized("common.cancel")) {
@@ -62,7 +123,14 @@ struct CreateSSHSessionSheet: View {
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(draft.configuration == nil)
+                .disabled(!canCreate)
+            }
+        }
+        .onAppear {
+            draft.remoteWorkingDirectory = request.defaultWorkingDirectory
+            if let firstTarget = existingTargets.first {
+                draft.selectedTargetID = firstTarget.id
+                draft.apply(remoteTarget: firstTarget)
             }
         }
         .padding(20)

@@ -28,7 +28,7 @@ final class QuickCommandSupportTests: XCTestCase {
         )
         XCTAssertEqual(
             LineyKeyboardShortcuts.effectiveShortcut(for: .closeWindow, in: settings),
-            StoredShortcut(key: "w", command: true, shift: false, option: false, control: true)
+            StoredShortcut(key: "w", command: true, shift: true, option: false, control: false)
         )
     }
 
@@ -66,6 +66,17 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertEqual(shortcut["shift"] as? Bool, true)
         XCTAssertEqual(shortcut["option"] as? Bool, false)
         XCTAssertEqual(shortcut["control"] as? Bool, false)
+    }
+
+    func testSettingsEncodeAndDecodePreserveUIScale() throws {
+        let settings = AppSettings(uiScale: 1.25)
+
+        let data = try JSONEncoder().encode(settings)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["uiScale"] as? Double, 1.25)
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
+        XCTAssertEqual(decoded.uiScale, 1.25, accuracy: 0.001)
     }
 
     func testDebugBuildUsesSeparatePersistenceDirectoryName() {
@@ -317,7 +328,7 @@ final class QuickCommandSupportTests: XCTestCase {
 
         XCTAssertEqual(
             LineyKeyboardShortcuts.effectiveShortcut(for: .closePane, in: settings),
-            StoredShortcut(key: "w", command: true, shift: true, option: false, control: false)
+            StoredShortcut(key: "w", command: true, shift: false, option: true, control: false)
         )
     }
 
@@ -362,6 +373,65 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertEqual(
             LineyKeyboardShortcuts.effectiveShortcut(for: .focusPaneDown, in: settings),
             StoredShortcut(key: "↓", command: true, shift: false, option: true, control: false)
+        )
+    }
+
+    func testTabNavigationShortcutsUseControlTabVariants() {
+        let settings = AppSettings()
+
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .nextTab, in: settings),
+            StoredShortcut(key: "\t", command: false, shift: false, option: false, control: true)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .previousTab, in: settings),
+            StoredShortcut(key: "\t", command: false, shift: true, option: false, control: true)
+        )
+    }
+
+    func testPaneAndDiffShortcutsUseNewDefaults() {
+        let settings = AppSettings()
+
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .duplicatePane, in: settings),
+            StoredShortcut(key: "d", command: true, shift: false, option: true, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .togglePaneZoom, in: settings),
+            StoredShortcut(key: "\r", command: true, shift: false, option: false, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .openDiff, in: settings),
+            StoredShortcut(key: ".", command: true, shift: true, option: false, control: false)
+        )
+    }
+
+    func testStandardMenuShortcutsUseConfigurableDefaults() {
+        let settings = AppSettings()
+
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .hideApp, in: settings),
+            StoredShortcut(key: "h", command: true, shift: false, option: false, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .hideOtherApps, in: settings),
+            StoredShortcut(key: "h", command: true, shift: false, option: true, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .quitApp, in: settings),
+            StoredShortcut(key: "q", command: true, shift: false, option: false, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .copy, in: settings),
+            StoredShortcut(key: "c", command: true, shift: false, option: false, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .findPrevious, in: settings),
+            StoredShortcut(key: "g", command: true, shift: true, option: false, control: false)
+        )
+        XCTAssertEqual(
+            LineyKeyboardShortcuts.effectiveShortcut(for: .minimizeWindow, in: settings),
+            StoredShortcut(key: "m", command: true, shift: false, option: false, control: false)
         )
     }
 
@@ -412,6 +482,54 @@ final class QuickCommandSupportTests: XCTestCase {
         XCTAssertEqual(
             lineyShortcutMatch(for: event, in: settings),
             LineyShortcutMatch(action: .splitRight, tabNumber: nil)
+        )
+    }
+
+    func testShortcutMatchingSupportsControlTab() {
+        let settings = AppSettings()
+
+        let event = try! XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [.control],
+                timestamp: 1,
+                windowNumber: 0,
+                context: nil,
+                characters: "\t",
+                charactersIgnoringModifiers: "\t",
+                isARepeat: false,
+                keyCode: UInt16(kVK_Tab)
+            )
+        )
+
+        XCTAssertEqual(
+            lineyShortcutMatch(for: event, in: settings),
+            LineyShortcutMatch(action: .nextTab, tabNumber: nil)
+        )
+    }
+
+    func testShortcutMatchingSupportsCommandReturn() {
+        let settings = AppSettings()
+
+        let event = try! XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [.command],
+                timestamp: 1,
+                windowNumber: 0,
+                context: nil,
+                characters: "\r",
+                charactersIgnoringModifiers: "\r",
+                isARepeat: false,
+                keyCode: UInt16(kVK_Return)
+            )
+        )
+
+        XCTAssertEqual(
+            lineyShortcutMatch(for: event, in: settings),
+            LineyShortcutMatch(action: .togglePaneZoom, tabNumber: nil)
         )
     }
 

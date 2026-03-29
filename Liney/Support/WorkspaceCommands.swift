@@ -13,6 +13,8 @@ struct WorkspaceGitHubTarget: Hashable {
 }
 
 enum WorkspaceCommand: Hashable {
+    case openLineyWebsite
+    case submitLineyFeedback
     case toggleCommandPalette
     case toggleOverview
     case presentSettings
@@ -31,6 +33,9 @@ enum WorkspaceCommand: Hashable {
     case startHAPIHub(UUID)
     case openRemoteTargetShell(UUID, UUID)
     case openRemoteTargetAgent(UUID, UUID)
+    case browseRemoteTargetRepository(UUID, UUID)
+    case copyRemoteTargetDestination(UUID, UUID)
+    case copyRemoteTargetWorkingDirectory(UUID, UUID)
     case runWorkspaceScript(UUID)
     case runSetupScript(UUID)
     case runWorkflow(UUID, UUID)

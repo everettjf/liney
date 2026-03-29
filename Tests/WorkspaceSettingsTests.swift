@@ -166,6 +166,54 @@ final class WorkspaceSettingsTests: XCTestCase {
         XCTAssertEqual(settings.setupScript, "mise install")
     }
 
+    func testCreateSSHSessionDraftCanPromoteConnectionIntoReusableRemoteTarget() {
+        var draft = CreateSSHSessionDraft()
+        draft.saveAsTarget = true
+        draft.targetName = "Prod Box"
+        draft.host = "prod.example.com"
+        draft.user = "deploy"
+        draft.port = "2222"
+        draft.identityFilePath = "~/.ssh/prod"
+        draft.remoteWorkingDirectory = "/srv/app"
+        draft.remoteCommand = "tmux attach || tmux"
+
+        let saved = draft.targetToSave
+
+        XCTAssertEqual(saved?.name, "Prod Box")
+        XCTAssertEqual(saved?.ssh.host, "prod.example.com")
+        XCTAssertEqual(saved?.ssh.user, "deploy")
+        XCTAssertEqual(saved?.ssh.port, 2222)
+        XCTAssertEqual(saved?.ssh.remoteCommand, "tmux attach || tmux")
+    }
+
+    func testCreateSSHSessionDraftAppliesSavedRemoteTargetFields() {
+        let target = RemoteWorkspaceTarget(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000123")!,
+            name: "GPU Box",
+            ssh: SSHSessionConfiguration(
+                host: "gpu.example.com",
+                user: "ml",
+                port: 2202,
+                identityFilePath: "~/.ssh/gpu",
+                remoteWorkingDirectory: "/srv/train",
+                remoteCommand: "source ~/.zshrc"
+            ),
+            agentPresetID: nil
+        )
+        var draft = CreateSSHSessionDraft()
+
+        draft.apply(remoteTarget: target)
+
+        XCTAssertEqual(draft.selectedTargetID, target.id)
+        XCTAssertEqual(draft.targetName, "GPU Box")
+        XCTAssertEqual(draft.host, "gpu.example.com")
+        XCTAssertEqual(draft.user, "ml")
+        XCTAssertEqual(draft.port, "2202")
+        XCTAssertEqual(draft.identityFilePath, "~/.ssh/gpu")
+        XCTAssertEqual(draft.remoteWorkingDirectory, "/srv/train")
+        XCTAssertEqual(draft.remoteCommand, "source ~/.zshrc")
+    }
+
     func testRandomRepositoryIconUsesKnownCatalogValues() {
         let icon = SidebarItemIcon.randomRepository()
 
