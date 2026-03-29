@@ -6,12 +6,25 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Guides',
-      items: ['guides/getting-started', 'guides/hidden-features'],
+      collapsed: false,
+      items: [
+        'guides/getting-started',
+        'guides/command-palette-and-quick-commands',
+        'guides/overview-and-canvas',
+        'guides/diff-and-review',
+        'guides/hidden-features',
+      ],
     },
     {
       type: 'category',
       label: 'Workflows',
-      items: ['workflows/worktrees-and-sessions'],
+      collapsed: false,
+      items: [
+        'workflows/worktrees-and-sessions',
+        'workflows/remote-sessions-and-ssh',
+        'workflows/agents-and-hapi',
+        'workflows/workspace-workflows',
+      ],
     },
   ],
 };

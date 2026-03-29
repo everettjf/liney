@@ -5,20 +5,73 @@ import styles from './index.module.css';
 
 const githubUrl = 'https://github.com/everettjf/liney';
 const releaseUrl = 'https://github.com/everettjf/liney/releases';
-const brewCommand = 'brew update && brew install --cask everettjf/tap/liney';
+const brewCommand = 'brew install --cask everettjf/tap/liney';
 
-const coreItems = [
+const features = [
   {
-    title: 'Native orbit',
-    text: 'A real macOS app with the speed, focus, and local feel you want when terminal work is the center of the workflow.',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      </svg>
+    ),
+    title: 'Spatial workspace',
+    text: 'Repos, worktrees, and terminals live in one spatial layout. Your mental model survives context switches.',
   },
   {
-    title: 'Worktree gravity',
-    text: 'Repos, branches, and worktrees stay connected so parallel tasks do not drift into chaos.',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 3v12" />
+        <circle cx="18" cy="6" r="3" />
+        <circle cx="6" cy="18" r="3" />
+        <path d="M18 9a9 9 0 0 1-9 9" />
+      </svg>
+    ),
+    title: 'Git worktree native',
+    text: 'First-class worktree support. Branch, review, and build in parallel without losing track of what goes where.',
   },
   {
-    title: 'Parallel flow',
-    text: 'Keep coding, reviewing, debugging, and side quests alive at the same time without losing spatial context.',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="4 17 10 11 4 5" />
+        <line x1="12" y1="19" x2="20" y2="19" />
+      </svg>
+    ),
+    title: 'Parallel terminals',
+    text: 'Long-running tasks, builds, and debugging sessions stay visible and discoverable instead of buried in tabs.',
+  },
+  {
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+      </svg>
+    ),
+    title: 'Diff & review',
+    text: 'Built-in diff views tied to your workspace context. Review changes without leaving your flow.',
+  },
+  {
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+        <line x1="8" y1="21" x2="16" y2="21" />
+        <line x1="12" y1="17" x2="12" y2="21" />
+      </svg>
+    ),
+    title: 'Native macOS',
+    text: 'Not Electron. A real macOS app with the speed, responsiveness, and system integration you expect.',
+  },
+  {
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </svg>
+    ),
+    title: 'Agents & HAPI',
+    text: 'Launch agent sessions and connect HAPI to your active workspace for AI-assisted development.',
   },
 ];
 
@@ -38,27 +91,36 @@ const docsItems = [
     text: 'Surface the parts of Liney that are easy to miss but matter in daily use.',
     to: '/docs/guides/hidden-features',
   },
+  {
+    title: 'Agents & HAPI',
+    text: 'Launch agent sessions and understand how HAPI attaches to the active workspace.',
+    to: '/docs/workflows/agents-and-hapi',
+  },
+  {
+    title: 'Remote Sessions',
+    text: 'Save SSH targets, reuse remote shells, and keep remote work attached to repository context.',
+    to: '/docs/workflows/remote-sessions-and-ssh',
+  },
+  {
+    title: 'Overview & Canvas',
+    text: 'Use higher-level surfaces that summarize active work and show live terminal context.',
+    to: '/docs/guides/overview-and-canvas',
+  },
 ];
 
 const faqs = [
   {
     question: 'What is Liney?',
-    answer: 'Liney is a native macOS workspace for repositories, Git worktrees, terminal sessions, and diff-heavy daily development.',
+    answer: 'A native macOS workspace for repositories, Git worktrees, terminal sessions, and diff-heavy daily development.',
   },
   {
     question: 'Who is it for?',
     answer: 'Developers who keep multiple branches, worktrees, and shell tasks active at the same time.',
   },
   {
-    question: 'Where is the documentation now?',
-    answer: 'Liney now ships with a dedicated Docusaurus documentation section, with Markdown-based guides and structured navigation.',
+    question: 'Is it free and open source?',
+    answer: 'Yes! Liney is completely free and open source under the Apache 2.0 license. The source code is available on GitHub. Pull requests are welcome — we love contributions from the community.',
   },
-];
-
-const orbitStats = [
-  {value: 'Native', label: 'macOS workspace'},
-  {value: 'Git', label: 'worktree aware'},
-  {value: 'Parallel', label: 'terminal flows'},
 ];
 
 function HomePage(): JSX.Element {
@@ -66,20 +128,6 @@ function HomePage(): JSX.Element {
   const [copied, setCopied] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{src: string; alt: string} | null>(null);
   const copyResetTimeoutRef = useRef<number | null>(null);
-
-  const sparkles = useMemo(
-    () =>
-      Array.from({length: 12}, (_, index) => ({
-        id: index,
-        style: {
-          left: `${8 + (index % 4) * 24 + ((index * 7) % 9)}%`,
-          top: `${10 + Math.floor(index / 4) * 28 + ((index * 11) % 10)}%`,
-          animationDelay: `${index * 0.45}s`,
-          animationDuration: `${4.5 + (index % 5) * 0.6}s`,
-        },
-      })),
-    [],
-  );
 
   useEffect(() => {
     return () => {
@@ -164,11 +212,7 @@ function HomePage(): JSX.Element {
   const openLightbox = (src: string, alt: string) => setLightboxImage({src, alt});
 
   const visualStyle = {
-    transform: `perspective(1200px) rotateX(${pointer.y * -8}deg) rotateY(${pointer.x * 10}deg) translate3d(${pointer.x * 10}px, ${pointer.y * 10}px, 0)`,
-  };
-
-  const shotStyle = {
-    transform: `translate3d(${pointer.x * 10}px, ${pointer.y * 10}px, 0) scale(1.01)`,
+    transform: `perspective(1200px) rotateX(${pointer.y * -6}deg) rotateY(${pointer.x * 8}deg)`,
   };
 
   return (
@@ -176,76 +220,76 @@ function HomePage(): JSX.Element {
       title="Native macOS workspace for worktrees and terminal sessions"
       description="Liney is a native macOS workspace for repositories, worktrees, terminal sessions, and parallel coding flow.">
       <div className={styles.pageShell}>
-        <div className={styles.spaceBackdrop} aria-hidden="true">
-          <div className={`${styles.spaceGlow} ${styles.spaceGlow1}`} />
-          <div className={`${styles.spaceGlow} ${styles.spaceGlow2}`} />
-          <div className={`${styles.spaceGlow} ${styles.spaceGlow3}`} />
-          <div className={`${styles.stars} ${styles.starsDense}`} />
-          <div className={`${styles.stars} ${styles.starsSoft}`} />
+        <div className={styles.starfield} aria-hidden="true">
+          <div className={styles.starsSmall} />
+          <div className={styles.starsMedium} />
+          <div className={styles.starsLarge} />
+          <div className={styles.shootingStar1} />
+          <div className={styles.shootingStar2} />
+          <div className={styles.shootingStar3} />
+          <div className={styles.glow1} />
+          <div className={styles.glow2} />
         </div>
 
         <main className={styles.page}>
+          {/* Hero */}
           <section className={styles.hero}>
-            <div className={styles.heroCopyColumn}>
-              <p className={styles.eyebrow}>Native macOS workspace</p>
+            <div className={styles.heroCopy}>
+              <div className={styles.badge}>Cosmic native workspace</div>
               <h1 className={styles.heroTitle}>
-                Liney
-                <span className={styles.gradientText}> keeps parallel work visible.</span>
+                <span className={styles.heroTitleBrand}>"Liney"</span>{' '}
+                <span className={styles.heroTitleAccent}>parallel orbit.</span>
               </h1>
               <p className={styles.heroLead}>
-                Liney turns repos, worktrees, and terminal sessions into one native workspace built for multi-threaded coding on macOS.
+                Liney brings repos, worktrees, and terminal sessions into one native macOS workspace.
+                Keep parallel work visible. Stay in flow.
               </p>
 
               <div className={styles.heroActions}>
-                <Link className="button button--primary button--lg" to="/docs/intro">
+                <Link className={styles.btnPrimary} to="/docs/intro">
                   Read the docs
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 8h10M9 4l4 4-4 4" />
+                  </svg>
                 </Link>
-                <a className="button button--secondary button--lg" href={releaseUrl}>
-                  Download latest build
-                </a>
+                <Link className={styles.btnSecondary} to="/docs/guides/getting-started">
+                  Download Liney
+                </Link>
               </div>
             </div>
 
-            <div className={styles.heroVisualWrap} onMouseMove={handlePointerMove} onMouseLeave={resetPointer}>
+            <div
+              className={styles.heroVisualWrap}
+              onMouseMove={handlePointerMove}
+              onMouseLeave={resetPointer}>
               <div className={styles.heroVisual} style={visualStyle}>
-                <div className={styles.heroOrbitCard}>
-                  {sparkles.map((sparkle) => (
-                    <span key={sparkle.id} className={styles.heroSparkle} style={sparkle.style} />
-                  ))}
-                  <div className={`${styles.heroChip} ${styles.heroChipTop}`}>workspace map</div>
-                  <div className={`${styles.heroChip} ${styles.heroChipBottom}`}>parallel sessions</div>
-                  <button
-                    className={styles.heroShotFrame}
-                    type="button"
-                    style={shotStyle}
-                    onClick={() => openLightbox('/screenshot.png', 'Liney workspace showing repositories, worktrees, and terminal panes')}>
-                    <img src="/screenshot.png" alt="Liney workspace showing repositories, worktrees, and terminal panes" />
-                  </button>
-                </div>
+                <button
+                  className={styles.heroScreenshot}
+                  type="button"
+                  onClick={() => openLightbox('/screenshot.png', 'Liney workspace showing repositories, worktrees, and terminal panes')}>
+                  <img
+                    src="/screenshot.png"
+                    alt="Liney workspace showing repositories, worktrees, and terminal panes"
+                    loading="eager"
+                  />
+                </button>
               </div>
             </div>
           </section>
 
-          <section className={styles.orbitStrip} aria-label="Product highlights">
-            {orbitStats.map((item) => (
-              <article className={styles.orbitStat} key={item.label}>
-                <p className={styles.orbitValue}>{item.value}</p>
-                <p className={styles.orbitLabel}>{item.label}</p>
-              </article>
-            ))}
-          </section>
-
+          {/* Features */}
           <section className={styles.section}>
-            <div className={styles.sectionHeading}>
-              <p className={styles.eyebrow}>Why it fits</p>
-              <h2>Built around real repository flow.</h2>
-              <p>Fast, native, and spatial. The app is designed around worktrees and active terminal context instead of flat terminal windows.</p>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>Everything you need for parallel work</h2>
+              <p className={styles.sectionSub}>
+                Built from scratch for macOS. No Electron, no compromises.
+              </p>
             </div>
 
-            <div className={styles.coreGrid}>
-              {coreItems.map((item, index) => (
-                <article className={styles.coreCard} key={item.title}>
-                  <div className={styles.cardOrb}>0{index + 1}</div>
+            <div className={styles.featureGrid}>
+              {features.map((item) => (
+                <article className={styles.featureCard} key={item.title}>
+                  <div className={styles.featureIcon}>{item.icon}</div>
                   <h3>{item.title}</h3>
                   <p>{item.text}</p>
                 </article>
@@ -253,108 +297,88 @@ function HomePage(): JSX.Element {
             </div>
           </section>
 
+          {/* Showcase */}
           <section className={styles.section}>
-            <div className={styles.showcaseGrid}>
-              <article className={`${styles.showcaseCard} ${styles.showcaseCardLarge}`}>
-                <div>
-                  <p className={styles.eyebrow}>Spatial clarity</p>
-                  <h2>See the whole constellation of active work.</h2>
-                  <p>Repos, worktrees, and terminals stay grouped so your mental model survives context switching.</p>
-                </div>
-                <div className={styles.showcaseShot}>
-                  <button type="button" className={styles.showcaseShotButton} onClick={() => openLightbox('/screenshot1.png', 'Liney repository and workspace view')}>
-                    <img src="/screenshot1.png" alt="Liney repository and workspace view" />
-                  </button>
-                </div>
-              </article>
-
-              <article className={styles.showcaseCard}>
-                <p className={styles.eyebrow}>Terminal energy</p>
-                <h3>Keep momentum alive.</h3>
-                <p>Open long-running flows side by side and keep them discoverable instead of burying them in tabs.</p>
-              </article>
-
-              <article className={styles.showcaseCard}>
-                <p className={styles.eyebrow}>Documentation</p>
-                <h3>Now a real docs site.</h3>
-                <p>The website now includes structured Markdown documentation with sidebars, stable links, and room for deeper guides.</p>
-              </article>
+            <div className={styles.showcase}>
+              <div className={styles.showcaseText}>
+                <h2 className={styles.sectionTitle}>See everything at a glance</h2>
+                <p>
+                  Repos, worktrees, and terminals stay grouped so your mental model survives context switching.
+                  No more hunting through tabs or losing track of that build you started.
+                </p>
+                <Link className={styles.showcaseLink} to="/docs/guides/getting-started">
+                  Learn how it works
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 8h10M9 4l4 4-4 4" />
+                  </svg>
+                </Link>
+              </div>
+              <div className={styles.showcaseImage}>
+                <button
+                  type="button"
+                  className={styles.showcaseImgBtn}
+                  onClick={() => openLightbox('/screenshot1.png', 'Liney repository and workspace view')}>
+                  <img src="/screenshot1.png" alt="Liney repository and workspace view" loading="lazy" />
+                </button>
+              </div>
             </div>
           </section>
 
+          {/* Docs */}
           <section className={styles.section}>
-            <div className={styles.sectionHeading}>
-              <p className={styles.eyebrow}>Documentation</p>
-              <h2>Start with a guide, not a guess.</h2>
-              <p>The docs are split by actual usage: onboarding, worktree workflows, and the features people usually discover too late.</p>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>Documentation</h2>
+              <p className={styles.sectionSub}>
+                Guides, workflows, and everything you need to get the most out of Liney.
+              </p>
             </div>
 
             <div className={styles.docsGrid}>
               {docsItems.map((item) => (
-                <article className={styles.docsCard} key={item.title}>
+                <Link className={styles.docsCard} key={item.title} to={item.to}>
                   <h3>{item.title}</h3>
                   <p>{item.text}</p>
-                  <Link className={styles.docsLink} to={item.to}>
-                    Open guide
-                  </Link>
-                </article>
+                  <span className={styles.docsArrow}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 8h10M9 4l4 4-4 4" />
+                    </svg>
+                  </span>
+                </Link>
               ))}
             </div>
           </section>
 
+          {/* FAQ */}
           <section className={styles.section}>
-            <div className={styles.sectionHeading}>
-              <p className={styles.eyebrow}>Install</p>
-              <h2>Launch straight into the orbit.</h2>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>FAQ</h2>
             </div>
 
-            <div className={styles.installGrid}>
-              <article className={`${styles.installCard} ${styles.installCardHighlight}`}>
-                <p className={styles.installTitle}>GitHub release</p>
-                <p>Download the latest macOS build directly from GitHub Releases.</p>
-                <a className="button button--primary" href={releaseUrl}>
-                  Download latest build
-                </a>
-              </article>
-
-              <article className={`${styles.installCard} ${styles.installCardCode}`}>
-                <div className={styles.installCodeHead}>
-                  <p className={styles.installTitle}>Homebrew</p>
-                  <button className={styles.copyButton} type="button" onClick={handleCopy}>
-                    {copied ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-                <pre>{brewCommand}</pre>
-              </article>
-            </div>
-          </section>
-
-          <section className={styles.section}>
-            <div className={styles.sectionHeading}>
-              <p className={styles.eyebrow}>FAQ</p>
-              <h2>Short answers for terminal people.</h2>
-            </div>
-
-            <div className={styles.faqGrid}>
+            <div className={styles.faqList}>
               {faqs.map((faq) => (
-                <article className={styles.faqCard} key={faq.question}>
-                  <h3>{faq.question}</h3>
+                <details className={styles.faqItem} key={faq.question} open>
+                  <summary>{faq.question}</summary>
                   <p>{faq.answer}</p>
-                </article>
+                </details>
               ))}
             </div>
           </section>
 
-          <section className={styles.siteFooter}>
-            <p>Built for native repository work on macOS.</p>
-            <a href={githubUrl}>github.com/everettjf/liney</a>
-          </section>
+          {/* Footer */}
+          <footer className={styles.siteFooter}>
+            <div className={styles.footerInner}>
+              <p>Built for native repository work on macOS.</p>
+              <a href={githubUrl}>GitHub</a>
+            </div>
+          </footer>
         </main>
 
         {lightboxImage ? (
           <div className={styles.lightbox} role="dialog" aria-modal="true" aria-label="Image preview" onClick={() => setLightboxImage(null)}>
             <button className={styles.lightboxClose} type="button" onClick={() => setLightboxImage(null)} aria-label="Close image preview">
-              ×
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 5l10 10M15 5L5 15" />
+              </svg>
             </button>
             <div className={styles.lightboxPanel} onClick={(event) => event.stopPropagation()}>
               <img className={styles.lightboxImage} src={lightboxImage.src} alt={lightboxImage.alt} />

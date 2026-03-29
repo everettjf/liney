@@ -6,7 +6,21 @@ title: Getting Started
 
 Liney is a native macOS workspace for repositories, worktrees, and terminal sessions.
 
-This guide gets you from first launch to a usable daily setup.
+This guide gets you from download to a usable daily setup.
+
+## Download and install
+
+There are two ways to install Liney:
+
+### Homebrew (recommended)
+
+```bash
+brew install --cask everettjf/tap/liney
+```
+
+### GitHub Releases
+
+Download the latest `.dmg` directly from [GitHub Releases](https://github.com/everettjf/liney/releases). Open the `.dmg` and drag Liney into your Applications folder.
 
 ## Add your first repository
 

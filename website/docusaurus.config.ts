@@ -43,8 +43,8 @@ const config: Config = {
     image: 'screenshot.png',
     colorMode: {
       defaultMode: 'dark',
-      disableSwitch: false,
-      respectPrefersColorScheme: true,
+      disableSwitch: true,
+      respectPrefersColorScheme: false,
     },
     navbar: {
       title: 'Liney',
