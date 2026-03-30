@@ -655,10 +655,16 @@ final class QuickCommandSupportTests: XCTestCase {
         LocalizationManager.shared.updateSelectedLanguage(.automatic)
     }
 
-    func testGhosttyLogFilterSuppressesOnlyKnownMailboxSpam() {
+    func testGhosttyLogFilterSuppressesKnownGhosttySpamOnly() {
         XCTAssertTrue(LineyGhosttyLogFilter.shouldSuppress("io_thread: mailbox message=start_synchronized_output"))
         XCTAssertTrue(LineyGhosttyLogFilter.shouldSuppress("debug(io_thread): mailbox message=start_synchronized_output"))
+        XCTAssertTrue(LineyGhosttyLogFilter.shouldSuppress("reading configuration file path=/Users/eevv/Library/Application Support/com.mitchellh.ghostty/config"))
+        XCTAssertTrue(LineyGhosttyLogFilter.shouldSuppress("config: default shell source=env value=/bin/zsh"))
+        XCTAssertTrue(LineyGhosttyLogFilter.shouldSuppress("generic_renderer: updating display link display id=3"))
+        XCTAssertTrue(LineyGhosttyLogFilter.shouldSuppress("\n"))
+        XCTAssertTrue(LineyGhosttyLogFilter.shouldSuppress("   \n"))
         XCTAssertFalse(LineyGhosttyLogFilter.shouldSuppress("io_thread: mailbox message=end_synchronized_output"))
         XCTAssertFalse(LineyGhosttyLogFilter.shouldSuppress("warning(io_thread): error draining mailbox err=something"))
+        XCTAssertFalse(LineyGhosttyLogFilter.shouldSuppress("generic_renderer: fatal display link failure"))
     }
 }

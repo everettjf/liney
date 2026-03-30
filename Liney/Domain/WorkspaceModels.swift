@@ -143,11 +143,54 @@ struct AgentPreset: Codable, Hashable, Identifiable {
         self.workingDirectory = workingDirectory
     }
 
+    private static func builtInID(_ rawValue: String) -> UUID {
+        UUID(uuidString: rawValue)!
+    }
+
+    static let claudeCode = AgentPreset(
+        id: builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C002"),
+        name: "Claude Code",
+        launchPath: "/usr/bin/env",
+        arguments: ["claude"]
+    )
+
     static let codex = AgentPreset(
+        id: builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C001"),
         name: "Codex",
         launchPath: "/usr/bin/env",
-        arguments: ["codex", "resume"]
+        arguments: ["codex"]
     )
+
+    static let openCode = AgentPreset(
+        id: builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C003"),
+        name: "OpenCode",
+        launchPath: "/usr/bin/env",
+        arguments: ["opencode"]
+    )
+
+    static let cursorAgent = AgentPreset(
+        id: builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C004"),
+        name: "Cursor Agent",
+        launchPath: "/usr/bin/env",
+        arguments: ["cursor-agent"]
+    )
+
+    static let geminiCli = AgentPreset(
+        id: builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C005"),
+        name: "Gemini CLI",
+        launchPath: "/usr/bin/env",
+        arguments: ["gemini"]
+    )
+
+    static let deprecatedAiderPresetID = builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C006")
+
+    static let builtInPresets: [AgentPreset] = [
+        .claudeCode,
+        .codex,
+        .openCode,
+        .cursorAgent,
+        .geminiCli,
+    ]
 
     var configuration: AgentSessionConfiguration {
         AgentSessionConfiguration(
@@ -160,21 +203,92 @@ struct AgentPreset: Codable, Hashable, Identifiable {
     }
 }
 
+struct SSHPreset: Codable, Hashable, Identifiable {
+    var id: UUID
+    var name: String
+    var host: String?
+    var user: String?
+    var port: Int?
+    var identityFilePath: String?
+    var remoteWorkingDirectory: String?
+    var remoteCommand: String
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        host: String? = nil,
+        user: String? = nil,
+        port: Int? = nil,
+        identityFilePath: String? = nil,
+        remoteWorkingDirectory: String? = nil,
+        remoteCommand: String
+    ) {
+        self.id = id
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.host = host?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.user = user?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.port = port
+        self.identityFilePath = identityFilePath?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.remoteWorkingDirectory = remoteWorkingDirectory?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.remoteCommand = remoteCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+extension SSHPreset {
+    private nonisolated static func builtInID(_ uuidString: String) -> UUID {
+        UUID(uuidString: uuidString) ?? UUID()
+    }
+
+    static let shell = SSHPreset(
+        id: builtInID("A14A10C9-B50E-45D9-8CFA-A74095E8A001"),
+        name: "Shell",
+        remoteCommand: ""
+    )
+
+    static let lazygit = SSHPreset(
+        id: builtInID("A14A10C9-B50E-45D9-8CFA-A74095E8A002"),
+        name: "Lazygit",
+        remoteCommand: "lazygit"
+    )
+
+    static let yazi = SSHPreset(
+        id: builtInID("A14A10C9-B50E-45D9-8CFA-A74095E8A003"),
+        name: "Yazi",
+        remoteCommand: "yazi"
+    )
+
+    static let btop = SSHPreset(
+        id: builtInID("A14A10C9-B50E-45D9-8CFA-A74095E8A004"),
+        name: "Btop",
+        remoteCommand: "btop"
+    )
+
+    static let builtInPresets: [SSHPreset] = [
+        .shell,
+        .lazygit,
+        .yazi,
+        .btop,
+    ]
+}
+
 struct RemoteWorkspaceTarget: Codable, Hashable, Identifiable {
     var id: UUID
     var name: String
     var ssh: SSHSessionConfiguration
+    var sshPresetID: UUID?
     var agentPresetID: UUID?
 
     init(
         id: UUID = UUID(),
         name: String,
         ssh: SSHSessionConfiguration,
+        sshPresetID: UUID? = nil,
         agentPresetID: UUID? = nil
     ) {
         self.id = id
         self.name = name
         self.ssh = ssh
+        self.sshPresetID = sshPresetID
         self.agentPresetID = agentPresetID
     }
 }
@@ -199,8 +313,8 @@ struct WorkspaceSettings: Codable, Hashable {
         worktreeIconOverrides: [String: SidebarItemIcon] = [:],
         runScript: String = "",
         setupScript: String = "",
-        agentPresets: [AgentPreset] = [.codex],
-        preferredAgentPresetID: UUID? = AgentPreset.codex.id,
+        agentPresets: [AgentPreset] = AgentPreset.builtInPresets,
+        preferredAgentPresetID: UUID? = AgentPreset.claudeCode.id,
         remoteTargets: [RemoteWorkspaceTarget] = [],
         workflows: [WorkspaceWorkflow] = [],
         preferredWorkflowID: UUID? = nil
@@ -241,8 +355,8 @@ struct WorkspaceSettings: Codable, Hashable {
             worktreeIconOverrides: try container.decodeIfPresent([String: SidebarItemIcon].self, forKey: .worktreeIconOverrides) ?? [:],
             runScript: try container.decodeIfPresent(String.self, forKey: .runScript) ?? "",
             setupScript: try container.decodeIfPresent(String.self, forKey: .setupScript) ?? "",
-            agentPresets: try container.decodeIfPresent([AgentPreset].self, forKey: .agentPresets) ?? [.codex],
-            preferredAgentPresetID: try container.decodeIfPresent(UUID.self, forKey: .preferredAgentPresetID) ?? AgentPreset.codex.id,
+            agentPresets: try container.decodeIfPresent([AgentPreset].self, forKey: .agentPresets) ?? AgentPreset.builtInPresets,
+            preferredAgentPresetID: try container.decodeIfPresent(UUID.self, forKey: .preferredAgentPresetID) ?? AgentPreset.claudeCode.id,
             remoteTargets: try container.decodeIfPresent([RemoteWorkspaceTarget].self, forKey: .remoteTargets) ?? [],
             workflows: try container.decodeIfPresent([WorkspaceWorkflow].self, forKey: .workflows) ?? [],
             preferredWorkflowID: try container.decodeIfPresent(UUID.self, forKey: .preferredWorkflowID)

@@ -49,6 +49,9 @@ enum LineyGhosttyLogFilter {
     private static let suppressedFragments = [
         "io_thread: mailbox message=start_synchronized_output",
         "debug(io_thread): mailbox message=start_synchronized_output",
+        "reading configuration file path=",
+        "config: default shell source=env value=",
+        "generic_renderer: updating display link display id=",
     ]
 
     private static var isInstalled = false
@@ -63,7 +66,9 @@ enum LineyGhosttyLogFilter {
     }
 
     static func shouldSuppress(_ line: String) -> Bool {
-        suppressedFragments.contains { line.contains($0) }
+        let normalizedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedLine.isEmpty else { return true }
+        return suppressedFragments.contains { normalizedLine.contains($0) }
     }
 
     private final class StreamFilter {

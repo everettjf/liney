@@ -474,6 +474,7 @@ private final class LineyGhosttySurfaceView: NSView {
     private var activeKeyTables: [String] = []
     private var surfaceBackgroundColor: NSColor?
     private var workspaceFocused = false
+    private var backendConfiguration: SessionBackendConfiguration = .local()
     private var handledTextInputCommand = false
     private var lastPerformKeyEvent: TimeInterval?
     private var markedSelectionRange = NSRange(location: NSNotFound, length: 0)
@@ -811,14 +812,27 @@ private final class LineyGhosttySurfaceView: NSView {
             return
         }
 
+        logArrowKeyDebug(event, phase: "keyDown")
+
         if let appDelegate = NSApp.delegate as? AppDelegate,
            appDelegate.performShortcutAction(matching: event) {
+            return
+        }
+
+        if let escapeSequence = lineyGhosttySSHWordNavigationEscapeSequence(
+            keyCode: event.keyCode,
+            modifierFlags: event.modifierFlags,
+            backendConfiguration: backendConfiguration
+        ) {
+            logArrowKeyDebug(event, phase: "keyDown ssh-word-nav")
+            sendSSHWordNavigation(escapeSequence)
             return
         }
 
         let (translationEvent, translationMods) = translationState(for: event, on: surface)
 
         if shouldPreferRawKeyEvent(for: event) {
+            logArrowKeyDebug(event, phase: "keyDown raw-preferred")
             sendRawKeyEvent(
                 event,
                 on: surface,
@@ -908,6 +922,15 @@ private final class LineyGhosttySurfaceView: NSView {
             return false
         }
         guard let surface else { return false }
+
+        if let escapeSequence = lineyGhosttySSHWordNavigationEscapeSequence(
+            keyCode: event.keyCode,
+            modifierFlags: event.modifierFlags,
+            backendConfiguration: backendConfiguration
+        ) {
+            sendSSHWordNavigation(escapeSequence)
+            return true
+        }
 
         if hasMarkedText(),
            !event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command) {
@@ -1006,6 +1029,14 @@ private final class LineyGhosttySurfaceView: NSView {
         case .scrollToBottom:
             handledTextInputCommand = true
             _ = performBindingAction("scroll_to_bottom")
+        case .moveBackwardWord:
+            guard backendConfiguration.kind == .ssh else { break }
+            handledTextInputCommand = true
+            sendSSHWordNavigation("\u{1B}b")
+        case .moveForwardWord:
+            guard backendConfiguration.kind == .ssh else { break }
+            handledTextInputCommand = true
+            sendSSHWordNavigation("\u{1B}f")
         case .deleteBackwardInMarkedText:
             handledTextInputCommand = true
             deleteBackwardInMarkedText()
@@ -1116,6 +1147,7 @@ private final class LineyGhosttySurfaceView: NSView {
 
     private func createSurface(runtime: LineyGhosttyRuntime, launchConfiguration: TerminalLaunchConfiguration) {
         guard let controller else { return }
+        backendConfiguration = launchConfiguration.backendConfiguration
 
         let surfaceUserdataToken = LineyGhosttyControllerRegistry.shared.register(controller)
         let surface = withSurfaceConfig(
@@ -1284,6 +1316,43 @@ private final class LineyGhosttySurfaceView: NSView {
         string.withCString { pointer in
             ghostty_surface_text(surface, pointer, UInt(utf8Count))
         }
+    }
+
+    private func sendSSHWordNavigation(_ sequence: String) {
+        guard let surface else { return }
+
+        switch sequence {
+        case "\u{1B}b":
+            sendSSHMetaLetter("b", keyCode: UInt16(kVK_ANSI_B), on: surface)
+        case "\u{1B}f":
+            sendSSHMetaLetter("f", keyCode: UInt16(kVK_ANSI_F), on: surface)
+        default:
+            sendText(sequence)
+        }
+    }
+
+    private func sendSSHMetaLetter(_ character: Character, keyCode: UInt16, on surface: ghostty_surface_t) {
+        guard let scalar = character.unicodeScalars.first else { return }
+
+        var press = ghostty_input_key_s()
+        press.action = GHOSTTY_ACTION_PRESS
+        press.mods = GHOSTTY_MODS_ALT
+        press.consumed_mods = GHOSTTY_MODS_NONE
+        press.keycode = UInt32(keyCode)
+        press.text = nil
+        press.unshifted_codepoint = scalar.value
+        press.composing = false
+        _ = ghostty_surface_key(surface, press)
+
+        var release = ghostty_input_key_s()
+        release.action = GHOSTTY_ACTION_RELEASE
+        release.mods = GHOSTTY_MODS_ALT
+        release.consumed_mods = GHOSTTY_MODS_NONE
+        release.keycode = UInt32(keyCode)
+        release.text = nil
+        release.unshifted_codepoint = scalar.value
+        release.composing = false
+        _ = ghostty_surface_key(surface, release)
     }
 
     private func shouldPreferRawKeyEvent(for event: NSEvent) -> Bool {
@@ -1660,6 +1729,17 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
 
     private func logIMEDebug(_ message: String) {
         imeDebugLogger.log(message)
+    }
+
+    private func logArrowKeyDebug(_ event: NSEvent, phase: String) {
+        switch event.keyCode {
+        case UInt16(kVK_LeftArrow), UInt16(kVK_RightArrow), UInt16(kVK_UpArrow), UInt16(kVK_DownArrow):
+            logIMEDebug(
+                "\(phase) keyCode=\(event.keyCode) modifiers=\(event.modifierFlags.rawValue) chars=\(String(describing: event.characters)) charsIgnoring=\(String(describing: event.charactersIgnoringModifiers)) backend=\(backendConfiguration.kind)"
+            )
+        default:
+            break
+        }
     }
 }
 

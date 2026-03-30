@@ -35,7 +35,8 @@ final class WorkspaceSettingsTests: XCTestCase {
 
         XCTAssertFalse(record.settings.isPinned)
         XCTAssertFalse(record.settings.isArchived)
-        XCTAssertEqual(record.settings.agentPresets.first?.name, "Codex")
+        XCTAssertEqual(record.settings.agentPresets.first?.name, "Claude Code")
+        XCTAssertTrue(record.settings.agentPresets.count >= 4)
         XCTAssertTrue(record.settings.remoteTargets.isEmpty)
         XCTAssertTrue(record.settings.workflows.isEmpty)
         XCTAssertTrue(record.activityLog.isEmpty)
@@ -164,6 +165,7 @@ final class WorkspaceSettingsTests: XCTestCase {
         XCTAssertTrue(settings.worktreeIconOverrides.isEmpty)
         XCTAssertEqual(settings.runScript, "make lint")
         XCTAssertEqual(settings.setupScript, "mise install")
+        XCTAssertTrue(settings.agentPresets.isEmpty)
     }
 
     func testCreateSSHSessionDraftCanPromoteConnectionIntoReusableRemoteTarget() {
@@ -212,6 +214,57 @@ final class WorkspaceSettingsTests: XCTestCase {
         XCTAssertEqual(draft.identityFilePath, "~/.ssh/gpu")
         XCTAssertEqual(draft.remoteWorkingDirectory, "/srv/train")
         XCTAssertEqual(draft.remoteCommand, "source ~/.zshrc")
+    }
+
+    func testCreateSSHSessionDraftAppliesPresetTemplateFields() {
+        let preset = SSHPreset(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000456")!,
+            name: "Deploy",
+            host: "prod.example.com",
+            user: "deploy",
+            port: 2222,
+            identityFilePath: "~/.ssh/prod",
+            remoteWorkingDirectory: "/srv/app",
+            remoteCommand: "lazygit"
+        )
+        var draft = CreateSSHSessionDraft(
+            selectedTargetID: UUID(),
+            selectedPresetID: nil,
+            selectedAgentPresetID: UUID(),
+            saveAsTarget: false,
+            targetName: "",
+            host: "",
+            user: "",
+            port: "",
+            identityFilePath: "",
+            remoteWorkingDirectory: "",
+            remoteCommand: ""
+        )
+
+        draft.apply(sshPreset: preset, defaultWorkingDirectory: "/tmp/fallback")
+
+        XCTAssertNil(draft.selectedTargetID)
+        XCTAssertNil(draft.selectedAgentPresetID)
+        XCTAssertEqual(draft.selectedPresetID, preset.id)
+        XCTAssertEqual(draft.host, "prod.example.com")
+        XCTAssertEqual(draft.user, "deploy")
+        XCTAssertEqual(draft.port, "2222")
+        XCTAssertEqual(draft.identityFilePath, "~/.ssh/prod")
+        XCTAssertEqual(draft.remoteWorkingDirectory, "/srv/app")
+        XCTAssertEqual(draft.remoteCommand, "lazygit")
+    }
+
+    func testCreateSSHSessionDraftUsesDefaultWorkingDirectoryWhenPresetOmitsIt() {
+        let preset = SSHPreset(
+            name: "Lazygit",
+            remoteCommand: "lazygit"
+        )
+        var draft = CreateSSHSessionDraft()
+
+        draft.apply(sshPreset: preset, defaultWorkingDirectory: "/Users/example/project")
+
+        XCTAssertEqual(draft.remoteWorkingDirectory, "/Users/example/project")
+        XCTAssertEqual(draft.remoteCommand, "lazygit")
     }
 
     func testRandomRepositoryIconUsesKnownCatalogValues() {

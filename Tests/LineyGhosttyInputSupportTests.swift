@@ -69,6 +69,139 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
         )
     }
 
+    func testSSHOptionLeftArrowUsesBackwardWordEscapeSequence() {
+        XCTAssertEqual(
+            lineyGhosttySSHWordNavigationEscapeSequence(
+                keyCode: UInt16(kVK_LeftArrow),
+                modifierFlags: [.option],
+                backendConfiguration: .ssh(
+                    SSHSessionConfiguration(
+                        host: "example.com",
+                        user: "dev",
+                        port: nil,
+                        identityFilePath: nil,
+                        remoteWorkingDirectory: nil,
+                        remoteCommand: nil
+                    )
+                )
+            ),
+            "\u{1B}b"
+        )
+    }
+
+    func testSSHOptionRightArrowUsesForwardWordEscapeSequence() {
+        XCTAssertEqual(
+            lineyGhosttySSHWordNavigationEscapeSequence(
+                keyCode: UInt16(kVK_RightArrow),
+                modifierFlags: [.option],
+                backendConfiguration: .ssh(
+                    SSHSessionConfiguration(
+                        host: "example.com",
+                        user: "dev",
+                        port: nil,
+                        identityFilePath: nil,
+                        remoteWorkingDirectory: nil,
+                        remoteCommand: nil
+                    )
+                )
+            ),
+            "\u{1B}f"
+        )
+    }
+
+    func testLocalOptionArrowDoesNotUseSSHWordNavigationEscapeSequence() {
+        XCTAssertNil(
+            lineyGhosttySSHWordNavigationEscapeSequence(
+                keyCode: UInt16(kVK_LeftArrow),
+                modifierFlags: [.option],
+                backendConfiguration: .local()
+            )
+        )
+    }
+
+    func testSSHCommandOptionArrowDoesNotUseSSHWordNavigationEscapeSequence() {
+        XCTAssertNil(
+            lineyGhosttySSHWordNavigationEscapeSequence(
+                keyCode: UInt16(kVK_LeftArrow),
+                modifierFlags: [.command, .option],
+                backendConfiguration: .ssh(
+                    SSHSessionConfiguration(
+                        host: "example.com",
+                        user: "dev",
+                        port: nil,
+                        identityFilePath: nil,
+                        remoteWorkingDirectory: nil,
+                        remoteCommand: nil
+                    )
+                )
+            )
+        )
+    }
+
+    func testSSHOptionArrowAllowsAdditionalSystemModifierBits() {
+        XCTAssertEqual(
+            lineyGhosttySSHWordNavigationEscapeSequence(
+                keyCode: UInt16(kVK_LeftArrow),
+                modifierFlags: [.option, .numericPad],
+                backendConfiguration: .ssh(
+                    SSHSessionConfiguration(
+                        host: "example.com",
+                        user: "dev",
+                        port: nil,
+                        identityFilePath: nil,
+                        remoteWorkingDirectory: nil,
+                        remoteCommand: nil
+                    )
+                )
+            ),
+            "\u{1B}b"
+        )
+    }
+
+    func testSSHLeftOptionArrowUsesBackwardWordEscapeSequenceWithRawAltBit() {
+        let flags = NSEvent.ModifierFlags(rawValue: UInt(NX_DEVICELALTKEYMASK))
+
+        XCTAssertEqual(
+            lineyGhosttySSHWordNavigationEscapeSequence(
+                keyCode: UInt16(kVK_LeftArrow),
+                modifierFlags: flags,
+                backendConfiguration: .ssh(
+                    SSHSessionConfiguration(
+                        host: "example.com",
+                        user: "dev",
+                        port: nil,
+                        identityFilePath: nil,
+                        remoteWorkingDirectory: nil,
+                        remoteCommand: nil
+                    )
+                )
+            ),
+            "\u{1B}b"
+        )
+    }
+
+    func testSSHRightOptionArrowUsesForwardWordEscapeSequenceWithRawAltBit() {
+        let flags = NSEvent.ModifierFlags(rawValue: UInt(NX_DEVICERALTKEYMASK))
+
+        XCTAssertEqual(
+            lineyGhosttySSHWordNavigationEscapeSequence(
+                keyCode: UInt16(kVK_RightArrow),
+                modifierFlags: flags,
+                backendConfiguration: .ssh(
+                    SSHSessionConfiguration(
+                        host: "example.com",
+                        user: "dev",
+                        port: nil,
+                        identityFilePath: nil,
+                        remoteWorkingDirectory: nil,
+                        remoteCommand: nil
+                    )
+                )
+            ),
+            "\u{1B}f"
+        )
+    }
+
     func testPlainReturnDoesNotUseRawKeyRouting() {
         XCTAssertFalse(
             LineyGhosttyTextInputRouting.shouldPreferRawKeyEvent(
@@ -241,6 +374,26 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
                 hasMarkedText: false
             ),
             .none
+        )
+    }
+
+    func testMoveWordLeftSelectorResolvesToBackwardWordCommand() {
+        XCTAssertEqual(
+            LineyGhosttyTextInputCommandAction.resolve(
+                selector: #selector(NSResponder.moveWordLeft(_:)),
+                hasMarkedText: false
+            ),
+            .moveBackwardWord
+        )
+    }
+
+    func testMoveWordRightSelectorResolvesToForwardWordCommand() {
+        XCTAssertEqual(
+            LineyGhosttyTextInputCommandAction.resolve(
+                selector: #selector(NSResponder.moveWordRight(_:)),
+                hasMarkedText: false
+            ),
+            .moveForwardWord
         )
     }
 

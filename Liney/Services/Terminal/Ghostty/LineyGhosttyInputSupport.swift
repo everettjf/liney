@@ -20,10 +20,10 @@ enum LineyGhosttyTextInputRouting {
     ]
 
     static func shouldPreferRawKeyEvent(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags) -> Bool {
-        let relevantModifiers = modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let relevantModifiers = lineyGhosttyRelevantModifierFlags(modifierFlags)
 
         if keyCode == UInt16(kVK_Return) || keyCode == UInt16(kVK_ANSI_KeypadEnter) {
-            return relevantModifiers.intersection([.option, .command, .control]).isEmpty == false
+            return !relevantModifiers.intersection([.option, .command, .control]).isEmpty
         }
 
         return relevantModifiers.contains(.option) && optionNavigationKeyCodes.contains(keyCode)
@@ -87,6 +87,8 @@ enum LineyGhosttyTextInputCommandAction: Equatable {
     case scrollToBottom
     case deleteBackwardInMarkedText
     case cancelMarkedText
+    case moveBackwardWord
+    case moveForwardWord
 
     static func resolve(selector: Selector, hasMarkedText: Bool) -> Self {
         switch selector {
@@ -94,6 +96,10 @@ enum LineyGhosttyTextInputCommandAction: Equatable {
             return .scrollToTop
         case #selector(NSResponder.moveToEndOfDocument(_:)):
             return .scrollToBottom
+        case #selector(NSResponder.moveWordLeft(_:)):
+            return .moveBackwardWord
+        case #selector(NSResponder.moveWordRight(_:)):
+            return .moveForwardWord
         case #selector(NSResponder.deleteBackward(_:)),
              #selector(NSResponder.deleteBackwardByDecomposingPreviousCharacter(_:)):
             return hasMarkedText ? .deleteBackwardInMarkedText : .none
@@ -331,6 +337,42 @@ func lineyGhosttyShouldDispatchWorkspaceSplitAction(
     default:
         return true
     }
+}
+
+func lineyGhosttySSHWordNavigationEscapeSequence(
+    keyCode: UInt16,
+    modifierFlags: NSEvent.ModifierFlags,
+    backendConfiguration: SessionBackendConfiguration
+) -> String? {
+    guard backendConfiguration.kind == .ssh else { return nil }
+
+    let relevantModifiers = lineyGhosttyRelevantModifierFlags(modifierFlags)
+    guard relevantModifiers.contains(.option),
+          !relevantModifiers.contains(.command),
+          !relevantModifiers.contains(.control),
+          !relevantModifiers.contains(.shift) else {
+        return nil
+    }
+
+    switch keyCode {
+    case UInt16(kVK_LeftArrow):
+        return "\u{1B}b"
+    case UInt16(kVK_RightArrow):
+        return "\u{1B}f"
+    default:
+        return nil
+    }
+}
+
+func lineyGhosttyRelevantModifierFlags(_ modifierFlags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
+    var relevantModifiers = modifierFlags.intersection(.deviceIndependentFlagsMask)
+    let rawFlags = modifierFlags.rawValue
+
+    if rawFlags & UInt(NX_DEVICELALTKEYMASK) != 0 || rawFlags & UInt(NX_DEVICERALTKEYMASK) != 0 {
+        relevantModifiers.insert(.option)
+    }
+
+    return relevantModifiers
 }
 
 func resolveGhosttyEquivalentKey(

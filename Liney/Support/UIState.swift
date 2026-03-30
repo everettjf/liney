@@ -70,6 +70,8 @@ struct CreateSSHSessionRequest: Identifiable {
     let workspaceName: String
     let defaultWorkingDirectory: String
     let remoteTargets: [RemoteWorkspaceTarget]
+    let presets: [SSHPreset]
+    let preferredPresetID: UUID?
 }
 
 struct CreateAgentSessionRequest: Identifiable {
@@ -197,6 +199,8 @@ struct CreateWorktreeDraft {
 
 struct CreateSSHSessionDraft {
     var selectedTargetID: UUID? = nil
+    var selectedPresetID: UUID? = nil
+    var selectedAgentPresetID: UUID? = nil
     var saveAsTarget: Bool = false
     var targetName: String = ""
     var host: String = ""
@@ -237,12 +241,27 @@ struct CreateSSHSessionDraft {
             id: selectedTargetID ?? UUID(),
             name: name,
             ssh: configuration,
-            agentPresetID: nil
+            sshPresetID: selectedPresetID,
+            agentPresetID: selectedAgentPresetID
         )
+    }
+
+    mutating func apply(sshPreset: SSHPreset, defaultWorkingDirectory: String) {
+        selectedTargetID = nil
+        selectedAgentPresetID = nil
+        selectedPresetID = sshPreset.id
+        host = sshPreset.host ?? ""
+        user = sshPreset.user ?? ""
+        port = sshPreset.port.map(String.init) ?? ""
+        identityFilePath = sshPreset.identityFilePath ?? ""
+        remoteWorkingDirectory = sshPreset.remoteWorkingDirectory ?? defaultWorkingDirectory
+        remoteCommand = sshPreset.remoteCommand
     }
 
     mutating func apply(remoteTarget: RemoteWorkspaceTarget) {
         selectedTargetID = remoteTarget.id
+        selectedPresetID = remoteTarget.sshPresetID
+        selectedAgentPresetID = remoteTarget.agentPresetID
         targetName = remoteTarget.name
         host = remoteTarget.ssh.host
         user = remoteTarget.ssh.user ?? ""
@@ -258,13 +277,14 @@ struct CreateSSHSessionDraft {
 }
 
 struct CreateAgentSessionDraft {
-    var name: String = LocalizationManager.shared.string("defaults.agent.name")
+    var selectedPresetID: UUID? = AgentPreset.claudeCode.id
+    var name: String = AgentPreset.claudeCode.name
     var launchPath: String = "/usr/bin/env"
-    var argumentsText: String = "codex\nresume"
+    var argumentsText: String = "claude"
     var environmentText: String = ""
     var workingDirectory: String = ""
     var normalizedName: String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? LocalizationManager.shared.string("defaults.agent.name")
+        name.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? AgentPreset.claudeCode.name
     }
 
     var normalizedLaunchPath: String {
@@ -308,6 +328,7 @@ struct CreateAgentSessionDraft {
     }
 
     mutating func apply(preset: AgentPreset) {
+        selectedPresetID = preset.id
         name = preset.name
         launchPath = preset.launchPath
         argumentsText = preset.arguments.joined(separator: "\n")

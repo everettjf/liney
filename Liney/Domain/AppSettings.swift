@@ -271,6 +271,10 @@ struct AppSettings: Codable, Hashable {
     var quickCommandRecentIDs: [String]
     var releaseChannel: ReleaseChannel
     var commandPaletteRecents: [String: TimeInterval]
+    var agentPresets: [AgentPreset]
+    var preferredAgentPresetID: UUID?
+    var sshPresets: [SSHPreset]
+    var preferredSSHPresetID: UUID?
     var keyboardShortcutOverrides: [String: KeyboardShortcutOverride]
 
     init(
@@ -303,9 +307,15 @@ struct AppSettings: Codable, Hashable {
         quickCommandRecentIDs: [String] = [],
         releaseChannel: ReleaseChannel = .stable,
         commandPaletteRecents: [String: TimeInterval] = [:],
+        agentPresets: [AgentPreset] = AgentPreset.builtInPresets,
+        preferredAgentPresetID: UUID? = AgentPreset.claudeCode.id,
+        sshPresets: [SSHPreset] = SSHPreset.builtInPresets,
+        preferredSSHPresetID: UUID? = nil,
         keyboardShortcutOverrides: [String: KeyboardShortcutOverride] = [:]
     ) {
         let normalizedKeyboardShortcutOverrides = LineyKeyboardShortcuts.normalizedOverrides(keyboardShortcutOverrides)
+        let normalizedAgentPresets = lineyNormalizedAgentPresets(agentPresets)
+        let normalizedSSHPresets = lineyNormalizedSSHPresets(sshPresets)
 
         self.appLanguage = appLanguage
         self.autoRefreshEnabled = autoRefreshEnabled
@@ -346,6 +356,20 @@ struct AppSettings: Codable, Hashable {
         )
         self.releaseChannel = releaseChannel
         self.commandPaletteRecents = commandPaletteRecents
+        self.agentPresets = normalizedAgentPresets
+        if let preferredAgentPresetID,
+           normalizedAgentPresets.contains(where: { $0.id == preferredAgentPresetID }) {
+            self.preferredAgentPresetID = preferredAgentPresetID
+        } else {
+            self.preferredAgentPresetID = normalizedAgentPresets.first?.id
+        }
+        self.sshPresets = normalizedSSHPresets
+        if let preferredSSHPresetID,
+           normalizedSSHPresets.contains(where: { $0.id == preferredSSHPresetID }) {
+            self.preferredSSHPresetID = preferredSSHPresetID
+        } else {
+            self.preferredSSHPresetID = nil
+        }
     }
 }
 
@@ -380,6 +404,10 @@ extension AppSettings {
         case quickCommandRecentIDs
         case releaseChannel
         case commandPaletteRecents
+        case agentPresets
+        case preferredAgentPresetID
+        case sshPresets
+        case preferredSSHPresetID
         case keyboardShortcutOverrides
     }
 
@@ -423,8 +451,37 @@ extension AppSettings {
             quickCommandRecentIDs: try container.decodeIfPresent([String].self, forKey: .quickCommandRecentIDs) ?? [],
             releaseChannel: try container.decodeIfPresent(ReleaseChannel.self, forKey: .releaseChannel) ?? .stable,
             commandPaletteRecents: try container.decodeIfPresent([String: TimeInterval].self, forKey: .commandPaletteRecents) ?? [:],
+            agentPresets: try container.decodeIfPresent([AgentPreset].self, forKey: .agentPresets) ?? AgentPreset.builtInPresets,
+            preferredAgentPresetID: try container.decodeIfPresent(UUID.self, forKey: .preferredAgentPresetID) ?? AgentPreset.claudeCode.id,
+            sshPresets: try container.decodeIfPresent([SSHPreset].self, forKey: .sshPresets) ?? SSHPreset.builtInPresets,
+            preferredSSHPresetID: try container.decodeIfPresent(UUID.self, forKey: .preferredSSHPresetID),
             keyboardShortcutOverrides: try container.decodeIfPresent([String: KeyboardShortcutOverride].self, forKey: .keyboardShortcutOverrides) ?? [:]
         )
+    }
+}
+
+private func lineyNormalizedAgentPresets(_ presets: [AgentPreset]) -> [AgentPreset] {
+    let builtInsByID = Dictionary(uniqueKeysWithValues: AgentPreset.builtInPresets.map { ($0.id, $0) })
+    let filtered = presets
+        .filter { $0.id != AgentPreset.deprecatedAiderPresetID }
+        .map { builtInsByID[$0.id] ?? $0 }
+    if filtered.isEmpty {
+        return AgentPreset.builtInPresets
+    }
+
+    var seenIDs = Set<UUID>()
+    return filtered.filter { preset in
+        seenIDs.insert(preset.id).inserted
+    }
+}
+
+private func lineyNormalizedSSHPresets(_ presets: [SSHPreset]) -> [SSHPreset] {
+    let builtInsByID = Dictionary(uniqueKeysWithValues: SSHPreset.builtInPresets.map { ($0.id, $0) })
+    let filtered = presets.map { builtInsByID[$0.id] ?? $0 }
+
+    var seenIDs = Set<UUID>()
+    return filtered.filter { preset in
+        seenIDs.insert(preset.id).inserted
     }
 }
 

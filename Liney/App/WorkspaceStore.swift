@@ -143,6 +143,18 @@ final class WorkspaceStore: ObservableObject {
         appSettings.quickCommandCategories
     }
 
+    var agentPresets: [AgentPreset] {
+        appSettings.agentPresets
+    }
+
+    var preferredAgentPreset: AgentPreset? {
+        if let preferredAgentPresetID = appSettings.preferredAgentPresetID,
+           let preset = appSettings.agentPresets.first(where: { $0.id == preferredAgentPresetID }) {
+            return preset
+        }
+        return appSettings.agentPresets.first
+    }
+
     var quickCommandCategoryMap: [String: QuickCommandCategory] {
         QuickCommandCatalog.categoryMap(quickCommandCategories)
     }
@@ -472,7 +484,7 @@ final class WorkspaceStore: ObservableObject {
                     )
                 }
                 if let presetID = remoteTarget.agentPresetID,
-                   let preset = workspace.agentPresets.first(where: { $0.id == presetID }) {
+                   let preset = appSettings.agentPresets.first(where: { $0.id == presetID }) {
                     items.append(
                         CommandPaletteItem(
                             id: "remote-agent:\(workspace.id.uuidString):\(remoteTarget.id.uuidString)",
@@ -537,11 +549,11 @@ final class WorkspaceStore: ObservableObject {
                     CommandPaletteItem(
                         id: "workspace-agent:\(workspace.id.uuidString)",
                         title: localizedFormat("main.commandPalette.newAgentSessionInFormat", workspace.name),
-                        subtitle: workspace.agentPresets.first?.name,
+                        subtitle: preferredAgentPreset?.name,
                         group: .sessions,
                         keywords: ["ai", "agent", "codex"],
                         isGlobal: false,
-                        kind: .command(.createAgentSession(workspace.id, workspace.preferredAgentPreset))
+                        kind: .command(.createAgentSession(workspace.id, preferredAgentPreset))
                     )
                 )
             }
@@ -804,9 +816,21 @@ final class WorkspaceStore: ObservableObject {
             quickCommandRecentIDs: settings.quickCommandRecentIDs,
             releaseChannel: settings.releaseChannel,
             commandPaletteRecents: settings.commandPaletteRecents,
+            agentPresets: settings.agentPresets,
+            preferredAgentPresetID: settings.preferredAgentPresetID,
+            sshPresets: settings.sshPresets,
+            preferredSSHPresetID: settings.preferredSSHPresetID,
             keyboardShortcutOverrides: settings.keyboardShortcutOverrides
         )
         LocalizationManager.shared.updateSelectedLanguage(appSettings.appLanguage)
+        let validAgentPresetIDs = Set(appSettings.agentPresets.map(\.id))
+        for workspace in workspaces {
+            workspace.settings = normalizedWorkspaceSettings(
+                workspace.settings,
+                for: workspace,
+                validAgentPresetIDs: validAgentPresetIDs
+            )
+        }
         for workspace in workspaces {
             workspace.gitHubStatuses = [:]
         }
@@ -1346,7 +1370,9 @@ final class WorkspaceStore: ObservableObject {
             defaultWorkingDirectory: workspace.activeWorktreePath,
             remoteTargets: workspace.remoteTargets.sorted { lhs, rhs in
                 lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            }
+            },
+            presets: appSettings.sshPresets,
+            preferredPresetID: nil
         )
     }
 
@@ -1355,8 +1381,8 @@ final class WorkspaceStore: ObservableObject {
             workspaceID: workspace.id,
             workspaceName: workspace.name,
             defaultWorkingDirectory: workspace.activeWorktreePath,
-            presets: workspace.agentPresets,
-            preferredPresetID: workspace.preferredAgentPresetID
+            presets: appSettings.agentPresets,
+            preferredPresetID: appSettings.preferredAgentPresetID ?? appSettings.agentPresets.first?.id ?? AgentPreset.claudeCode.id
         )
     }
 
@@ -1364,6 +1390,7 @@ final class WorkspaceStore: ObservableObject {
         guard let configuration = draft.configuration,
               let workspaceIndex = workspaces.firstIndex(where: { $0.id == workspaceID }) else { return }
         let workspace = workspaces[workspaceIndex]
+        rememberSSHPresetSelection(selectedPresetID: draft.selectedPresetID)
 
         if let target = draft.targetToSave {
             if let existingIndex = workspace.remoteTargets.firstIndex(where: { $0.id == target.id }) {
@@ -1396,25 +1423,47 @@ final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    func rememberSSHPresetSelection(selectedPresetID: UUID?) {
+        let updatedSelection = lineyRememberedSSHPresetSelection(
+            currentPresets: appSettings.sshPresets,
+            selectedPresetID: selectedPresetID
+        )
+        appSettings.sshPresets = updatedSelection.presets
+        appSettings.preferredSSHPresetID = updatedSelection.preferredPresetID
+        persistAppSettings()
+    }
+
     func createAgentSession(workspaceID: UUID, draft: CreateAgentSessionDraft) {
         guard let configuration = draft.configuration,
-              let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+              let workspaceIndex = workspaces.firstIndex(where: { $0.id == workspaceID }) else { return }
+        rememberAgentPresetSelection(selectedPresetID: draft.selectedPresetID)
+
         createSession(
-            in: workspace,
+            in: workspaces[workspaceIndex],
             backendConfiguration: .agent(configuration),
-            workingDirectory: configuration.workingDirectory ?? workspace.activeWorktreePath
+            workingDirectory: configuration.workingDirectory ?? workspaces[workspaceIndex].activeWorktreePath
         )
         recordActivity(
-            in: workspace,
+            in: workspaces[workspaceIndex],
             kind: .agent,
             title: "Opened agent session",
             detail: configuration.name,
-            worktreePath: workspace.activeWorktreePath,
+            worktreePath: workspaces[workspaceIndex].activeWorktreePath,
             replayAction: .createSession(
                 backendConfiguration: .agent(configuration),
-                workingDirectory: configuration.workingDirectory ?? workspace.activeWorktreePath
+                workingDirectory: configuration.workingDirectory ?? workspaces[workspaceIndex].activeWorktreePath
             )
         )
+    }
+
+    func rememberAgentPresetSelection(selectedPresetID: UUID?) {
+        let updatedSelection = lineyRememberedAgentPresetSelection(
+            currentPresets: appSettings.agentPresets,
+            selectedPresetID: selectedPresetID
+        )
+        appSettings.agentPresets = updatedSelection.presets
+        appSettings.preferredAgentPresetID = updatedSelection.preferredPresetID
+        persistAppSettings()
     }
 
     func createAgentSession(workspaceID: UUID, preset: AgentPreset) {
@@ -2437,24 +2486,34 @@ final class WorkspaceStore: ObservableObject {
 
     private func normalizedWorkspaceSettings(
         _ settings: WorkspaceSettings,
-        for workspace: WorkspaceModel
+        for workspace: WorkspaceModel,
+        validAgentPresetIDs: Set<UUID>? = nil
     ) -> WorkspaceSettings {
         var normalized = settings
+        let validSSHPresetIDs = Set(appSettings.sshPresets.map(\.id))
 
         if normalized.agentPresets.isEmpty {
-            normalized.agentPresets = [.codex]
+            normalized.agentPresets = AgentPreset.builtInPresets
         }
 
-        let validPresetIDs = Set(normalized.agentPresets.map(\.id))
+        normalized.agentPresets.removeAll { $0.id == AgentPreset.deprecatedAiderPresetID }
+        if normalized.agentPresets.isEmpty {
+            normalized.agentPresets = AgentPreset.builtInPresets
+        }
+
+        let validPresetIDs = validAgentPresetIDs ?? Set(normalized.agentPresets.map(\.id))
         if let preferredAgentPresetID = normalized.preferredAgentPresetID,
            !validPresetIDs.contains(preferredAgentPresetID) {
-            normalized.preferredAgentPresetID = normalized.agentPresets.first?.id
+            normalized.preferredAgentPresetID = nil
         } else if normalized.preferredAgentPresetID == nil {
-            normalized.preferredAgentPresetID = normalized.agentPresets.first?.id
+            normalized.preferredAgentPresetID = nil
         }
 
         normalized.remoteTargets = normalized.remoteTargets.map { target in
             var updated = target
+            if let sshPresetID = target.sshPresetID, !validSSHPresetIDs.contains(sshPresetID) {
+                updated.sshPresetID = nil
+            }
             if let agentPresetID = target.agentPresetID, !validPresetIDs.contains(agentPresetID) {
                 updated.agentPresetID = nil
             }
@@ -2658,7 +2717,11 @@ final class WorkspaceStore: ObservableObject {
     private func openRemoteTargetAgent(workspaceID: UUID, targetID: UUID) {
         guard let workspace = workspace(for: workspaceID) else { return }
         do {
-            let plan = try remoteSessionCoordinator.agentPlan(workspace: workspace, targetID: targetID)
+            let plan = try remoteSessionCoordinator.agentPlan(
+                workspace: workspace,
+                targetID: targetID,
+                agentPresets: appSettings.agentPresets
+            )
             createSession(in: workspace, backendConfiguration: plan.backendConfiguration, workingDirectory: plan.workingDirectory)
             recordActivity(
                 in: workspace,
@@ -2778,7 +2841,7 @@ final class WorkspaceStore: ObservableObject {
         }
 
         if let presetID = workflow.agentPresetID,
-           let preset = workspace.agentPresets.first(where: { $0.id == presetID }),
+           let preset = appSettings.agentPresets.first(where: { $0.id == presetID }),
            workflow.agentMode != .none {
             launchWorkflowAgent(using: preset, mode: workflow.agentMode, in: workspace)
         }
@@ -3087,4 +3150,26 @@ final class WorkspaceStore: ObservableObject {
             }
         )
     }
+}
+
+func lineyRememberedAgentPresetSelection(
+    currentPresets: [AgentPreset],
+    selectedPresetID: UUID?
+) -> (presets: [AgentPreset], preferredPresetID: UUID?) {
+    guard let selectedPresetID,
+          currentPresets.contains(where: { $0.id == selectedPresetID }) else {
+        return (currentPresets, currentPresets.first?.id)
+    }
+    return (currentPresets, selectedPresetID)
+}
+
+func lineyRememberedSSHPresetSelection(
+    currentPresets: [SSHPreset],
+    selectedPresetID: UUID?
+) -> (presets: [SSHPreset], preferredPresetID: UUID?) {
+    guard let selectedPresetID,
+          currentPresets.contains(where: { $0.id == selectedPresetID }) else {
+        return (currentPresets, nil)
+    }
+    return (currentPresets, selectedPresetID)
 }

@@ -36,6 +36,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
     case shortcuts
     case updates
     case workspace
+    case sshPresets
+    case agentPresets
 
     var id: String { rawValue }
 
@@ -45,7 +47,7 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return .app
         case .sidebar, .shortcuts:
             return .customize
-        case .workspace:
+        case .workspace, .sshPresets, .agentPresets:
             return .workspace
         }
     }
@@ -68,6 +70,10 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "settings.section.updates.title"
         case .workspace:
             return "settings.section.workspace.title"
+        case .sshPresets:
+            return "settings.section.sshPresets.title"
+        case .agentPresets:
+            return "settings.section.agentPresets.title"
         }
     }
 
@@ -89,6 +95,10 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "settings.section.updates.subtitle"
         case .workspace:
             return "settings.section.workspace.subtitle"
+        case .sshPresets:
+            return "settings.section.sshPresets.subtitle"
+        case .agentPresets:
+            return "settings.section.agentPresets.subtitle"
         }
     }
 
@@ -110,6 +120,10 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "arrow.down.circle"
         case .workspace:
             return "square.grid.2x2"
+        case .sshPresets:
+            return "network"
+        case .agentPresets:
+            return "person.crop.rectangle.stack"
         }
     }
 }
@@ -361,6 +375,10 @@ struct SettingsSheet: View {
             updatesSettingsView
         case .workspace:
             workspaceSettingsView
+        case .sshPresets:
+            sshPresetsSettingsView
+        case .agentPresets:
+            agentPresetsSettingsView
         }
     }
 
@@ -764,90 +782,7 @@ struct SettingsSheet: View {
                             .frame(height: 80)
                             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08)))
                     }
-
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(localized("settings.workspace.agentPresets"))
-                                .font(.system(size: 12, weight: .semibold))
-                            Spacer()
-                            Button(localized("settings.workspace.addPreset")) {
-                                workspaceSettings.agentPresets.append(
-                                    AgentPreset(
-                                        name: localized("defaults.agent.name"),
-                                        launchPath: "/usr/bin/env",
-                                        arguments: ["codex", "resume"]
-                                    )
-                                )
-                            }
-                        }
-
-                        ForEach($workspaceSettings.agentPresets) { $preset in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    TextField(localized("settings.workspace.agentPreset.name"), text: $preset.name)
-                                    TextField(localized("settings.workspace.agentPreset.launchPath"), text: $preset.launchPath)
-                                    Button(role: .destructive) {
-                                        workspaceSettings.agentPresets.removeAll { $0.id == preset.id }
-                                        if workspaceSettings.preferredAgentPresetID == preset.id {
-                                            workspaceSettings.preferredAgentPresetID = workspaceSettings.agentPresets.first?.id
-                                        }
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                }
-
-                                TextField(
-                                    localized("settings.workspace.agentPreset.arguments"),
-                                    text: Binding(
-                                        get: { preset.arguments.joined(separator: "\n") },
-                                        set: { preset.arguments = $0.split(whereSeparator: \.isNewline).map(String.init) }
-                                    ),
-                                    axis: .vertical
-                                )
-                                .lineLimit(2...5)
-
-                                TextField(
-                                    localized("settings.workspace.agentPreset.environment"),
-                                    text: Binding(
-                                        get: {
-                                            preset.environment
-                                                .sorted { $0.key < $1.key }
-                                                .map { "\($0.key)=\($0.value)" }
-                                                .joined(separator: "\n")
-                                        },
-                                        set: { value in
-                                            preset.environment = value
-                                                .split(whereSeparator: \.isNewline)
-                                                .reduce(into: [:]) { result, line in
-                                                    let text = String(line)
-                                                    guard let index = text.firstIndex(of: "=") else { return }
-                                                    let key = String(text[..<index]).trimmingCharacters(in: .whitespacesAndNewlines)
-                                                    let envValue = String(text[text.index(after: index)...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                                                    guard !key.isEmpty else { return }
-                                                    result[key] = envValue
-                                                }
-                                        }
-                                    ),
-                                    axis: .vertical
-                                )
-                                .lineLimit(2...5)
-                            }
-                            .padding(12)
-                            .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        }
-
-                        if !workspaceSettings.agentPresets.isEmpty {
-                            Picker(localized("settings.workspace.agentPreset.preferred"), selection: Binding(
-                                get: { workspaceSettings.preferredAgentPresetID ?? workspaceSettings.agentPresets.first?.id },
-                                set: { workspaceSettings.preferredAgentPresetID = $0 }
-                            )) {
-                                ForEach(workspaceSettings.agentPresets) { preset in
-                                    Text(preset.name).tag(Optional(preset.id))
-                                }
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text(localized("settings.workspace.remoteTargets"))
                                     .font(.system(size: 12, weight: .semibold))
@@ -864,7 +799,8 @@ struct SettingsSheet: View {
                                                 remoteWorkingDirectory: nil,
                                                 remoteCommand: nil
                                             ),
-                                            agentPresetID: workspaceSettings.preferredAgentPresetID
+                                            sshPresetID: nil,
+                                            agentPresetID: appSettings.preferredAgentPresetID
                                         )
                                     )
                                 }
@@ -909,12 +845,43 @@ struct SettingsSheet: View {
                                         set: { target.ssh.remoteWorkingDirectory = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
                                     ))
 
+                                    Picker(localized("settings.workspace.remoteTarget.sshPreset"), selection: Binding(
+                                        get: { target.sshPresetID },
+                                        set: { newValue in
+                                            target.sshPresetID = newValue
+                                            if let presetID = newValue,
+                                               let preset = appSettings.sshPresets.first(where: { $0.id == presetID }) {
+                                                if let host = preset.host {
+                                                    target.ssh.host = host
+                                                }
+                                                if let user = preset.user {
+                                                    target.ssh.user = user
+                                                }
+                                                if let port = preset.port {
+                                                    target.ssh.port = port
+                                                }
+                                                if let identityFilePath = preset.identityFilePath {
+                                                    target.ssh.identityFilePath = identityFilePath
+                                                }
+                                                if let remoteWorkingDirectory = preset.remoteWorkingDirectory {
+                                                    target.ssh.remoteWorkingDirectory = remoteWorkingDirectory
+                                                }
+                                                target.ssh.remoteCommand = preset.remoteCommand.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                                            }
+                                        }
+                                    )) {
+                                        Text(localized("settings.workspace.remoteTarget.noSSHPreset")).tag(Optional<UUID>.none)
+                                        ForEach(appSettings.sshPresets) { preset in
+                                            Text(preset.name).tag(Optional(preset.id))
+                                        }
+                                    }
+
                                     Picker(localized("settings.workspace.remoteTarget.agentPreset"), selection: Binding(
                                         get: { target.agentPresetID },
                                         set: { target.agentPresetID = $0 }
                                     )) {
                                         Text(localized("settings.workspace.remoteTarget.noAgent")).tag(Optional<UUID>.none)
-                                        ForEach(workspaceSettings.agentPresets) { preset in
+                                        ForEach(appSettings.agentPresets) { preset in
                                             Text(preset.name).tag(Optional(preset.id))
                                         }
                                     }
@@ -936,8 +903,8 @@ struct SettingsSheet: View {
                                             localSessionMode: .reuseFocused,
                                             runSetupScript: !workspaceSettings.setupScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                                             runWorkspaceScript: !workspaceSettings.runScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                                            agentPresetID: workspaceSettings.preferredAgentPresetID ?? workspaceSettings.agentPresets.first?.id,
-                                            agentMode: workspaceSettings.agentPresets.isEmpty ? .none : .splitRight
+                                            agentPresetID: appSettings.preferredAgentPresetID ?? appSettings.agentPresets.first?.id,
+                                            agentMode: appSettings.agentPresets.isEmpty ? .none : .splitRight
                                         )
                                     )
                                 }
@@ -977,7 +944,7 @@ struct SettingsSheet: View {
                                         set: { workflow.agentPresetID = $0 }
                                     )) {
                                         Text(localized("settings.workspace.workflow.noAgent")).tag(Optional<UUID>.none)
-                                        ForEach(workspaceSettings.agentPresets) { preset in
+                                        ForEach(appSettings.agentPresets) { preset in
                                             Text(preset.name).tag(Optional(preset.id))
                                         }
                                     }
@@ -1003,7 +970,6 @@ struct SettingsSheet: View {
                                 }
                             }
                         }
-                    }
                 } else {
                     Text(localized("settings.workspace.emptyState"))
                         .font(.system(size: 12, weight: .medium))
@@ -1014,9 +980,104 @@ struct SettingsSheet: View {
         }
     }
 
+    private var agentPresetsSettingsView: some View {
+        GroupBox(localized("settings.workspace.agentPresetsGroup")) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(localized("settings.workspace.agentPresetsHint"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                if !appSettings.agentPresets.isEmpty {
+                    Picker(localized("settings.workspace.agentPreset.default"), selection: Binding(
+                        get: { appSettings.preferredAgentPresetID ?? appSettings.agentPresets.first?.id },
+                        set: { appSettings.preferredAgentPresetID = $0 }
+                    )) {
+                        ForEach(appSettings.agentPresets) { preset in
+                            Text(preset.name).tag(Optional(preset.id))
+                        }
+                    }
+                }
+
+                HStack {
+                    Spacer()
+                    Button(localized("settings.workspace.addPreset")) {
+                        appSettings.agentPresets.append(
+                            AgentPreset(
+                                name: localized("defaults.agent.name"),
+                                launchPath: "/usr/bin/env",
+                                arguments: ["claude"]
+                            )
+                        )
+                        if appSettings.preferredAgentPresetID == nil {
+                            appSettings.preferredAgentPresetID = appSettings.agentPresets.last?.id
+                        }
+                    }
+                }
+
+                if appSettings.agentPresets.isEmpty {
+                    Text(localized("settings.workspace.agentPresetsEmpty"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach(Array(appSettings.agentPresets.indices), id: \.self) { index in
+                    agentPresetCard(at: index)
+                }
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private var sshPresetsSettingsView: some View {
+        GroupBox(localized("settings.workspace.sshPresetsGroup")) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(localized("settings.workspace.sshPresetsHint"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Spacer()
+                    Button(localized("settings.workspace.addSSHPreset")) {
+                        appSettings.sshPresets.append(
+                            SSHPreset(
+                                name: localized("defaults.sshPreset.name"),
+                                remoteCommand: ""
+                            )
+                        )
+                    }
+                }
+
+                if appSettings.sshPresets.isEmpty {
+                    Text(localized("settings.workspace.sshPresetsEmpty"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach(Array(appSettings.sshPresets.indices), id: \.self) { index in
+                    sshPresetCard(at: index)
+                }
+            }
+            .padding(.top, 8)
+        }
+    }
+
     private var selectedWorkspace: WorkspaceModel? {
         guard let selectedWorkspaceID else { return nil }
         return store.workspaces.first(where: { $0.id == selectedWorkspaceID })
+    }
+
+    private var workspaceSelector: some View {
+        Picker(localized("settings.workspace.selector"), selection: Binding(
+            get: { selectedWorkspaceID ?? store.selectedWorkspace?.id },
+            set: { newValue in
+                selectedWorkspaceID = newValue
+                loadWorkspaceSettings()
+            }
+        )) {
+            ForEach(store.workspaces) { workspace in
+                Text(workspace.name).tag(Optional(workspace.id))
+            }
+        }
     }
 
     private func loadWorkspaceSettings() {
@@ -1044,6 +1105,191 @@ struct SettingsSheet: View {
             store.updateWorkspaceSettings(workspaceID: selectedWorkspaceID, settings: workspaceSettings)
         }
         dismiss()
+    }
+
+    @ViewBuilder
+    private func agentPresetCard(at index: Int) -> some View {
+        let presetBinding = $appSettings.agentPresets[index]
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                TextField(localized("settings.workspace.agentPreset.name"), text: presetBinding.name)
+                TextField(localized("settings.workspace.agentPreset.launchPath"), text: presetBinding.launchPath)
+
+                Button {
+                    moveAgentPreset(from: index, to: index - 1)
+                } label: {
+                    Image(systemName: "arrow.up")
+                }
+                .help(localized("settings.workspace.agentPreset.moveUp"))
+                .disabled(index == 0)
+
+                Button {
+                    moveAgentPreset(from: index, to: index + 1)
+                } label: {
+                    Image(systemName: "arrow.down")
+                }
+                .help(localized("settings.workspace.agentPreset.moveDown"))
+                .disabled(index == appSettings.agentPresets.index(before: appSettings.agentPresets.endIndex))
+
+                Button(role: .destructive) {
+                    deleteAgentPreset(at: index)
+                } label: {
+                    Image(systemName: "trash")
+                }
+            }
+
+            TextField(
+                localized("settings.workspace.agentPreset.arguments"),
+                text: Binding(
+                    get: { presetBinding.wrappedValue.arguments.joined(separator: "\n") },
+                    set: { value in
+                        presetBinding.wrappedValue.arguments = value
+                            .split(whereSeparator: \.isNewline)
+                            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }
+                    }
+                ),
+                axis: .vertical
+            )
+            .lineLimit(2...5)
+
+            TextField(
+                localized("settings.workspace.agentPreset.environment"),
+                text: Binding(
+                    get: {
+                        presetBinding.wrappedValue.environment
+                            .sorted { $0.key < $1.key }
+                            .map { "\($0.key)=\($0.value)" }
+                            .joined(separator: "\n")
+                    },
+                    set: { value in
+                        presetBinding.wrappedValue.environment = value
+                            .split(whereSeparator: \.isNewline)
+                            .reduce(into: [:]) { result, line in
+                                let text = String(line)
+                                guard let index = text.firstIndex(of: "=") else { return }
+                                let key = String(text[..<index]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                let envValue = String(text[text.index(after: index)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !key.isEmpty else { return }
+                                result[key] = envValue
+                            }
+                    }
+                ),
+                axis: .vertical
+            )
+            .lineLimit(2...5)
+        }
+        .padding(12)
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func sshPresetCard(at index: Int) -> some View {
+        let presetBinding = $appSettings.sshPresets[index]
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                TextField(localized("settings.workspace.sshPreset.name"), text: presetBinding.name)
+
+                Button {
+                    moveSSHPreset(from: index, to: index - 1)
+                } label: {
+                    Image(systemName: "arrow.up")
+                }
+                .help(localized("settings.workspace.sshPreset.moveUp"))
+                .disabled(index == 0)
+
+                Button {
+                    moveSSHPreset(from: index, to: index + 1)
+                } label: {
+                    Image(systemName: "arrow.down")
+                }
+                .help(localized("settings.workspace.sshPreset.moveDown"))
+                .disabled(index == appSettings.sshPresets.index(before: appSettings.sshPresets.endIndex))
+
+                Button(role: .destructive) {
+                    deleteSSHPreset(at: index)
+                } label: {
+                    Image(systemName: "trash")
+                }
+            }
+
+            HStack {
+                TextField(localized("settings.workspace.remoteTarget.host"), text: Binding(
+                    get: { presetBinding.wrappedValue.host ?? "" },
+                    set: { presetBinding.wrappedValue.host = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+                ))
+                TextField(localized("settings.workspace.remoteTarget.user"), text: Binding(
+                    get: { presetBinding.wrappedValue.user ?? "" },
+                    set: { presetBinding.wrappedValue.user = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+                ))
+                TextField(localized("settings.workspace.remoteTarget.port"), text: Binding(
+                    get: { presetBinding.wrappedValue.port.map(String.init) ?? "" },
+                    set: { presetBinding.wrappedValue.port = Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                ))
+                .frame(width: 90)
+            }
+
+            TextField(localized("settings.workspace.remoteTarget.identityFile"), text: Binding(
+                get: { presetBinding.wrappedValue.identityFilePath ?? "" },
+                set: { presetBinding.wrappedValue.identityFilePath = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+            ))
+
+            TextField(localized("settings.workspace.remoteTarget.workspacePath"), text: Binding(
+                get: { presetBinding.wrappedValue.remoteWorkingDirectory ?? "" },
+                set: { presetBinding.wrappedValue.remoteWorkingDirectory = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+            ))
+
+            TextField(
+                localized("settings.workspace.sshPreset.command"),
+                text: presetBinding.remoteCommand,
+                axis: .vertical
+            )
+            .lineLimit(2...5)
+        }
+        .padding(12)
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func moveAgentPreset(from sourceIndex: Int, to destinationIndex: Int) {
+        guard appSettings.agentPresets.indices.contains(sourceIndex),
+              appSettings.agentPresets.indices.contains(destinationIndex),
+              sourceIndex != destinationIndex else {
+            return
+        }
+        let preset = appSettings.agentPresets.remove(at: sourceIndex)
+        appSettings.agentPresets.insert(preset, at: destinationIndex)
+    }
+
+    private func deleteAgentPreset(at index: Int) {
+        guard appSettings.agentPresets.indices.contains(index) else { return }
+
+        let removedPresetID = appSettings.agentPresets[index].id
+        appSettings.agentPresets.remove(at: index)
+
+        if appSettings.preferredAgentPresetID == removedPresetID {
+            appSettings.preferredAgentPresetID = appSettings.agentPresets.first?.id
+        }
+    }
+
+    private func moveSSHPreset(from sourceIndex: Int, to destinationIndex: Int) {
+        guard appSettings.sshPresets.indices.contains(sourceIndex),
+              appSettings.sshPresets.indices.contains(destinationIndex),
+              sourceIndex != destinationIndex else {
+            return
+        }
+        let preset = appSettings.sshPresets.remove(at: sourceIndex)
+        appSettings.sshPresets.insert(preset, at: destinationIndex)
+    }
+
+    private func deleteSSHPreset(at index: Int) {
+        guard appSettings.sshPresets.indices.contains(index) else { return }
+
+        let removedPresetID = appSettings.sshPresets[index].id
+        appSettings.sshPresets.remove(at: index)
+
+        if appSettings.preferredSSHPresetID == removedPresetID {
+            appSettings.preferredSSHPresetID = nil
+        }
     }
 
     private func shortcutBinding(for action: LineyShortcutAction) -> Binding<StoredShortcut?> {

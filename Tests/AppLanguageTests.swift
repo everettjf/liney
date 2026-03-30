@@ -13,6 +13,8 @@ final class AppLanguageTests: XCTestCase {
         let settings = AppSettings()
 
         XCTAssertEqual(settings.appLanguage, .automatic)
+        XCTAssertEqual(settings.agentPresets.first?.name, "Claude Code")
+        XCTAssertEqual(settings.preferredAgentPresetID, AgentPreset.claudeCode.id)
     }
 
     func testAppLanguageCodableRoundTrips() throws {

@@ -74,6 +74,29 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertEqual(store.appSettings.uiScale, 1.25)
     }
 
+    func testUpdateAppSettingsPreservesSSHPresets() {
+        let store = WorkspaceStore(persistsWorkspaceState: false)
+        let customPreset = SSHPreset(
+            name: "Deploy",
+            host: "prod.example.com",
+            user: "deploy",
+            port: 2222,
+            identityFilePath: "~/.ssh/prod",
+            remoteWorkingDirectory: "/srv/app",
+            remoteCommand: "lazygit"
+        )
+
+        store.updateAppSettings(
+            AppSettings(
+                sshPresets: [customPreset],
+                preferredSSHPresetID: customPreset.id
+            )
+        )
+
+        XCTAssertEqual(store.appSettings.sshPresets, [customPreset])
+        XCTAssertEqual(store.appSettings.preferredSSHPresetID, customPreset.id)
+    }
+
     func testCommandPaletteItemsLocalizeForSimplifiedChinese() {
         LocalizationManager.shared.updateSelectedLanguage(.simplifiedChinese)
         let store = WorkspaceStore(persistsWorkspaceState: false)
@@ -123,6 +146,42 @@ final class WorkspaceStoreTests: XCTestCase {
             "已打开远程目标 Shell"
         )
         XCTAssertEqual(RemoteSessionCoordinatorError.missingTarget.errorDescription, "找不到所选远程目标。")
+    }
+
+    func testRememberedAgentPresetSelectionAddsBuiltInPresetAndMarksItPreferred() {
+        let customPreset = AgentPreset(
+            name: "Custom Review",
+            launchPath: "/usr/bin/env",
+            arguments: ["custom-agent", "review"]
+        )
+
+        let selection = lineyRememberedAgentPresetSelection(
+            currentPresets: [customPreset],
+            selectedPresetID: AgentPreset.claudeCode.id
+        )
+
+        XCTAssertEqual(selection.preferredPresetID, customPreset.id)
+        XCTAssertTrue(selection.presets.contains(where: { $0.id == customPreset.id }))
+    }
+
+    func testRememberedSSHPresetSelectionKeepsSelectedPresetPreferred() {
+        let selection = lineyRememberedSSHPresetSelection(
+            currentPresets: SSHPreset.builtInPresets,
+            selectedPresetID: SSHPreset.yazi.id
+        )
+
+        XCTAssertEqual(selection.preferredPresetID, SSHPreset.yazi.id)
+        XCTAssertEqual(selection.presets.map(\.id), SSHPreset.builtInPresets.map(\.id))
+    }
+
+    func testRememberedSSHPresetSelectionDoesNotFallbackToFirstPreset() {
+        let selection = lineyRememberedSSHPresetSelection(
+            currentPresets: SSHPreset.builtInPresets,
+            selectedPresetID: UUID()
+        )
+
+        XCTAssertNil(selection.preferredPresetID)
+        XCTAssertEqual(selection.presets.map(\.id), SSHPreset.builtInPresets.map(\.id))
     }
 
     private func makeTemporaryDirectory() throws -> URL {

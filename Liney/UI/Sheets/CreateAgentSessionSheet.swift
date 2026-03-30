@@ -37,6 +37,7 @@ struct CreateAgentSessionSheet: View {
                     get: { selectedPresetID ?? request.preferredPresetID ?? request.presets.first?.id },
                     set: { newValue in
                         selectedPresetID = newValue
+                        draft.selectedPresetID = newValue
                         if let newValue,
                            let preset = request.presets.first(where: { $0.id == newValue }) {
                             draft.apply(preset: preset)
@@ -94,6 +95,7 @@ struct CreateAgentSessionSheet: View {
         .frame(width: 560)
         .task {
             selectedPresetID = request.preferredPresetID ?? request.presets.first?.id
+            draft.selectedPresetID = selectedPresetID
             if let selectedPresetID,
                let preset = request.presets.first(where: { $0.id == selectedPresetID }) {
                 draft.apply(preset: preset)

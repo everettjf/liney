@@ -56,12 +56,12 @@ struct RemoteSessionCoordinator {
     }
 
     @MainActor
-    func agentPlan(workspace: WorkspaceModel, targetID: UUID) throws -> RemoteSessionLaunchPlan {
+    func agentPlan(workspace: WorkspaceModel, targetID: UUID, agentPresets: [AgentPreset]) throws -> RemoteSessionLaunchPlan {
         guard let target = workspace.remoteTargets.first(where: { $0.id == targetID }) else {
             throw RemoteSessionCoordinatorError.missingTarget
         }
         guard let presetID = target.agentPresetID,
-              let preset = workspace.agentPresets.first(where: { $0.id == presetID }) else {
+              let preset = agentPresets.first(where: { $0.id == presetID }) else {
             throw RemoteSessionCoordinatorError.missingAgentPreset
         }
 

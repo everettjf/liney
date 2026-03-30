@@ -128,12 +128,12 @@ private extension SSHSessionConfiguration {
     }
 
     var initialInput: String? {
-        guard normalizedRemoteCommand() == nil,
-              let remoteWorkingDirectoryCommand = normalizedRemoteWorkingDirectoryCommand() else {
-            return nil
-        }
+        guard normalizedRemoteCommand() == nil else { return nil }
 
-        return "\(remoteWorkingDirectoryCommand)\n"
+        let commands = sshBootstrapCommands()
+        guard !commands.isEmpty else { return nil }
+
+        return commands.joined(separator: "\n") + "\n"
     }
 
     func remoteInvocation() -> String? {
@@ -164,5 +164,18 @@ private extension SSHSessionConfiguration {
             return nil
         }
         return "cd \(remoteWorkingDirectory.shellQuoted)"
+    }
+
+    func sshBootstrapCommands() -> [String] {
+        var commands = [
+            #"if [ -n "$ZSH_VERSION" ]; then bindkey $'\e[1;3D' backward-word 2>/dev/null; bindkey $'\e[1;3C' forward-word 2>/dev/null; bindkey $'\e\e[D' backward-word 2>/dev/null; bindkey $'\e\e[C' forward-word 2>/dev/null; fi"#,
+            #"if [ -n "$BASH_VERSION" ]; then bind '"\e[1;3D": backward-word' 2>/dev/null; bind '"\e[1;3C": forward-word' 2>/dev/null; bind '"\e\e[D": backward-word' 2>/dev/null; bind '"\e\e[C": forward-word' 2>/dev/null; fi"#,
+        ]
+
+        if let remoteWorkingDirectoryCommand = normalizedRemoteWorkingDirectoryCommand() {
+            commands.append(remoteWorkingDirectoryCommand)
+        }
+
+        return commands
     }
 }
