@@ -1539,6 +1539,9 @@ struct ShortcutRecorderField: NSViewRepresentable {
         nsView.emptyTitle = emptyTitle
         nsView.displayString = displayString
         nsView.transformRecordedShortcut = transformRecordedShortcut
+        nsView.onShortcutRecorded = { newShortcut in
+            shortcut = newShortcut
+        }
         nsView.updateTitle()
     }
 }
