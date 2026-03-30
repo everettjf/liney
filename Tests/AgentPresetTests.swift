@@ -33,4 +33,15 @@ final class AgentPresetTests: XCTestCase {
             ]
         )
     }
+
+    func testBuiltInSSHPresetsIncludeCommonRemoteCommands() {
+        let names = SSHPreset.builtInPresets.map(\.name)
+
+        XCTAssertEqual(names, [
+            "Shell",
+            "Lazygit",
+            "Yazi",
+            "Btop",
+        ])
+    }
 }

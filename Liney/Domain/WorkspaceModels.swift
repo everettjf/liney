@@ -203,21 +203,77 @@ struct AgentPreset: Codable, Hashable, Identifiable {
     }
 }
 
+struct SSHPreset: Codable, Hashable, Identifiable {
+    var id: UUID
+    var name: String
+    var remoteCommand: String
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        remoteCommand: String
+    ) {
+        self.id = id
+        self.name = name
+        self.remoteCommand = remoteCommand
+    }
+}
+
+extension SSHPreset {
+    private nonisolated static func builtInID(_ uuidString: String) -> UUID {
+        UUID(uuidString: uuidString) ?? UUID()
+    }
+
+    static let shell = SSHPreset(
+        id: builtInID("A14A10C9-B50E-45D9-8CFA-A74095E8A001"),
+        name: "Shell",
+        remoteCommand: ""
+    )
+
+    static let lazygit = SSHPreset(
+        id: builtInID("A14A10C9-B50E-45D9-8CFA-A74095E8A002"),
+        name: "Lazygit",
+        remoteCommand: "lazygit"
+    )
+
+    static let yazi = SSHPreset(
+        id: builtInID("A14A10C9-B50E-45D9-8CFA-A74095E8A003"),
+        name: "Yazi",
+        remoteCommand: "yazi"
+    )
+
+    static let btop = SSHPreset(
+        id: builtInID("A14A10C9-B50E-45D9-8CFA-A74095E8A004"),
+        name: "Btop",
+        remoteCommand: "btop"
+    )
+
+    static let builtInPresets: [SSHPreset] = [
+        .shell,
+        .lazygit,
+        .yazi,
+        .btop,
+    ]
+}
+
 struct RemoteWorkspaceTarget: Codable, Hashable, Identifiable {
     var id: UUID
     var name: String
     var ssh: SSHSessionConfiguration
+    var sshPresetID: UUID?
     var agentPresetID: UUID?
 
     init(
         id: UUID = UUID(),
         name: String,
         ssh: SSHSessionConfiguration,
+        sshPresetID: UUID? = nil,
         agentPresetID: UUID? = nil
     ) {
         self.id = id
         self.name = name
         self.ssh = ssh
+        self.sshPresetID = sshPresetID
         self.agentPresetID = agentPresetID
     }
 }

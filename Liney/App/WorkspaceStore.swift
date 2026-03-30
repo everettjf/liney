@@ -1368,7 +1368,9 @@ final class WorkspaceStore: ObservableObject {
             defaultWorkingDirectory: workspace.activeWorktreePath,
             remoteTargets: workspace.remoteTargets.sorted { lhs, rhs in
                 lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            }
+            },
+            presets: appSettings.sshPresets,
+            preferredPresetID: appSettings.preferredSSHPresetID ?? appSettings.sshPresets.first?.id ?? SSHPreset.shell.id
         )
     }
 
@@ -1386,6 +1388,7 @@ final class WorkspaceStore: ObservableObject {
         guard let configuration = draft.configuration,
               let workspaceIndex = workspaces.firstIndex(where: { $0.id == workspaceID }) else { return }
         let workspace = workspaces[workspaceIndex]
+        rememberSSHPresetSelection(selectedPresetID: draft.selectedPresetID)
 
         if let target = draft.targetToSave {
             if let existingIndex = workspace.remoteTargets.firstIndex(where: { $0.id == target.id }) {
@@ -1416,6 +1419,16 @@ final class WorkspaceStore: ObservableObject {
             )
         )
         persist()
+    }
+
+    func rememberSSHPresetSelection(selectedPresetID: UUID?) {
+        let updatedSelection = lineyRememberedSSHPresetSelection(
+            currentPresets: appSettings.sshPresets,
+            selectedPresetID: selectedPresetID
+        )
+        appSettings.sshPresets = updatedSelection.presets
+        appSettings.preferredSSHPresetID = updatedSelection.preferredPresetID
+        persistAppSettings()
     }
 
     func createAgentSession(workspaceID: UUID, draft: CreateAgentSessionDraft) {
@@ -2475,6 +2488,7 @@ final class WorkspaceStore: ObservableObject {
         validAgentPresetIDs: Set<UUID>? = nil
     ) -> WorkspaceSettings {
         var normalized = settings
+        let validSSHPresetIDs = Set(appSettings.sshPresets.map(\.id))
 
         if normalized.agentPresets.isEmpty {
             normalized.agentPresets = AgentPreset.builtInPresets
@@ -2495,6 +2509,9 @@ final class WorkspaceStore: ObservableObject {
 
         normalized.remoteTargets = normalized.remoteTargets.map { target in
             var updated = target
+            if let sshPresetID = target.sshPresetID, !validSSHPresetIDs.contains(sshPresetID) {
+                updated.sshPresetID = nil
+            }
             if let agentPresetID = target.agentPresetID, !validPresetIDs.contains(agentPresetID) {
                 updated.agentPresetID = nil
             }
@@ -3137,6 +3154,17 @@ func lineyRememberedAgentPresetSelection(
     currentPresets: [AgentPreset],
     selectedPresetID: UUID?
 ) -> (presets: [AgentPreset], preferredPresetID: UUID?) {
+    guard let selectedPresetID,
+          currentPresets.contains(where: { $0.id == selectedPresetID }) else {
+        return (currentPresets, currentPresets.first?.id)
+    }
+    return (currentPresets, selectedPresetID)
+}
+
+func lineyRememberedSSHPresetSelection(
+    currentPresets: [SSHPreset],
+    selectedPresetID: UUID?
+) -> (presets: [SSHPreset], preferredPresetID: UUID?) {
     guard let selectedPresetID,
           currentPresets.contains(where: { $0.id == selectedPresetID }) else {
         return (currentPresets, currentPresets.first?.id)

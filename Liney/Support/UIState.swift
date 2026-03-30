@@ -70,6 +70,8 @@ struct CreateSSHSessionRequest: Identifiable {
     let workspaceName: String
     let defaultWorkingDirectory: String
     let remoteTargets: [RemoteWorkspaceTarget]
+    let presets: [SSHPreset]
+    let preferredPresetID: UUID?
 }
 
 struct CreateAgentSessionRequest: Identifiable {
@@ -197,6 +199,8 @@ struct CreateWorktreeDraft {
 
 struct CreateSSHSessionDraft {
     var selectedTargetID: UUID? = nil
+    var selectedPresetID: UUID? = nil
+    var selectedAgentPresetID: UUID? = nil
     var saveAsTarget: Bool = false
     var targetName: String = ""
     var host: String = ""
@@ -237,12 +241,20 @@ struct CreateSSHSessionDraft {
             id: selectedTargetID ?? UUID(),
             name: name,
             ssh: configuration,
-            agentPresetID: nil
+            sshPresetID: selectedPresetID,
+            agentPresetID: selectedAgentPresetID
         )
+    }
+
+    mutating func apply(sshPreset: SSHPreset) {
+        selectedPresetID = sshPreset.id
+        remoteCommand = sshPreset.remoteCommand
     }
 
     mutating func apply(remoteTarget: RemoteWorkspaceTarget) {
         selectedTargetID = remoteTarget.id
+        selectedPresetID = remoteTarget.sshPresetID
+        selectedAgentPresetID = remoteTarget.agentPresetID
         targetName = remoteTarget.name
         host = remoteTarget.ssh.host
         user = remoteTarget.ssh.user ?? ""

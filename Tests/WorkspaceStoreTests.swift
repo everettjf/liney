@@ -141,6 +141,16 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertTrue(selection.presets.contains(where: { $0.id == customPreset.id }))
     }
 
+    func testRememberedSSHPresetSelectionKeepsSelectedPresetPreferred() {
+        let selection = lineyRememberedSSHPresetSelection(
+            currentPresets: SSHPreset.builtInPresets,
+            selectedPresetID: SSHPreset.yazi.id
+        )
+
+        XCTAssertEqual(selection.preferredPresetID, SSHPreset.yazi.id)
+        XCTAssertEqual(selection.presets.map(\.id), SSHPreset.builtInPresets.map(\.id))
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let root = FileManager.default.temporaryDirectory
         let directoryURL = root.appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -87,6 +87,8 @@ final class ReleaseUpdateTests: XCTestCase {
         XCTAssertEqual(decoded.releaseChannel, .stable)
         XCTAssertEqual(decoded.agentPresets.first?.name, "Claude Code")
         XCTAssertEqual(decoded.preferredAgentPresetID, AgentPreset.claudeCode.id)
+        XCTAssertEqual(decoded.sshPresets.first?.name, "Shell")
+        XCTAssertEqual(decoded.preferredSSHPresetID, SSHPreset.shell.id)
     }
 
     func testAppSettingsPreservesCustomTerminalFontSize() throws {

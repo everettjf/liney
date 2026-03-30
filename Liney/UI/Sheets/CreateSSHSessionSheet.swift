@@ -18,6 +18,10 @@ struct CreateSSHSessionSheet: View {
         request.remoteTargets
     }
 
+    private var availablePresets: [SSHPreset] {
+        request.presets
+    }
+
     private var shouldRequireTargetName: Bool {
         draft.saveAsTarget || draft.selectedTargetID != nil
     }
@@ -38,6 +42,14 @@ struct CreateSSHSessionSheet: View {
         draft.apply(remoteTarget: target)
     }
 
+    private func applySelectedPreset(_ presetID: UUID?) {
+        guard let presetID,
+              let preset = availablePresets.first(where: { $0.id == presetID }) else {
+            return
+        }
+        draft.apply(sshPreset: preset)
+    }
+
     private var canCreate: Bool {
         guard draft.configuration != nil else { return false }
         if shouldRequireTargetName {
@@ -54,6 +66,23 @@ struct CreateSSHSessionSheet: View {
             Text(localizedFormat("sheet.ssh.descriptionFormat", request.workspaceName))
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
+
+            if !availablePresets.isEmpty {
+                GroupBox(localized("sheet.ssh.preset")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker(localized("sheet.ssh.preset"), selection: $draft.selectedPresetID) {
+                            ForEach(availablePresets) { preset in
+                                Text(preset.name).tag(Optional(preset.id))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    .padding(.top, 8)
+                }
+                .onChange(of: draft.selectedPresetID) { _, newValue in
+                    applySelectedPreset(newValue)
+                }
+            }
 
             if !existingTargets.isEmpty {
                 GroupBox(localized("sheet.ssh.savedTargets")) {
@@ -94,7 +123,6 @@ struct CreateSSHSessionSheet: View {
             GroupBox(localized("sheet.ssh.command")) {
                 VStack(alignment: .leading, spacing: 12) {
                     TextField(localized("sheet.ssh.remoteCommand"), text: $draft.remoteCommand, axis: .vertical)
-                    LabeledContent(localized("sheet.shared.engine"), value: TerminalEngineKind.libghosttyPreferred.displayName)
                 }
                 .textFieldStyle(.roundedBorder)
                 .padding(.top, 8)
@@ -128,6 +156,10 @@ struct CreateSSHSessionSheet: View {
         }
         .onAppear {
             draft.remoteWorkingDirectory = request.defaultWorkingDirectory
+            draft.selectedPresetID = request.preferredPresetID ?? availablePresets.first?.id
+            if let presetID = draft.selectedPresetID {
+                applySelectedPreset(presetID)
+            }
             if let firstTarget = existingTargets.first {
                 draft.selectedTargetID = firstTarget.id
                 draft.apply(remoteTarget: firstTarget)
