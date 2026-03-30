@@ -258,13 +258,14 @@ struct CreateSSHSessionDraft {
 }
 
 struct CreateAgentSessionDraft {
-    var name: String = LocalizationManager.shared.string("defaults.agent.name")
+    var selectedPresetID: UUID? = AgentPreset.claudeCode.id
+    var name: String = AgentPreset.claudeCode.name
     var launchPath: String = "/usr/bin/env"
-    var argumentsText: String = "codex\nresume"
+    var argumentsText: String = "claude\n--resume"
     var environmentText: String = ""
     var workingDirectory: String = ""
     var normalizedName: String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? LocalizationManager.shared.string("defaults.agent.name")
+        name.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? AgentPreset.claudeCode.name
     }
 
     var normalizedLaunchPath: String {
@@ -308,6 +309,7 @@ struct CreateAgentSessionDraft {
     }
 
     mutating func apply(preset: AgentPreset) {
+        selectedPresetID = preset.id
         name = preset.name
         launchPath = preset.launchPath
         argumentsText = preset.arguments.joined(separator: "\n")

@@ -125,6 +125,22 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertEqual(RemoteSessionCoordinatorError.missingTarget.errorDescription, "找不到所选远程目标。")
     }
 
+    func testRememberedAgentPresetSelectionAddsBuiltInPresetAndMarksItPreferred() {
+        let customPreset = AgentPreset(
+            name: "Custom Review",
+            launchPath: "/usr/bin/env",
+            arguments: ["custom-agent", "review"]
+        )
+
+        let selection = lineyRememberedAgentPresetSelection(
+            currentPresets: [customPreset],
+            selectedPresetID: AgentPreset.claudeCode.id
+        )
+
+        XCTAssertEqual(selection.preferredPresetID, customPreset.id)
+        XCTAssertTrue(selection.presets.contains(where: { $0.id == customPreset.id }))
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let root = FileManager.default.temporaryDirectory
         let directoryURL = root.appendingPathComponent(UUID().uuidString, isDirectory: true)

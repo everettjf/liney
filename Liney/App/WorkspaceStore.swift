@@ -1356,7 +1356,7 @@ final class WorkspaceStore: ObservableObject {
             workspaceName: workspace.name,
             defaultWorkingDirectory: workspace.activeWorktreePath,
             presets: workspace.agentPresets,
-            preferredPresetID: workspace.preferredAgentPresetID
+            preferredPresetID: workspace.preferredAgentPresetID ?? workspace.agentPresets.first?.id ?? AgentPreset.claudeCode.id
         )
     }
 
@@ -1398,23 +1398,37 @@ final class WorkspaceStore: ObservableObject {
 
     func createAgentSession(workspaceID: UUID, draft: CreateAgentSessionDraft) {
         guard let configuration = draft.configuration,
-              let workspace = workspaces.first(where: { $0.id == workspaceID }) else { return }
+              let workspaceIndex = workspaces.firstIndex(where: { $0.id == workspaceID }) else { return }
+        rememberAgentPresetSelection(workspaceIndex: workspaceIndex, selectedPresetID: draft.selectedPresetID)
+
         createSession(
-            in: workspace,
+            in: workspaces[workspaceIndex],
             backendConfiguration: .agent(configuration),
-            workingDirectory: configuration.workingDirectory ?? workspace.activeWorktreePath
+            workingDirectory: configuration.workingDirectory ?? workspaces[workspaceIndex].activeWorktreePath
         )
         recordActivity(
-            in: workspace,
+            in: workspaces[workspaceIndex],
             kind: .agent,
             title: "Opened agent session",
             detail: configuration.name,
-            worktreePath: workspace.activeWorktreePath,
+            worktreePath: workspaces[workspaceIndex].activeWorktreePath,
             replayAction: .createSession(
                 backendConfiguration: .agent(configuration),
-                workingDirectory: configuration.workingDirectory ?? workspace.activeWorktreePath
+                workingDirectory: configuration.workingDirectory ?? workspaces[workspaceIndex].activeWorktreePath
             )
         )
+    }
+
+    func rememberAgentPresetSelection(workspaceIndex: Int, selectedPresetID: UUID?) {
+        guard workspaces.indices.contains(workspaceIndex),
+              let selectedPresetID else { return }
+
+        let updatedSelection = lineyRememberedAgentPresetSelection(
+            currentPresets: workspaces[workspaceIndex].agentPresets,
+            selectedPresetID: selectedPresetID
+        )
+        workspaces[workspaceIndex].agentPresets = updatedSelection.presets
+        workspaces[workspaceIndex].preferredAgentPresetID = updatedSelection.preferredPresetID
     }
 
     func createAgentSession(workspaceID: UUID, preset: AgentPreset) {
@@ -2442,7 +2456,12 @@ final class WorkspaceStore: ObservableObject {
         var normalized = settings
 
         if normalized.agentPresets.isEmpty {
-            normalized.agentPresets = [.codex]
+            normalized.agentPresets = AgentPreset.builtInPresets
+        }
+
+        normalized.agentPresets.removeAll { $0.id == AgentPreset.deprecatedAiderPresetID }
+        if normalized.agentPresets.isEmpty {
+            normalized.agentPresets = AgentPreset.builtInPresets
         }
 
         let validPresetIDs = Set(normalized.agentPresets.map(\.id))
@@ -3087,4 +3106,15 @@ final class WorkspaceStore: ObservableObject {
             }
         )
     }
+}
+
+func lineyRememberedAgentPresetSelection(
+    currentPresets: [AgentPreset],
+    selectedPresetID: UUID?
+) -> (presets: [AgentPreset], preferredPresetID: UUID?) {
+    guard let selectedPresetID,
+          currentPresets.contains(where: { $0.id == selectedPresetID }) else {
+        return (currentPresets, currentPresets.first?.id)
+    }
+    return (currentPresets, selectedPresetID)
 }

@@ -35,7 +35,8 @@ final class WorkspaceSettingsTests: XCTestCase {
 
         XCTAssertFalse(record.settings.isPinned)
         XCTAssertFalse(record.settings.isArchived)
-        XCTAssertEqual(record.settings.agentPresets.first?.name, "Codex")
+        XCTAssertEqual(record.settings.agentPresets.first?.name, "Claude Code")
+        XCTAssertTrue(record.settings.agentPresets.count >= 4)
         XCTAssertTrue(record.settings.remoteTargets.isEmpty)
         XCTAssertTrue(record.settings.workflows.isEmpty)
         XCTAssertTrue(record.activityLog.isEmpty)
@@ -164,6 +165,7 @@ final class WorkspaceSettingsTests: XCTestCase {
         XCTAssertTrue(settings.worktreeIconOverrides.isEmpty)
         XCTAssertEqual(settings.runScript, "make lint")
         XCTAssertEqual(settings.setupScript, "mise install")
+        XCTAssertTrue(settings.agentPresets.isEmpty)
     }
 
     func testCreateSSHSessionDraftCanPromoteConnectionIntoReusableRemoteTarget() {

@@ -143,11 +143,54 @@ struct AgentPreset: Codable, Hashable, Identifiable {
         self.workingDirectory = workingDirectory
     }
 
+    private static func builtInID(_ rawValue: String) -> UUID {
+        UUID(uuidString: rawValue)!
+    }
+
+    static let claudeCode = AgentPreset(
+        id: builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C002"),
+        name: "Claude Code",
+        launchPath: "/usr/bin/env",
+        arguments: ["claude", "--resume"]
+    )
+
     static let codex = AgentPreset(
+        id: builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C001"),
         name: "Codex",
         launchPath: "/usr/bin/env",
         arguments: ["codex", "resume"]
     )
+
+    static let openCode = AgentPreset(
+        id: builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C003"),
+        name: "OpenCode",
+        launchPath: "/usr/bin/env",
+        arguments: ["opencode"]
+    )
+
+    static let cursorAgent = AgentPreset(
+        id: builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C004"),
+        name: "Cursor Agent",
+        launchPath: "/usr/bin/env",
+        arguments: ["cursor-agent"]
+    )
+
+    static let geminiCli = AgentPreset(
+        id: builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C005"),
+        name: "Gemini CLI",
+        launchPath: "/usr/bin/env",
+        arguments: ["gemini"]
+    )
+
+    static let deprecatedAiderPresetID = builtInID("B0A9A6D8-7A85-4B87-A5D0-6E6A8F50C006")
+
+    static let builtInPresets: [AgentPreset] = [
+        .claudeCode,
+        .codex,
+        .openCode,
+        .cursorAgent,
+        .geminiCli,
+    ]
 
     var configuration: AgentSessionConfiguration {
         AgentSessionConfiguration(
@@ -199,8 +242,8 @@ struct WorkspaceSettings: Codable, Hashable {
         worktreeIconOverrides: [String: SidebarItemIcon] = [:],
         runScript: String = "",
         setupScript: String = "",
-        agentPresets: [AgentPreset] = [.codex],
-        preferredAgentPresetID: UUID? = AgentPreset.codex.id,
+        agentPresets: [AgentPreset] = AgentPreset.builtInPresets,
+        preferredAgentPresetID: UUID? = AgentPreset.claudeCode.id,
         remoteTargets: [RemoteWorkspaceTarget] = [],
         workflows: [WorkspaceWorkflow] = [],
         preferredWorkflowID: UUID? = nil
@@ -241,8 +284,8 @@ struct WorkspaceSettings: Codable, Hashable {
             worktreeIconOverrides: try container.decodeIfPresent([String: SidebarItemIcon].self, forKey: .worktreeIconOverrides) ?? [:],
             runScript: try container.decodeIfPresent(String.self, forKey: .runScript) ?? "",
             setupScript: try container.decodeIfPresent(String.self, forKey: .setupScript) ?? "",
-            agentPresets: try container.decodeIfPresent([AgentPreset].self, forKey: .agentPresets) ?? [.codex],
-            preferredAgentPresetID: try container.decodeIfPresent(UUID.self, forKey: .preferredAgentPresetID) ?? AgentPreset.codex.id,
+            agentPresets: try container.decodeIfPresent([AgentPreset].self, forKey: .agentPresets) ?? AgentPreset.builtInPresets,
+            preferredAgentPresetID: try container.decodeIfPresent(UUID.self, forKey: .preferredAgentPresetID) ?? AgentPreset.claudeCode.id,
             remoteTargets: try container.decodeIfPresent([RemoteWorkspaceTarget].self, forKey: .remoteTargets) ?? [],
             workflows: try container.decodeIfPresent([WorkspaceWorkflow].self, forKey: .workflows) ?? [],
             preferredWorkflowID: try container.decodeIfPresent(UUID.self, forKey: .preferredWorkflowID)
