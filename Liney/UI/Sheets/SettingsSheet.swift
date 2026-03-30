@@ -799,7 +799,7 @@ struct SettingsSheet: View {
                                                 remoteWorkingDirectory: nil,
                                                 remoteCommand: nil
                                             ),
-                                            sshPresetID: appSettings.preferredSSHPresetID,
+                                            sshPresetID: nil,
                                             agentPresetID: appSettings.preferredAgentPresetID
                                         )
                                     )
@@ -851,6 +851,21 @@ struct SettingsSheet: View {
                                             target.sshPresetID = newValue
                                             if let presetID = newValue,
                                                let preset = appSettings.sshPresets.first(where: { $0.id == presetID }) {
+                                                if let host = preset.host {
+                                                    target.ssh.host = host
+                                                }
+                                                if let user = preset.user {
+                                                    target.ssh.user = user
+                                                }
+                                                if let port = preset.port {
+                                                    target.ssh.port = port
+                                                }
+                                                if let identityFilePath = preset.identityFilePath {
+                                                    target.ssh.identityFilePath = identityFilePath
+                                                }
+                                                if let remoteWorkingDirectory = preset.remoteWorkingDirectory {
+                                                    target.ssh.remoteWorkingDirectory = remoteWorkingDirectory
+                                                }
                                                 target.ssh.remoteCommand = preset.remoteCommand.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
                                             }
                                         }
@@ -1020,17 +1035,6 @@ struct SettingsSheet: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
 
-                if !appSettings.sshPresets.isEmpty {
-                    Picker(localized("settings.workspace.sshPreset.default"), selection: Binding(
-                        get: { appSettings.preferredSSHPresetID ?? appSettings.sshPresets.first?.id },
-                        set: { appSettings.preferredSSHPresetID = $0 }
-                    )) {
-                        ForEach(appSettings.sshPresets) { preset in
-                            Text(preset.name).tag(Optional(preset.id))
-                        }
-                    }
-                }
-
                 HStack {
                     Spacer()
                     Button(localized("settings.workspace.addSSHPreset")) {
@@ -1040,9 +1044,6 @@ struct SettingsSheet: View {
                                 remoteCommand: ""
                             )
                         )
-                        if appSettings.preferredSSHPresetID == nil {
-                            appSettings.preferredSSHPresetID = appSettings.sshPresets.last?.id
-                        }
                     }
                 }
 
@@ -1212,6 +1213,32 @@ struct SettingsSheet: View {
                 }
             }
 
+            HStack {
+                TextField(localized("settings.workspace.remoteTarget.host"), text: Binding(
+                    get: { presetBinding.wrappedValue.host ?? "" },
+                    set: { presetBinding.wrappedValue.host = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+                ))
+                TextField(localized("settings.workspace.remoteTarget.user"), text: Binding(
+                    get: { presetBinding.wrappedValue.user ?? "" },
+                    set: { presetBinding.wrappedValue.user = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+                ))
+                TextField(localized("settings.workspace.remoteTarget.port"), text: Binding(
+                    get: { presetBinding.wrappedValue.port.map(String.init) ?? "" },
+                    set: { presetBinding.wrappedValue.port = Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                ))
+                .frame(width: 90)
+            }
+
+            TextField(localized("settings.workspace.remoteTarget.identityFile"), text: Binding(
+                get: { presetBinding.wrappedValue.identityFilePath ?? "" },
+                set: { presetBinding.wrappedValue.identityFilePath = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+            ))
+
+            TextField(localized("settings.workspace.remoteTarget.workspacePath"), text: Binding(
+                get: { presetBinding.wrappedValue.remoteWorkingDirectory ?? "" },
+                set: { presetBinding.wrappedValue.remoteWorkingDirectory = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+            ))
+
             TextField(
                 localized("settings.workspace.sshPreset.command"),
                 text: presetBinding.remoteCommand,
@@ -1261,7 +1288,7 @@ struct SettingsSheet: View {
         appSettings.sshPresets.remove(at: index)
 
         if appSettings.preferredSSHPresetID == removedPresetID {
-            appSettings.preferredSSHPresetID = appSettings.sshPresets.first?.id
+            appSettings.preferredSSHPresetID = nil
         }
     }
 

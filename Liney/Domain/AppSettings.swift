@@ -310,7 +310,7 @@ struct AppSettings: Codable, Hashable {
         agentPresets: [AgentPreset] = AgentPreset.builtInPresets,
         preferredAgentPresetID: UUID? = AgentPreset.claudeCode.id,
         sshPresets: [SSHPreset] = SSHPreset.builtInPresets,
-        preferredSSHPresetID: UUID? = SSHPreset.shell.id,
+        preferredSSHPresetID: UUID? = nil,
         keyboardShortcutOverrides: [String: KeyboardShortcutOverride] = [:]
     ) {
         let normalizedKeyboardShortcutOverrides = LineyKeyboardShortcuts.normalizedOverrides(keyboardShortcutOverrides)
@@ -368,7 +368,7 @@ struct AppSettings: Codable, Hashable {
            normalizedSSHPresets.contains(where: { $0.id == preferredSSHPresetID }) {
             self.preferredSSHPresetID = preferredSSHPresetID
         } else {
-            self.preferredSSHPresetID = normalizedSSHPresets.first?.id
+            self.preferredSSHPresetID = nil
         }
     }
 }
@@ -454,7 +454,7 @@ extension AppSettings {
             agentPresets: try container.decodeIfPresent([AgentPreset].self, forKey: .agentPresets) ?? AgentPreset.builtInPresets,
             preferredAgentPresetID: try container.decodeIfPresent(UUID.self, forKey: .preferredAgentPresetID) ?? AgentPreset.claudeCode.id,
             sshPresets: try container.decodeIfPresent([SSHPreset].self, forKey: .sshPresets) ?? SSHPreset.builtInPresets,
-            preferredSSHPresetID: try container.decodeIfPresent(UUID.self, forKey: .preferredSSHPresetID) ?? SSHPreset.shell.id,
+            preferredSSHPresetID: try container.decodeIfPresent(UUID.self, forKey: .preferredSSHPresetID),
             keyboardShortcutOverrides: try container.decodeIfPresent([String: KeyboardShortcutOverride].self, forKey: .keyboardShortcutOverrides) ?? [:]
         )
     }
@@ -478,9 +478,6 @@ private func lineyNormalizedAgentPresets(_ presets: [AgentPreset]) -> [AgentPres
 private func lineyNormalizedSSHPresets(_ presets: [SSHPreset]) -> [SSHPreset] {
     let builtInsByID = Dictionary(uniqueKeysWithValues: SSHPreset.builtInPresets.map { ($0.id, $0) })
     let filtered = presets.map { builtInsByID[$0.id] ?? $0 }
-    if filtered.isEmpty {
-        return SSHPreset.builtInPresets
-    }
 
     var seenIDs = Set<UUID>()
     return filtered.filter { preset in

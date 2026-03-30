@@ -88,7 +88,21 @@ final class ReleaseUpdateTests: XCTestCase {
         XCTAssertEqual(decoded.agentPresets.first?.name, "Claude Code")
         XCTAssertEqual(decoded.preferredAgentPresetID, AgentPreset.claudeCode.id)
         XCTAssertEqual(decoded.sshPresets.first?.name, "Shell")
-        XCTAssertEqual(decoded.preferredSSHPresetID, SSHPreset.shell.id)
+        XCTAssertNil(decoded.preferredSSHPresetID)
+    }
+
+    func testAppSettingsPreservesEmptySSHPresets() throws {
+        let encoded = try JSONEncoder().encode(
+            AppSettings(
+                sshPresets: [],
+                preferredSSHPresetID: nil
+            )
+        )
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: encoded)
+
+        XCTAssertTrue(decoded.sshPresets.isEmpty)
+        XCTAssertNil(decoded.preferredSSHPresetID)
     }
 
     func testAppSettingsPreservesCustomTerminalFontSize() throws {

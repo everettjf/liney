@@ -74,6 +74,29 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertEqual(store.appSettings.uiScale, 1.25)
     }
 
+    func testUpdateAppSettingsPreservesSSHPresets() {
+        let store = WorkspaceStore(persistsWorkspaceState: false)
+        let customPreset = SSHPreset(
+            name: "Deploy",
+            host: "prod.example.com",
+            user: "deploy",
+            port: 2222,
+            identityFilePath: "~/.ssh/prod",
+            remoteWorkingDirectory: "/srv/app",
+            remoteCommand: "lazygit"
+        )
+
+        store.updateAppSettings(
+            AppSettings(
+                sshPresets: [customPreset],
+                preferredSSHPresetID: customPreset.id
+            )
+        )
+
+        XCTAssertEqual(store.appSettings.sshPresets, [customPreset])
+        XCTAssertEqual(store.appSettings.preferredSSHPresetID, customPreset.id)
+    }
+
     func testCommandPaletteItemsLocalizeForSimplifiedChinese() {
         LocalizationManager.shared.updateSelectedLanguage(.simplifiedChinese)
         let store = WorkspaceStore(persistsWorkspaceState: false)
@@ -148,6 +171,16 @@ final class WorkspaceStoreTests: XCTestCase {
         )
 
         XCTAssertEqual(selection.preferredPresetID, SSHPreset.yazi.id)
+        XCTAssertEqual(selection.presets.map(\.id), SSHPreset.builtInPresets.map(\.id))
+    }
+
+    func testRememberedSSHPresetSelectionDoesNotFallbackToFirstPreset() {
+        let selection = lineyRememberedSSHPresetSelection(
+            currentPresets: SSHPreset.builtInPresets,
+            selectedPresetID: UUID()
+        )
+
+        XCTAssertNil(selection.preferredPresetID)
         XCTAssertEqual(selection.presets.map(\.id), SSHPreset.builtInPresets.map(\.id))
     }
 

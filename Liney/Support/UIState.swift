@@ -246,8 +246,15 @@ struct CreateSSHSessionDraft {
         )
     }
 
-    mutating func apply(sshPreset: SSHPreset) {
+    mutating func apply(sshPreset: SSHPreset, defaultWorkingDirectory: String) {
+        selectedTargetID = nil
+        selectedAgentPresetID = nil
         selectedPresetID = sshPreset.id
+        host = sshPreset.host ?? ""
+        user = sshPreset.user ?? ""
+        port = sshPreset.port.map(String.init) ?? ""
+        identityFilePath = sshPreset.identityFilePath ?? ""
+        remoteWorkingDirectory = sshPreset.remoteWorkingDirectory ?? defaultWorkingDirectory
         remoteCommand = sshPreset.remoteCommand
     }
 

@@ -818,6 +818,8 @@ final class WorkspaceStore: ObservableObject {
             commandPaletteRecents: settings.commandPaletteRecents,
             agentPresets: settings.agentPresets,
             preferredAgentPresetID: settings.preferredAgentPresetID,
+            sshPresets: settings.sshPresets,
+            preferredSSHPresetID: settings.preferredSSHPresetID,
             keyboardShortcutOverrides: settings.keyboardShortcutOverrides
         )
         LocalizationManager.shared.updateSelectedLanguage(appSettings.appLanguage)
@@ -1370,7 +1372,7 @@ final class WorkspaceStore: ObservableObject {
                 lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
             },
             presets: appSettings.sshPresets,
-            preferredPresetID: appSettings.preferredSSHPresetID ?? appSettings.sshPresets.first?.id ?? SSHPreset.shell.id
+            preferredPresetID: nil
         )
     }
 
@@ -3167,7 +3169,7 @@ func lineyRememberedSSHPresetSelection(
 ) -> (presets: [SSHPreset], preferredPresetID: UUID?) {
     guard let selectedPresetID,
           currentPresets.contains(where: { $0.id == selectedPresetID }) else {
-        return (currentPresets, currentPresets.first?.id)
+        return (currentPresets, nil)
     }
     return (currentPresets, selectedPresetID)
 }

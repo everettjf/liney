@@ -30,10 +30,6 @@ struct CreateSSHSessionSheet: View {
         LocalizationManager.shared.string(key)
     }
 
-    private func localizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
-        l10nFormat(localized(key), locale: Locale.current, arguments: arguments)
-    }
-
     private func applySelectedTarget(_ targetID: UUID?) {
         guard let targetID,
               let target = existingTargets.first(where: { $0.id == targetID }) else {
@@ -47,7 +43,7 @@ struct CreateSSHSessionSheet: View {
               let preset = availablePresets.first(where: { $0.id == presetID }) else {
             return
         }
-        draft.apply(sshPreset: preset)
+        draft.apply(sshPreset: preset, defaultWorkingDirectory: request.defaultWorkingDirectory)
     }
 
     private var canCreate: Bool {
@@ -63,7 +59,7 @@ struct CreateSSHSessionSheet: View {
             Text(localized("sheet.ssh.title"))
                 .font(.system(size: 18, weight: .semibold))
 
-            Text(localizedFormat("sheet.ssh.descriptionFormat", request.workspaceName))
+            Text(localized("sheet.ssh.description"))
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
 
@@ -71,6 +67,8 @@ struct CreateSSHSessionSheet: View {
                 GroupBox(localized("sheet.ssh.preset")) {
                     VStack(alignment: .leading, spacing: 12) {
                         Picker(localized("sheet.ssh.preset"), selection: $draft.selectedPresetID) {
+                            Text(localized("sheet.ssh.noPreset"))
+                                .tag(Optional<UUID>.none)
                             ForEach(availablePresets) { preset in
                                 Text(preset.name).tag(Optional(preset.id))
                             }
@@ -156,7 +154,7 @@ struct CreateSSHSessionSheet: View {
         }
         .onAppear {
             draft.remoteWorkingDirectory = request.defaultWorkingDirectory
-            draft.selectedPresetID = request.preferredPresetID ?? availablePresets.first?.id
+            draft.selectedPresetID = request.preferredPresetID
             if let presetID = draft.selectedPresetID {
                 applySelectedPreset(presetID)
             }

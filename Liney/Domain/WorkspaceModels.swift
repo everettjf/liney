@@ -206,16 +206,31 @@ struct AgentPreset: Codable, Hashable, Identifiable {
 struct SSHPreset: Codable, Hashable, Identifiable {
     var id: UUID
     var name: String
+    var host: String?
+    var user: String?
+    var port: Int?
+    var identityFilePath: String?
+    var remoteWorkingDirectory: String?
     var remoteCommand: String
 
     init(
         id: UUID = UUID(),
         name: String,
+        host: String? = nil,
+        user: String? = nil,
+        port: Int? = nil,
+        identityFilePath: String? = nil,
+        remoteWorkingDirectory: String? = nil,
         remoteCommand: String
     ) {
         self.id = id
-        self.name = name
-        self.remoteCommand = remoteCommand
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.host = host?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.user = user?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.port = port
+        self.identityFilePath = identityFilePath?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.remoteWorkingDirectory = remoteWorkingDirectory?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.remoteCommand = remoteCommand.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
