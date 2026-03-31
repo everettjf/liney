@@ -261,6 +261,7 @@ struct AppSettings: Codable, Hashable {
     var sidebarShowsSecondaryLabels: Bool
     var sidebarShowsWorkspaceBadges: Bool
     var sidebarShowsWorktreeBadges: Bool
+    var expandedSidebarWorkspaceGroups: [String]
     var sidebarActivityIndicatorPalette: SidebarIconPalette
     var defaultRepositoryIcon: SidebarItemIcon
     var defaultLocalTerminalIcon: SidebarItemIcon
@@ -297,6 +298,7 @@ struct AppSettings: Codable, Hashable {
         sidebarShowsSecondaryLabels: Bool = true,
         sidebarShowsWorkspaceBadges: Bool = true,
         sidebarShowsWorktreeBadges: Bool = true,
+        expandedSidebarWorkspaceGroups: [String] = [],
         sidebarActivityIndicatorPalette: SidebarIconPalette = .amber,
         defaultRepositoryIcon: SidebarItemIcon = .repositoryDefault,
         defaultLocalTerminalIcon: SidebarItemIcon = .localTerminalDefault,
@@ -338,6 +340,7 @@ struct AppSettings: Codable, Hashable {
         self.sidebarShowsSecondaryLabels = sidebarShowsSecondaryLabels
         self.sidebarShowsWorkspaceBadges = sidebarShowsWorkspaceBadges
         self.sidebarShowsWorktreeBadges = sidebarShowsWorktreeBadges
+        self.expandedSidebarWorkspaceGroups = lineyNormalizedSidebarWorkspaceGroups(expandedSidebarWorkspaceGroups)
         self.sidebarActivityIndicatorPalette = sidebarActivityIndicatorPalette
         self.defaultRepositoryIcon = defaultRepositoryIcon
         self.defaultLocalTerminalIcon = defaultLocalTerminalIcon
@@ -394,6 +397,7 @@ extension AppSettings {
         case sidebarShowsSecondaryLabels
         case sidebarShowsWorkspaceBadges
         case sidebarShowsWorktreeBadges
+        case expandedSidebarWorkspaceGroups
         case sidebarActivityIndicatorPalette
         case defaultRepositoryIcon
         case defaultLocalTerminalIcon
@@ -441,6 +445,7 @@ extension AppSettings {
             sidebarShowsSecondaryLabels: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsSecondaryLabels) ?? true,
             sidebarShowsWorkspaceBadges: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsWorkspaceBadges) ?? true,
             sidebarShowsWorktreeBadges: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsWorktreeBadges) ?? true,
+            expandedSidebarWorkspaceGroups: try container.decodeIfPresent([String].self, forKey: .expandedSidebarWorkspaceGroups) ?? [],
             sidebarActivityIndicatorPalette: try container.decodeIfPresent(SidebarIconPalette.self, forKey: .sidebarActivityIndicatorPalette) ?? .amber,
             defaultRepositoryIcon: try container.decodeIfPresent(SidebarItemIcon.self, forKey: .defaultRepositoryIcon) ?? .repositoryDefault,
             defaultLocalTerminalIcon: try container.decodeIfPresent(SidebarItemIcon.self, forKey: .defaultLocalTerminalIcon) ?? .localTerminalDefault,
@@ -472,6 +477,16 @@ private func lineyNormalizedAgentPresets(_ presets: [AgentPreset]) -> [AgentPres
     var seenIDs = Set<UUID>()
     return filtered.filter { preset in
         seenIDs.insert(preset.id).inserted
+    }
+}
+
+private func lineyNormalizedSidebarWorkspaceGroups(_ groups: [String]) -> [String] {
+    var seen = Set<String>()
+    return groups.compactMap { rawValue in
+        let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        guard let normalized else { return nil }
+        guard seen.insert(normalized).inserted else { return nil }
+        return normalized
     }
 }
 

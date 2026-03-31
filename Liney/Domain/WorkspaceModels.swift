@@ -296,6 +296,7 @@ struct RemoteWorkspaceTarget: Codable, Hashable, Identifiable {
 struct WorkspaceSettings: Codable, Hashable {
     var isPinned: Bool
     var isArchived: Bool
+    var groupName: String?
     var workspaceIcon: SidebarItemIcon?
     var worktreeIconOverrides: [String: SidebarItemIcon]
     var runScript: String
@@ -309,6 +310,7 @@ struct WorkspaceSettings: Codable, Hashable {
     init(
         isPinned: Bool = false,
         isArchived: Bool = false,
+        groupName: String? = nil,
         workspaceIcon: SidebarItemIcon? = nil,
         worktreeIconOverrides: [String: SidebarItemIcon] = [:],
         runScript: String = "",
@@ -321,6 +323,7 @@ struct WorkspaceSettings: Codable, Hashable {
     ) {
         self.isPinned = isPinned
         self.isArchived = isArchived
+        self.groupName = groupName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         self.workspaceIcon = workspaceIcon
         self.worktreeIconOverrides = worktreeIconOverrides
         self.runScript = runScript
@@ -335,6 +338,7 @@ struct WorkspaceSettings: Codable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case isPinned
         case isArchived
+        case groupName
         case workspaceIcon
         case worktreeIconOverrides
         case runScript
@@ -351,6 +355,7 @@ struct WorkspaceSettings: Codable, Hashable {
         self.init(
             isPinned: try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false,
             isArchived: try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false,
+            groupName: try container.decodeIfPresent(String.self, forKey: .groupName),
             workspaceIcon: try container.decodeIfPresent(SidebarItemIcon.self, forKey: .workspaceIcon),
             worktreeIconOverrides: try container.decodeIfPresent([String: SidebarItemIcon].self, forKey: .worktreeIconOverrides) ?? [:],
             runScript: try container.decodeIfPresent(String.self, forKey: .runScript) ?? "",

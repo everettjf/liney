@@ -424,6 +424,13 @@ func lineyGhosttyShouldReportProcessExitForCommandFinished(
     false
 }
 
+func lineyGhosttyShouldRefreshSurface(
+    after previous: LineyGhosttySurfaceMetricsSignature?,
+    next: LineyGhosttySurfaceMetricsSignature
+) -> Bool {
+    previous != next
+}
+
 private struct LineyGhosttyScrollbarState {
     let total: UInt64
     let offset: UInt64
@@ -434,6 +441,13 @@ private struct LineyGhosttyScrollbarState {
         offset = source.offset
         length = source.len
     }
+}
+
+struct LineyGhosttySurfaceMetricsSignature: Equatable {
+    let width: Int
+    let height: Int
+    let scale: Double
+    let displayID: CGDirectDisplayID?
 }
 
 @MainActor
@@ -480,6 +494,7 @@ private final class LineyGhosttySurfaceView: NSView {
     private var markedSelectionRange = NSRange(location: NSNotFound, length: 0)
     private var currentTextInputEventKeyCode: UInt16?
     private var currentTextInputHadMarkedText = false
+    private var lastMetricsSignature: LineyGhosttySurfaceMetricsSignature?
     private let imeDebugLogger = LineyGhosttyIMEDebugLogger.shared
 
     override var acceptsFirstResponder: Bool { true }
@@ -531,6 +546,7 @@ private final class LineyGhosttySurfaceView: NSView {
         searchTotal = nil
         searchSelected = nil
         isReadOnly = false
+        lastMetricsSignature = nil
         updateCursorVisibility()
     }
 
@@ -640,15 +656,29 @@ private final class LineyGhosttySurfaceView: NSView {
         ghostty_surface_set_content_scale(surface, scale, scale)
 
         let backingBounds = convertToBacking(bounds)
+        let width = max(Int(backingBounds.width.rounded()), 1)
+        let height = max(Int(backingBounds.height.rounded()), 1)
         ghostty_surface_set_size(
             surface,
-            UInt32(max(backingBounds.width, 1)),
-            UInt32(max(backingBounds.height, 1))
+            UInt32(width),
+            UInt32(height)
         )
 
-        if let screen = window?.screen {
-            ghostty_surface_set_display_id(surface, screen.displayID)
+        let displayID = window?.screen?.displayID
+        if let displayID {
+            ghostty_surface_set_display_id(surface, displayID)
         }
+
+        let nextSignature = LineyGhosttySurfaceMetricsSignature(
+            width: width,
+            height: height,
+            scale: scale,
+            displayID: displayID
+        )
+        if lineyGhosttyShouldRefreshSurface(after: lastMetricsSignature, next: nextSignature) {
+            ghostty_surface_refresh(surface)
+        }
+        lastMetricsSignature = nextSignature
 
         let size = ghostty_surface_size(surface)
         controller?.handleSurfaceResize(cols: Int(size.columns), rows: Int(size.rows))
@@ -1545,7 +1575,9 @@ private final class LineyGhosttySurfaceView: NSView {
                 object: window,
                 queue: .main
             ) { [weak self] _ in
-                self?.syncSurfaceMetrics()
+                Task { @MainActor [weak self] in
+                    self?.syncSurfaceMetrics()
+                }
             }
             windowObservers.append(observer)
         }

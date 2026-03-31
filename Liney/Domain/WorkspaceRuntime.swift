@@ -174,6 +174,11 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         set { settings.isArchived = newValue }
     }
 
+    var groupName: String? {
+        get { settings.groupName }
+        set { settings.groupName = newValue?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+    }
+
     var workspaceIconOverride: SidebarItemIcon? {
         get { settings.workspaceIcon }
         set { settings.workspaceIcon = newValue }

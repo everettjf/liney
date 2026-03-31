@@ -55,6 +55,7 @@ final class WorkspaceSettingsTests: XCTestCase {
             settings: WorkspaceSettings(
                 isPinned: true,
                 isArchived: true,
+                groupName: "Payments",
                 workspaceIcon: SidebarItemIcon(
                     symbolName: "shippingbox.fill",
                     palette: .orange,
@@ -122,6 +123,7 @@ final class WorkspaceSettingsTests: XCTestCase {
 
         XCTAssertTrue(decoded.settings.isPinned)
         XCTAssertTrue(decoded.settings.isArchived)
+        XCTAssertEqual(decoded.settings.groupName, "Payments")
         XCTAssertEqual(decoded.settings.workspaceIcon?.symbolName, "shippingbox.fill")
         XCTAssertEqual(decoded.settings.workspaceIcon?.palette, .orange)
         XCTAssertEqual(decoded.settings.workspaceIcon?.fillStyle, .gradient)
@@ -149,6 +151,7 @@ final class WorkspaceSettingsTests: XCTestCase {
             {
               "isPinned": true,
               "isArchived": false,
+              "groupName": "Infra",
               "runScript": "make lint",
               "setupScript": "mise install",
               "agentPresets": [],
@@ -161,6 +164,7 @@ final class WorkspaceSettingsTests: XCTestCase {
         let settings = try JSONDecoder().decode(WorkspaceSettings.self, from: data)
 
         XCTAssertTrue(settings.isPinned)
+        XCTAssertEqual(settings.groupName, "Infra")
         XCTAssertNil(settings.workspaceIcon)
         XCTAssertTrue(settings.worktreeIconOverrides.isEmpty)
         XCTAssertEqual(settings.runScript, "make lint")

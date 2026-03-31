@@ -437,9 +437,15 @@ struct MainWindowView: View {
                     }
                     .disabled(!hasSelectedWorkspace)
 
-                    if selectedWorkspaceSupportsGit {
-                        Divider()
+                    Divider()
 
+                    Button(localized("sidebar.menu.browseFiles")) {
+                        guard let workspace = store.selectedWorkspace else { return }
+                        store.presentWorkspaceFileBrowser(for: workspace)
+                    }
+                    .disabled(!hasSelectedWorkspace)
+
+                    if selectedWorkspaceSupportsGit {
                         Button(localized("sheet.worktree.title")) {
                             guard let workspace = store.selectedWorkspace else { return }
                             store.presentCreateWorktree(for: workspace)
@@ -547,6 +553,20 @@ struct MainWindowView: View {
         }
         .sheet(item: $store.quickCommandEditorRequest) { _ in
             QuickCommandEditorSheet()
+                .environmentObject(store)
+        }
+        .sheet(item: $store.workspaceGroupEditorRequest) { request in
+            WorkspaceGroupEditorSheet(request: request) { name in
+                switch request.mode {
+                case .create:
+                    store.createWorkspaceGroup(named: name, workspaceIDs: request.workspaceIDs)
+                case .rename(let existingName):
+                    store.renameWorkspaceGroup(from: existingName, to: name)
+                }
+            }
+        }
+        .sheet(item: $store.workspaceFileBrowserRequest) { request in
+            WorkspaceFileBrowserSheet(request: request)
                 .environmentObject(store)
         }
         .sheet(item: $store.sidebarIconCustomizationRequest) { request in

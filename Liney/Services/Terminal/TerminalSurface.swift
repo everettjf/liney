@@ -68,7 +68,83 @@ enum TerminalSurfaceFactory {
         preferred _: TerminalEngineKind,
         launchConfiguration: TerminalLaunchConfiguration
     ) -> ManagedTerminalSessionSurfaceController {
+        if lineyIsRunningTests() {
+            return LineyTestManagedTerminalSurfaceController(launchConfiguration: launchConfiguration)
+        }
         return LineyGhosttyController(launchConfiguration: launchConfiguration)
+    }
+}
+
+@MainActor
+private final class LineyTestManagedTerminalSurfaceController: ManagedTerminalSessionSurfaceController {
+    let resolvedEngine: TerminalEngineKind = .libghosttyPreferred
+    let view = NSView(frame: .zero)
+
+    var onResize: ((Int, Int) -> Void)?
+    var onTitleChange: ((String) -> Void)?
+    var onWorkingDirectoryChange: ((String?) -> Void)?
+    var onFocus: (() -> Void)?
+    var onStatusChange: ((TerminalSurfaceStatusSnapshot) -> Void)?
+    var onProcessExit: ((Int32?) -> Void)?
+
+    var managedPID: Int32?
+    var isManagedSessionRunning = false
+    var needsConfirmQuit = false
+
+    private var launchConfiguration: TerminalLaunchConfiguration
+
+    init(launchConfiguration: TerminalLaunchConfiguration) {
+        self.launchConfiguration = launchConfiguration
+    }
+
+    func sendText(_ text: String) {}
+
+    func sendReturn() {}
+
+    func focus() {
+        onFocus?()
+    }
+
+    func setFocused(_ isFocused: Bool) {}
+
+    func beginSearch(initialText: String?) {}
+
+    func updateSearch(_ text: String) {}
+
+    func searchNext() {}
+
+    func searchPrevious() {}
+
+    func endSearch() {}
+
+    func toggleReadOnly() {}
+
+    func updateLaunchConfiguration(_ configuration: TerminalLaunchConfiguration) {
+        launchConfiguration = configuration
+    }
+
+    func startManagedSessionIfNeeded() {
+        guard !isManagedSessionRunning else { return }
+        isManagedSessionRunning = true
+        managedPID = 1
+        onWorkingDirectoryChange?(launchConfiguration.workingDirectory)
+        onTitleChange?(launchConfiguration.command.displayName)
+        onStatusChange?(TerminalSurfaceStatusSnapshot())
+    }
+
+    func restartManagedSession() {
+        isManagedSessionRunning = true
+        managedPID = 1
+        onWorkingDirectoryChange?(launchConfiguration.workingDirectory)
+        onTitleChange?(launchConfiguration.command.displayName)
+        onStatusChange?(TerminalSurfaceStatusSnapshot())
+    }
+
+    func terminateManagedSession() {
+        guard isManagedSessionRunning else { return }
+        isManagedSessionRunning = false
+        managedPID = nil
+        onProcessExit?(nil)
     }
 }
 
