@@ -1197,6 +1197,20 @@ final class WorkspaceStore: ObservableObject {
         backendConfiguration: SessionBackendConfiguration,
         workingDirectory: String
     ) {
+        createSession(
+            in: workspace,
+            backendConfiguration: backendConfiguration,
+            workingDirectory: workingDirectory,
+            splitAxis: .vertical
+        )
+    }
+
+    func createSession(
+        in workspace: WorkspaceModel,
+        backendConfiguration: SessionBackendConfiguration,
+        workingDirectory: String,
+        splitAxis: PaneSplitAxis
+    ) {
         let snapshot = PaneSnapshot(
             id: UUID(),
             preferredWorkingDirectory: workingDirectory,
@@ -1204,7 +1218,7 @@ final class WorkspaceStore: ObservableObject {
             backendConfiguration: backendConfiguration
         )
         workspace.createPane(
-            splitAxis: workspace.layout == nil ? nil : .vertical,
+            splitAxis: workspace.layout == nil ? nil : splitAxis,
             snapshot: snapshot
         )
         persist()
@@ -1634,7 +1648,8 @@ final class WorkspaceStore: ObservableObject {
         createSession(
             in: workspace,
             backendConfiguration: .agent(configuration),
-            workingDirectory: workspace.activeWorktreePath
+            workingDirectory: workspace.activeWorktreePath,
+            splitAxis: .vertical
         )
         recordActivity(
             in: workspace,
@@ -1670,7 +1685,8 @@ final class WorkspaceStore: ObservableObject {
         createSession(
             in: workspace,
             backendConfiguration: .agent(configuration),
-            workingDirectory: workspace.activeWorktreePath
+            workingDirectory: workspace.activeWorktreePath,
+            splitAxis: .vertical
         )
         recordActivity(
             in: workspace,
@@ -1723,7 +1739,8 @@ final class WorkspaceStore: ObservableObject {
         createSession(
             in: workspace,
             backendConfiguration: .agent(configuration),
-            workingDirectory: workingDirectory
+            workingDirectory: workingDirectory,
+            splitAxis: .vertical
         )
         recordActivity(
             in: workspace,
@@ -1757,7 +1774,8 @@ final class WorkspaceStore: ObservableObject {
         createSession(
             in: workspace,
             backendConfiguration: .agent(configuration),
-            workingDirectory: workingDirectory
+            workingDirectory: workingDirectory,
+            splitAxis: .vertical
         )
         recordActivity(
             in: workspace,
