@@ -183,12 +183,14 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             rootNodes = buildNodes(from: workspaces)
             nodeLookup = Dictionary(uniqueKeysWithValues: rootNodes.flatMap { $0.flattened() }.map { ($0.id, $0) })
 
+            isApplyingSelection = true
             container?.reloadOutlineData()
-            guard let outlineView = container?.outlineView else { return }
+            guard let outlineView = container?.outlineView else { isApplyingSelection = false; return }
             isRestoringExpansion = true
             restoreExpansionState(on: outlineView)
             isRestoringExpansion = false
             container?.relayout()
+            isApplyingSelection = false
             synchronizeSelection(on: outlineView, selectedWorkspaceID: selectedWorkspaceID)
         } else {
             guard let outlineView = container?.outlineView else { return }
