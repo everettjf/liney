@@ -333,11 +333,11 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
                 }
 
                 var ids: [String] = []
+                ids.append("workspace:\(selectedWorkspace.id.uuidString)")
                 let worktreeID = "worktree:\(selectedWorkspace.id.uuidString):\(selectedWorkspace.activeWorktreePath)"
                 if nodeLookup[worktreeID] != nil {
                     ids.append(worktreeID)
                 }
-                ids.append("workspace:\(selectedWorkspace.id.uuidString)")
                 return ids
             }()
 
