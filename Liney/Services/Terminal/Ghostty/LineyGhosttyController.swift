@@ -872,6 +872,7 @@ private final class LineyGhosttySurfaceView: NSView {
         let (translationEvent, translationMods) = translationState(for: event, on: surface)
 
         if shouldPreferRawKeyEvent(for: event) {
+            NSLog("[Liney] keyDown: raw-preferred keyCode=%d mods=0x%lx → sendRawKeyEvent", event.keyCode, event.modifierFlags.rawValue)
             logArrowKeyDebug(event, phase: "keyDown raw-preferred")
             sendRawKeyEvent(
                 event,
@@ -972,14 +973,15 @@ private final class LineyGhosttySurfaceView: NSView {
             return true
         }
 
+        if shouldPreferRawKeyEvent(for: event) {
+            NSLog("[Liney] performKeyEquivalent: raw-preferred keyCode=%d mods=0x%lx hasMarkedText=%d → forwarding to keyDown", event.keyCode, event.modifierFlags.rawValue, hasMarkedText() ? 1 : 0)
+            keyDown(with: event)
+            return true
+        }
+
         if hasMarkedText(),
            !event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command) {
             return false
-        }
-
-        if shouldPreferRawKeyEvent(for: event) {
-            keyDown(with: event)
-            return true
         }
 
         let flags = bindingFlags(for: event, on: surface)
