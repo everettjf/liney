@@ -364,6 +364,10 @@ public final class LineyDesktopApplication: NSObject {
         return primaryWindowContext ?? windowContexts.first
     }
 
+    var activeWorkspaceStore: WorkspaceStore? {
+        activeWindowContext?.store ?? primaryWindowContext?.store
+    }
+
     private var activeStore: WorkspaceStore? {
         activeWindowContext?.store
     }

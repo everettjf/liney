@@ -33,6 +33,7 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
     case externalEditor
     case terminal
     case sidebar
+    case dynamicIsland
     case shortcuts
     case updates
     case workspace
@@ -45,7 +46,7 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
         switch self {
         case .general, .hotKeyWindow, .externalEditor, .terminal, .updates:
             return .app
-        case .sidebar, .shortcuts:
+        case .sidebar, .dynamicIsland, .shortcuts:
             return .customize
         case .workspace, .sshPresets, .agentPresets:
             return .workspace
@@ -64,6 +65,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "settings.section.terminal.title"
         case .sidebar:
             return "settings.section.sidebar.title"
+        case .dynamicIsland:
+            return "settings.section.dynamicIsland.title"
         case .shortcuts:
             return "settings.section.shortcuts.title"
         case .updates:
@@ -89,6 +92,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "settings.section.terminal.subtitle"
         case .sidebar:
             return "settings.section.sidebar.subtitle"
+        case .dynamicIsland:
+            return "settings.section.dynamicIsland.subtitle"
         case .shortcuts:
             return "settings.section.shortcuts.subtitle"
         case .updates:
@@ -114,6 +119,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "terminal"
         case .sidebar:
             return "sidebar.leading"
+        case .dynamicIsland:
+            return "sparkle.magnifyingglass"
         case .shortcuts:
             return "command"
         case .updates:
@@ -369,6 +376,8 @@ struct SettingsSheet: View {
             terminalSettingsView
         case .sidebar:
             sidebarSettingsView
+        case .dynamicIsland:
+            dynamicIslandSettingsView
         case .shortcuts:
             shortcutsSettingsView
         case .updates:
@@ -412,7 +421,6 @@ struct SettingsSheet: View {
                     Toggle(localized("settings.general.behavior.enableHotKeyWindow"), isOn: $appSettings.hotKeyWindowEnabled)
                     Toggle(localized("settings.general.behavior.enableFileWatchers"), isOn: $appSettings.fileWatcherEnabled)
                     Toggle(localized("settings.general.behavior.allowSystemNotifications"), isOn: $appSettings.systemNotificationsEnabled)
-                    Toggle(localized("settings.general.behavior.dynamicIsland"), isOn: $appSettings.dynamicIslandEnabled)
                     Toggle(localized("settings.general.behavior.showArchivedWorkspaces"), isOn: $appSettings.showArchivedWorkspaces)
 
                     Divider()
@@ -609,6 +617,19 @@ struct SettingsSheet: View {
                 defaultSizeFormat: localized("settings.general.terminal.defaultSizeFormat")
             )
             .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+
+    private var dynamicIslandSettingsView: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            GroupBox(localized("settings.dynamicIsland.enable.group")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(localized("settings.dynamicIsland.enable.toggle"), isOn: $appSettings.dynamicIslandEnabled)
+                    Text(localized("settings.dynamicIsland.enable.description"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 

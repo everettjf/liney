@@ -8,12 +8,18 @@
 import Combine
 import Foundation
 
+enum IslandTab: String, CaseIterable {
+    case workspaces
+    case notifications
+}
+
 @MainActor
 final class IslandNotificationState: ObservableObject {
     static let shared = IslandNotificationState()
 
     @Published var items: [IslandNotificationItem] = []
     @Published var isExpanded: Bool = false
+    @Published var selectedTab: IslandTab = .workspaces
 
     var latestItem: IslandNotificationItem? {
         items.last

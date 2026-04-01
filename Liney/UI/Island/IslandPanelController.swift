@@ -13,17 +13,16 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
     static let shared = IslandPanelController()
 
     let state = IslandNotificationState.shared
+    weak var workspaceStore: WorkspaceStore?
 
     private var panel: NSPanel?
     private var localEventMonitor: Any?
     private var screenObserver: NSObjectProtocol?
     private var autoDismissTask: Task<Void, Never>?
 
-    private let collapsedSize = NSSize(width: 320, height: 36)
-    private let expandedWidth: CGFloat = 400
-    private let expandedMaxHeight: CGFloat = 480
-    private let rowHeight: CGFloat = 56
-    private let expandedPadding: CGFloat = 24
+    private let collapsedSize = NSSize(width: 340, height: 38)
+    private let expandedWidth: CGFloat = 480
+    private let expandedMaxHeight: CGFloat = 520
 
     private override init() {
         super.init()
@@ -56,12 +55,18 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
 
     func hide() {
         autoDismissTask?.cancel()
+        state.isExpanded = false
         panel?.orderOut(nil)
     }
 
     func toggle() {
         if panel?.isVisible == true {
-            hide()
+            if state.isExpanded {
+                state.isExpanded = false
+                repositionPanel()
+            } else {
+                hide()
+            }
         } else {
             show()
         }
@@ -70,11 +75,17 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
     func navigateToItem(_ item: IslandNotificationItem) {
         WorkspaceNotificationCenter.shared.onNotificationTapped?(item.workspaceID, item.worktreePath)
         state.dismiss(id: item.id)
-        if state.items.isEmpty {
+        if state.items.isEmpty && state.selectedTab == .notifications {
             hide()
         } else {
             repositionPanel()
         }
+    }
+
+    func navigateToWorkspace(_ workspace: WorkspaceModel) {
+        WorkspaceNotificationCenter.shared.onNotificationTapped?(workspace.id, nil)
+        state.isExpanded = false
+        repositionPanel()
     }
 
     private func createPanel() {
@@ -107,7 +118,7 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
 
         let frame = panelFrame(expanded: state.isExpanded)
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.25
+            context.duration = 0.3
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             panel.animator().setFrame(frame, display: true)
         }
@@ -127,8 +138,7 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
 
         let size: NSSize
         if expanded {
-            let itemCount = CGFloat(max(state.items.count, 1))
-            let contentHeight = min(itemCount * rowHeight + expandedPadding, expandedMaxHeight)
+            let contentHeight: CGFloat = expandedMaxHeight
             size = NSSize(width: expandedWidth, height: contentHeight)
         } else {
             size = collapsedSize
