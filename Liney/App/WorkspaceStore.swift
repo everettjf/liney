@@ -2357,7 +2357,10 @@ final class WorkspaceStore: ObservableObject {
         case .statusMessage(let text, let tone, let deliverSystemNotification, let workspaceID, let worktreePath):
             statusMessageTask?.cancel()
             statusMessage = WorkspaceStatusMessage(text: text, tone: tone)
-            if deliverSystemNotification && appSettings.systemNotificationsEnabled {
+            if deliverSystemNotification {
+                if appSettings.systemNotificationsEnabled {
+                    WorkspaceNotificationCenter.shared.deliver(title: "Liney", body: text, workspaceID: workspaceID, worktreePath: worktreePath)
+                }
                 if appSettings.dynamicIslandEnabled {
                     let item = IslandNotificationItem(
                         id: UUID(),
@@ -2373,8 +2376,6 @@ final class WorkspaceStore: ObservableObject {
                     )
                     IslandNotificationState.shared.post(item: item)
                     IslandPanelController.shared.show()
-                } else {
-                    WorkspaceNotificationCenter.shared.deliver(title: "Liney", body: text, workspaceID: workspaceID, worktreePath: worktreePath)
                 }
             }
             statusMessageTask = Task { @MainActor in
@@ -2518,7 +2519,7 @@ final class WorkspaceStore: ObservableObject {
                 receive(.statusMessage(localized("main.sleepPrevention.stopped"), .neutral, deliverSystemNotification: false))
             case .completed:
                 guard previousSession != nil else { return }
-                receive(.statusMessage(localized("main.sleepPrevention.finished"), .neutral, deliverSystemNotification: false))
+                receive(.statusMessage(localized("main.sleepPrevention.finished"), .neutral, deliverSystemNotification: true))
             case .failed(let message):
                 receive(.statusMessage(message, .warning, deliverSystemNotification: false))
             }
@@ -2987,7 +2988,7 @@ final class WorkspaceStore: ObservableObject {
                     workingDirectory: nil
                 )
             )
-            receive(.statusMessage(localized("main.status.workspace.runScriptSent"), .success, deliverSystemNotification: false))
+            receive(.statusMessage(localized("main.status.workspace.runScriptSent"), .success, deliverSystemNotification: true, workspaceID: workspace.id, worktreePath: workspace.activeWorktreePath))
         }
     }
 
@@ -3010,7 +3011,7 @@ final class WorkspaceStore: ObservableObject {
                     workingDirectory: nil
                 )
             )
-            receive(.statusMessage(localized("main.status.workspace.setupScriptRan"), .success, deliverSystemNotification: false))
+            receive(.statusMessage(localized("main.status.workspace.setupScriptRan"), .success, deliverSystemNotification: true, workspaceID: workspace.id, worktreePath: workspace.activeWorktreePath))
         }
     }
 
@@ -3050,7 +3051,7 @@ final class WorkspaceStore: ObservableObject {
             worktreePath: workspace.activeWorktreePath,
             replayAction: .runWorkflow(workflow.id)
         )
-        receive(.statusMessage(localizedFormat("main.status.workflow.ranFormat", workflow.name), .success, deliverSystemNotification: false))
+        receive(.statusMessage(localizedFormat("main.status.workflow.ranFormat", workflow.name), .success, deliverSystemNotification: true, workspaceID: workspace.id, worktreePath: workspace.activeWorktreePath))
     }
 
     private func localShellSession(in workspace: WorkspaceModel, mode: WorkspaceWorkflowLocalSessionMode) -> ShellSession? {
