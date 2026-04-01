@@ -138,6 +138,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
     private var isApplyingSelection = false
     private var isRestoringExpansion = false
     private var isUserDrivenSelection = false
+    private var suppressSelectionSync = false
     private var lastDataFingerprint: String = ""
 
     init(store: WorkspaceStore) {
@@ -325,6 +326,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
         private func synchronizeSelection(on outlineView: NSOutlineView, selectedWorkspaceID: UUID?) {
             guard !rootNodes.isEmpty else { return }
             if isUserDrivenSelection { isUserDrivenSelection = false; return }
+            if suppressSelectionSync { return }
 
             let candidateIDs: [String] = {
                 guard let selectedWorkspaceID,
@@ -1111,12 +1113,16 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
 
             switch node.kind {
             case .group:
+                suppressSelectionSync = true
                 isUserDrivenSelection = true
             case .workspace(let workspace):
+                suppressSelectionSync = false
                 store?.selectWorkspace(workspace)
             case .branch(let workspace, _, _):
+                suppressSelectionSync = false
                 store?.selectWorkspace(workspace)
             case .worktree(let workspace, let worktree):
+                suppressSelectionSync = false
                 isUserDrivenSelection = true
                 store?.selectWorkspace(workspace)
                 if workspace.supportsRepositoryFeatures {
