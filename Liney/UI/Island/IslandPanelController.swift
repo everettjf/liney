@@ -24,7 +24,9 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
     private var collapseTask: Task<Void, Never>?
     private var expandTask: Task<Void, Never>?
 
-    private let collapsedSize = NSSize(width: 180, height: 32)
+    private let collapsedHeight: CGFloat = 32
+    private let collapsedMinWidth: CGFloat = 120
+    private let collapsedMaxWidth: CGFloat = 320
     private let expandedWidth: CGFloat = 360
     private let expandedMaxHeight: CGFloat = 500
 
@@ -99,7 +101,7 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
         let hostingController = NSHostingController(rootView: contentView)
 
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: collapsedSize),
+            contentRect: NSRect(origin: .zero, size: NSSize(width: collapsedWidth(), height: collapsedHeight)),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -130,6 +132,23 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
         }
     }
 
+    private func collapsedWidth() -> CGFloat {
+        let font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        let title: String
+        if let item = state.latestItem {
+            title = item.title
+        } else {
+            title = "Liney"
+        }
+
+        let textWidth = (title as NSString).size(withAttributes: [.font: font]).width
+        // icon(~14) + spacing(10) + text + spacing(4) + badge(~22) + horizontal padding(32)
+        let hasBadge = state.badgeCount > 1
+        let badgeWidth: CGFloat = hasBadge ? 26 : 0
+        let totalWidth = 14 + 10 + textWidth + 4 + badgeWidth + 32
+        return min(max(ceil(totalWidth), collapsedMinWidth), collapsedMaxWidth)
+    }
+
     private func panelFrame(expanded: Bool) -> NSRect {
         let screen = NSScreen.main ?? NSScreen.screens.first ?? NSScreen.screens[0]
         let screenFrame = screen.frame
@@ -138,7 +157,7 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
         if expanded {
             size = NSSize(width: expandedWidth, height: expandedMaxHeight)
         } else {
-            size = collapsedSize
+            size = NSSize(width: collapsedWidth(), height: collapsedHeight)
         }
 
         // Always center horizontally and pin to the very top of the screen
