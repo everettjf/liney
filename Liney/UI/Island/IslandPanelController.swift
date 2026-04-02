@@ -101,7 +101,7 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        panel.level = .floating
+        panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.isMovableByWindowBackground = false
         panel.backgroundColor = .clear
@@ -147,11 +147,14 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
         }
 
         let x = screenFrame.midX - size.width / 2
+        let menuBarHeight: CGFloat = screenFrame.maxY - screen.visibleFrame.maxY
         let y: CGFloat
         if hasNotch {
+            // Position flush with top of screen, overlapping the notch area
             y = screenFrame.maxY - size.height
         } else {
-            y = screenFrame.maxY - size.height - 8
+            // Position just below menu bar
+            y = screenFrame.maxY - menuBarHeight - size.height - 4
         }
 
         return NSRect(origin: NSPoint(x: x, y: y), size: size)
