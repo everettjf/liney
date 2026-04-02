@@ -71,6 +71,20 @@ struct IslandExpandedView: View {
                 .buttonStyle(.plain)
             }
             Spacer()
+            if state.selectedTab == .notifications && !state.items.isEmpty {
+                Button {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                        state.clearAll()
+                    }
+                    controller.repositionPanel()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white.opacity(0.35))
+                }
+                .buttonStyle(.plain)
+                .help("Clear all notifications")
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

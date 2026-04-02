@@ -25,6 +25,9 @@ struct IslandContentView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                if !state.isExpanded && !state.items.isEmpty {
+                    state.selectedTab = .notifications
+                }
                 state.isExpanded.toggle()
             }
             controller.repositionPanel()
