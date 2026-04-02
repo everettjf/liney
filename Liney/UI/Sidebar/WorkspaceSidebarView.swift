@@ -1220,15 +1220,48 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             let isGroupDrag = info.draggingPasteboard.string(forType: Self.groupDragType) != nil
 
             if isGroupDrag {
-                guard item == nil else { return [] }
-                return .move
+                if item == nil { return .move }
+                // Hovering ON a node — retarget to the root-level gap after it
+                if let targetIndex = rootInsertionIndex(for: item, in: outlineView) {
+                    outlineView.setDropItem(nil, dropChildIndex: targetIndex)
+                    return .move
+                }
+                return []
             }
 
+            // Workspace drag
             if let node = item as? SidebarNodeItem, node.isGroupNode {
                 return .move
             }
-            guard item == nil else { return [] }
-            return .move
+            if item == nil { return .move }
+            // Hovering ON a non-group node — retarget to root-level gap
+            if let targetIndex = rootInsertionIndex(for: item, in: outlineView) {
+                outlineView.setDropItem(nil, dropChildIndex: targetIndex)
+                return .move
+            }
+            return []
+        }
+
+        /// Find the root-level insertion index when hovering on a node.
+        /// Returns the index *after* the hovered node's root-level ancestor.
+        private func rootInsertionIndex(for item: Any?, in outlineView: NSOutlineView) -> Int? {
+            guard let node = item as? SidebarNodeItem else { return nil }
+            let rootCount = outlineView.numberOfChildren(ofItem: nil)
+            // Check if the node is itself a root item
+            for i in 0..<rootCount {
+                if outlineView.child(i, ofItem: nil) as AnyObject === node {
+                    return i + 1
+                }
+            }
+            // The node is a child of a root item — find the parent's root index
+            if let parent = outlineView.parent(forItem: node) as AnyObject? {
+                for i in 0..<rootCount {
+                    if outlineView.child(i, ofItem: nil) as AnyObject === parent {
+                        return i + 1
+                    }
+                }
+            }
+            return nil
         }
 
         func outlineView(
