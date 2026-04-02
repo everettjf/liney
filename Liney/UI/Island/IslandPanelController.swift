@@ -52,7 +52,6 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
         }
         repositionPanel()
         panel?.orderFrontRegardless()
-        scheduleAutoDismiss()
     }
 
     func hide() {
