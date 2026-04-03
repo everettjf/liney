@@ -45,6 +45,7 @@ struct DeskView: View {
         .onHover { isHovering = $0 }
         .onTapGesture(perform: onTap)
         .shadow(color: .black.opacity(isHovering ? 0.3 : 0.15), radius: isHovering ? 12 : 6, y: 4)
+        .animation(.easeInOut(duration: 0.15), value: isHovering)
     }
 
     private var deskHeader: some View {

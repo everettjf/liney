@@ -325,7 +325,36 @@ final class ShellSession: ObservableObject, Identifiable {
         environment["TERM_PROGRAM"] = "Liney"
         environment["TERM_PROGRAM_VERSION"] = currentVersion()
         environment["LANG"] = environment["LANG"] ?? "en_US.UTF-8"
+
+        // When launched from Finder/Dock, SSH_AUTH_SOCK may not be inherited.
+        // Fall back to querying launchctl so git/ssh can use the system agent.
+        if environment["SSH_AUTH_SOCK"] == nil {
+            if let sock = Self.launchctlGetenv("SSH_AUTH_SOCK") {
+                environment["SSH_AUTH_SOCK"] = sock
+            }
+        }
+
         return environment
+    }
+
+    private static func launchctlGetenv(_ name: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = ["getenv", name]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let value = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return value?.isEmpty == true ? nil : value
+        } catch {
+            return nil
+        }
     }
 
     private static func currentVersion() -> String {
