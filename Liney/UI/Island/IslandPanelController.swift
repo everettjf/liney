@@ -192,22 +192,17 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
     }
 
     private func collapsedWidth() -> CGFloat {
-        let minNotch = notchAwareMinWidth
-
         if state.latestItem == nil {
-            // "Liney" + pixel animation — use notch-aware width or 160pt
-            return max(160, minNotch)
+            return collapsedMaxWidth
         }
 
         let font = NSFont.systemFont(ofSize: 13, weight: .medium)
         let title = state.latestItem!.title
         let textWidth = (title as NSString).size(withAttributes: [.font: font]).width
-        // icon(~14) + spacing(10) + text + spacing(4) + badge(~22) + horizontal padding(32)
         let hasBadge = state.badgeCount > 1
         let badgeWidth: CGFloat = hasBadge ? 26 : 0
         let totalWidth = 14 + 10 + textWidth + 4 + badgeWidth + 32
-        let contentWidth = min(max(ceil(totalWidth), collapsedMinWidth), collapsedMaxWidth)
-        return max(contentWidth, minNotch)
+        return min(max(ceil(totalWidth), collapsedMinWidth), collapsedMaxWidth)
     }
 
     private func panelFrame(expanded: Bool) -> NSRect {
