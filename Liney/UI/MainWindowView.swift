@@ -442,13 +442,6 @@ struct MainWindowView: View {
                     }
                     .disabled(!(store.selectedWorkspace?.setupScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false))
 
-                    Button(localized("main.menu.runPreferredWorkflow")) {
-                        guard let workspace = store.selectedWorkspace,
-                              let workflow = workspace.preferredWorkflow else { return }
-                        store.dispatch(.runWorkflow(workspace.id, workflow.id))
-                    }
-                    .disabled(store.selectedWorkspace?.preferredWorkflow == nil)
-
                     Divider()
 
                     Button(localized("main.menu.equalizeSplits")) {
