@@ -656,6 +656,38 @@ struct SettingsSheet: View {
                         }
                     }
                     .pickerStyle(.menu)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Preview")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+
+                        let previewScale: CGFloat = 0.5
+                        let collapsedW = appSettings.dynamicIslandWidth.collapsedMaxWidth * previewScale
+                        let collapsedH: CGFloat = 32 * previewScale
+                        let expandedW = appSettings.dynamicIslandWidth.expandedWidth * previewScale
+                        let expandedH = appSettings.dynamicIslandHeight.expandedMaxHeight * previewScale
+
+                        VStack(spacing: 8) {
+                            RoundedRectangle(cornerRadius: collapsedH / 2, style: .continuous)
+                                .fill(Color.white.opacity(0.1))
+                                .frame(width: collapsedW, height: collapsedH)
+                                .overlay {
+                                    Text("Collapsed")
+                                        .font(.system(size: 8, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                }
+
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.white.opacity(0.1))
+                                .frame(width: expandedW, height: expandedH)
+                                .overlay {
+                                    Text("Expanded")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                }
+                        }
+                    }
                 }
             } label: {
                 Text(localized("settings.dynamicIsland.size.group"))
