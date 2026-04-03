@@ -859,115 +859,6 @@ struct SettingsSheet: View {
                             .frame(height: 80)
                             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08)))
                     }
-                    VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(localized("settings.workspace.remoteTargets"))
-                                    .font(.system(size: 12, weight: .semibold))
-                                Spacer()
-                                Button(localized("settings.workspace.addRemoteTarget")) {
-                                    workspaceSettings.remoteTargets.append(
-                                        RemoteWorkspaceTarget(
-                                            name: localized("defaults.remote.name"),
-                                            ssh: SSHSessionConfiguration(
-                                                host: "",
-                                                user: nil,
-                                                port: nil,
-                                                identityFilePath: nil,
-                                                remoteWorkingDirectory: nil,
-                                                remoteCommand: nil
-                                            ),
-                                            sshPresetID: nil,
-                                            agentPresetID: appSettings.preferredAgentPresetID
-                                        )
-                                    )
-                                }
-                            }
-
-                            if workspaceSettings.remoteTargets.isEmpty {
-                                Text(localized("settings.workspace.remoteTargetsHint"))
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            ForEach($workspaceSettings.remoteTargets) { $target in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        TextField(localized("settings.workspace.remoteTarget.name"), text: $target.name)
-                                        TextField(localized("settings.workspace.remoteTarget.host"), text: $target.ssh.host)
-                                        Button(role: .destructive) {
-                                            workspaceSettings.remoteTargets.removeAll { $0.id == target.id }
-                                        } label: {
-                                            Image(systemName: "trash")
-                                        }
-                                    }
-
-                                    HStack {
-                                        TextField(localized("settings.workspace.remoteTarget.user"), text: Binding(
-                                            get: { target.ssh.user ?? "" },
-                                            set: { target.ssh.user = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
-                                        ))
-                                        TextField(localized("settings.workspace.remoteTarget.port"), text: Binding(
-                                            get: { target.ssh.port.map(String.init) ?? "" },
-                                            set: { target.ssh.port = Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-                                        ))
-                                        .frame(width: 90)
-                                        TextField(localized("settings.workspace.remoteTarget.identityFile"), text: Binding(
-                                            get: { target.ssh.identityFilePath ?? "" },
-                                            set: { target.ssh.identityFilePath = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
-                                        ))
-                                    }
-
-                                    TextField(localized("settings.workspace.remoteTarget.workspacePath"), text: Binding(
-                                        get: { target.ssh.remoteWorkingDirectory ?? "" },
-                                        set: { target.ssh.remoteWorkingDirectory = $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
-                                    ))
-
-                                    Picker(localized("settings.workspace.remoteTarget.sshPreset"), selection: Binding(
-                                        get: { target.sshPresetID },
-                                        set: { newValue in
-                                            target.sshPresetID = newValue
-                                            if let presetID = newValue,
-                                               let preset = appSettings.sshPresets.first(where: { $0.id == presetID }) {
-                                                if let host = preset.host {
-                                                    target.ssh.host = host
-                                                }
-                                                if let user = preset.user {
-                                                    target.ssh.user = user
-                                                }
-                                                if let port = preset.port {
-                                                    target.ssh.port = port
-                                                }
-                                                if let identityFilePath = preset.identityFilePath {
-                                                    target.ssh.identityFilePath = identityFilePath
-                                                }
-                                                if let remoteWorkingDirectory = preset.remoteWorkingDirectory {
-                                                    target.ssh.remoteWorkingDirectory = remoteWorkingDirectory
-                                                }
-                                                target.ssh.remoteCommand = preset.remoteCommand.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-                                            }
-                                        }
-                                    )) {
-                                        Text(localized("settings.workspace.remoteTarget.noSSHPreset")).tag(Optional<UUID>.none)
-                                        ForEach(appSettings.sshPresets) { preset in
-                                            Text(preset.name).tag(Optional(preset.id))
-                                        }
-                                    }
-
-                                    Picker(localized("settings.workspace.remoteTarget.agentPreset"), selection: Binding(
-                                        get: { target.agentPresetID },
-                                        set: { target.agentPresetID = $0 }
-                                    )) {
-                                        Text(localized("settings.workspace.remoteTarget.noAgent")).tag(Optional<UUID>.none)
-                                        ForEach(appSettings.agentPresets) { preset in
-                                            Text(preset.name).tag(Optional(preset.id))
-                                        }
-                                    }
-                                }
-                                .padding(12)
-                                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            }
-                        }
-
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text(localized("settings.workspace.workflows"))
@@ -999,9 +890,6 @@ struct SettingsSheet: View {
                                         TextField(localized("settings.workspace.workflow.name"), text: $workflow.name)
                                         Button(role: .destructive) {
                                             workspaceSettings.workflows.removeAll { $0.id == workflow.id }
-                                            if workspaceSettings.preferredWorkflowID == workflow.id {
-                                                workspaceSettings.preferredWorkflowID = workspaceSettings.workflows.first?.id
-                                            }
                                         } label: {
                                             Image(systemName: "trash")
                                         }
@@ -1071,7 +959,6 @@ struct SettingsSheet: View {
                                 .padding(12)
                                 .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
-
                         }
                 } else {
                     Text(localized("settings.workspace.emptyState"))

@@ -770,6 +770,18 @@ struct MainWindowView: View {
         }
 
         menu.addItem(.separator())
+        menu.addActionItem(title: localized("main.workflows.addWorkflow"), imageSystemName: "plus") {
+            workspace.settings.workflows.append(
+                WorkspaceWorkflow(
+                    name: localized("defaults.workflow.name"),
+                    localSessionMode: .reuseFocused,
+                    runSetupScript: false,
+                    runWorkspaceScript: false,
+                    agentMode: .none
+                )
+            )
+            store.presentSettings(for: workspace)
+        }
         menu.addActionItem(title: localized("main.workflows.editWorkflows"), imageSystemName: "slider.horizontal.3") {
             store.presentSettings(for: workspace)
         }
