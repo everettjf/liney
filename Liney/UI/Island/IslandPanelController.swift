@@ -36,9 +36,18 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
 
     private let collapsedHeight: CGFloat = 32
     private let collapsedMinWidth: CGFloat = 120
-    private let collapsedMaxWidth: CGFloat = 320
-    private let expandedWidth: CGFloat = 360
-    private let expandedMaxHeight: CGFloat = 500
+
+    private var widthPreset: IslandWidthPreset {
+        workspaceStore?.appSettings.dynamicIslandWidth ?? .standard
+    }
+
+    private var heightPreset: IslandHeightPreset {
+        workspaceStore?.appSettings.dynamicIslandHeight ?? .standard
+    }
+
+    private var collapsedMaxWidth: CGFloat { widthPreset.collapsedMaxWidth }
+    private var expandedWidth: CGFloat { widthPreset.expandedWidth }
+    private var expandedMaxHeight: CGFloat { heightPreset.expandedMaxHeight }
 
     private override init() {
         super.init()

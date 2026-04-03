@@ -247,6 +247,70 @@ nonisolated enum ExternalEditor: String, Codable, Hashable, CaseIterable, Identi
     }
 }
 
+nonisolated enum IslandWidthPreset: String, Codable, Hashable, CaseIterable, Identifiable {
+    case compact
+    case standard
+    case wide
+    case extraWide
+    case full
+
+    var id: String { rawValue }
+
+    var expandedWidth: CGFloat {
+        switch self {
+        case .compact:   return 360
+        case .standard:  return 420
+        case .wide:      return 500
+        case .extraWide: return 600
+        case .full:      return 720
+        }
+    }
+
+    var collapsedMaxWidth: CGFloat {
+        switch self {
+        case .compact:   return 320
+        case .standard:  return 380
+        case .wide:      return 460
+        case .extraWide: return 560
+        case .full:      return 680
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .compact:   return lineyLocalizedSettingsString("settings.dynamicIsland.width.compact")
+        case .standard:  return lineyLocalizedSettingsString("settings.dynamicIsland.width.standard")
+        case .wide:      return lineyLocalizedSettingsString("settings.dynamicIsland.width.wide")
+        case .extraWide: return lineyLocalizedSettingsString("settings.dynamicIsland.width.extraWide")
+        case .full:      return lineyLocalizedSettingsString("settings.dynamicIsland.width.full")
+        }
+    }
+}
+
+nonisolated enum IslandHeightPreset: String, Codable, Hashable, CaseIterable, Identifiable {
+    case compact
+    case standard
+    case tall
+
+    var id: String { rawValue }
+
+    var expandedMaxHeight: CGFloat {
+        switch self {
+        case .compact:  return 400
+        case .standard: return 500
+        case .tall:     return 640
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .compact:  return lineyLocalizedSettingsString("settings.dynamicIsland.height.compact")
+        case .standard: return lineyLocalizedSettingsString("settings.dynamicIsland.height.standard")
+        case .tall:     return lineyLocalizedSettingsString("settings.dynamicIsland.height.tall")
+        }
+    }
+}
+
 struct AppSettings: Codable, Hashable {
     var appLanguage: AppLanguage
     var autoRefreshEnabled: Bool
@@ -263,6 +327,8 @@ struct AppSettings: Codable, Hashable {
     var dynamicIslandEnabled: Bool
     var dynamicIslandPersistent: Bool
     var dynamicIslandPixelAnimation: IslandPixelAnimationStyle
+    var dynamicIslandWidth: IslandWidthPreset
+    var dynamicIslandHeight: IslandHeightPreset
     var showArchivedWorkspaces: Bool
     var uiScale: Double
     var terminalFontFamily: String?
@@ -304,6 +370,8 @@ struct AppSettings: Codable, Hashable {
         dynamicIslandEnabled: Bool = false,
         dynamicIslandPersistent: Bool = true,
         dynamicIslandPixelAnimation: IslandPixelAnimationStyle = .random,
+        dynamicIslandWidth: IslandWidthPreset = .standard,
+        dynamicIslandHeight: IslandHeightPreset = .standard,
         showArchivedWorkspaces: Bool = false,
         uiScale: Double = 1,
         terminalFontFamily: String? = nil,
@@ -348,6 +416,8 @@ struct AppSettings: Codable, Hashable {
         self.dynamicIslandEnabled = dynamicIslandEnabled
         self.dynamicIslandPersistent = dynamicIslandPersistent
         self.dynamicIslandPixelAnimation = dynamicIslandPixelAnimation
+        self.dynamicIslandWidth = dynamicIslandWidth
+        self.dynamicIslandHeight = dynamicIslandHeight
         self.showArchivedWorkspaces = showArchivedWorkspaces
         self.uiScale = min(max(uiScale, 0.85), 1.5)
         self.terminalFontFamily = terminalFontFamily?
@@ -411,6 +481,8 @@ extension AppSettings {
         case dynamicIslandEnabled
         case dynamicIslandPersistent
         case dynamicIslandPixelAnimation
+        case dynamicIslandWidth
+        case dynamicIslandHeight
         case showArchivedWorkspaces
         case uiScale
         case terminalFontFamily
@@ -463,6 +535,8 @@ extension AppSettings {
             dynamicIslandEnabled: try container.decodeIfPresent(Bool.self, forKey: .dynamicIslandEnabled) ?? false,
             dynamicIslandPersistent: try container.decodeIfPresent(Bool.self, forKey: .dynamicIslandPersistent) ?? true,
             dynamicIslandPixelAnimation: try container.decodeIfPresent(IslandPixelAnimationStyle.self, forKey: .dynamicIslandPixelAnimation) ?? .random,
+            dynamicIslandWidth: try container.decodeIfPresent(IslandWidthPreset.self, forKey: .dynamicIslandWidth) ?? .standard,
+            dynamicIslandHeight: try container.decodeIfPresent(IslandHeightPreset.self, forKey: .dynamicIslandHeight) ?? .standard,
             showArchivedWorkspaces: try container.decodeIfPresent(Bool.self, forKey: .showArchivedWorkspaces) ?? false,
             uiScale: try container.decodeIfPresent(Double.self, forKey: .uiScale) ?? 1,
             terminalFontFamily: try container.decodeIfPresent(String.self, forKey: .terminalFontFamily),

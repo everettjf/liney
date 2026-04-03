@@ -643,6 +643,26 @@ struct SettingsSheet: View {
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 14) {
+                    Picker(localized("settings.dynamicIsland.width"), selection: $appSettings.dynamicIslandWidth) {
+                        ForEach(IslandWidthPreset.allCases) { preset in
+                            Text(preset.title).tag(preset)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Picker(localized("settings.dynamicIsland.height"), selection: $appSettings.dynamicIslandHeight) {
+                        ForEach(IslandHeightPreset.allCases) { preset in
+                            Text(preset.title).tag(preset)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            } label: {
+                Text(localized("settings.dynamicIsland.size.group"))
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
                     Picker("Pixel Animation", selection: $appSettings.dynamicIslandPixelAnimation) {
                         ForEach(IslandPixelAnimationStyle.allCases, id: \.self) { style in
                             Label(style.displayName, systemImage: style.iconName)
