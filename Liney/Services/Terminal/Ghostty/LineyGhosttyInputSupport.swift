@@ -89,6 +89,8 @@ enum LineyGhosttyTextInputCommandAction: Equatable {
     case cancelMarkedText
     case moveBackwardWord
     case moveForwardWord
+    case deleteWordBackward
+    case deleteWordForward
 
     static func resolve(selector: Selector, hasMarkedText: Bool) -> Self {
         switch selector {
@@ -100,6 +102,10 @@ enum LineyGhosttyTextInputCommandAction: Equatable {
             return .moveBackwardWord
         case #selector(NSResponder.moveWordRight(_:)):
             return .moveForwardWord
+        case #selector(NSResponder.deleteWordBackward(_:)):
+            return .deleteWordBackward
+        case #selector(NSResponder.deleteWordForward(_:)):
+            return .deleteWordForward
         case #selector(NSResponder.deleteBackward(_:)),
              #selector(NSResponder.deleteBackwardByDecomposingPreviousCharacter(_:)):
             return hasMarkedText ? .deleteBackwardInMarkedText : .none

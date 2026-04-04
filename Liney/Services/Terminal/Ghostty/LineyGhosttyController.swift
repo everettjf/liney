@@ -1108,6 +1108,32 @@ private final class LineyGhosttySurfaceView: NSView {
             guard backendConfiguration.kind == .ssh else { break }
             handledTextInputCommand = true
             sendSSHWordNavigation("\u{1B}f")
+        case .deleteWordBackward:
+            handledTextInputCommand = true
+            if hasMarkedText() {
+                unmarkText()
+            }
+            if let event = NSApp.currentEvent, let surface {
+                sendRawKeyEvent(
+                    event,
+                    on: surface,
+                    translationEvent: event,
+                    translationMods: event.modifierFlags
+                )
+            }
+        case .deleteWordForward:
+            handledTextInputCommand = true
+            if hasMarkedText() {
+                unmarkText()
+            }
+            if let event = NSApp.currentEvent, let surface {
+                sendRawKeyEvent(
+                    event,
+                    on: surface,
+                    translationEvent: event,
+                    translationMods: event.modifierFlags
+                )
+            }
         case .deleteBackwardInMarkedText:
             handledTextInputCommand = true
             deleteBackwardInMarkedText()
