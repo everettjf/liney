@@ -820,6 +820,7 @@ final class WorkspaceStore: ObservableObject {
             dynamicIslandPixelAnimation: settings.dynamicIslandPixelAnimation,
             dynamicIslandWidth: settings.dynamicIslandWidth,
             dynamicIslandHeight: settings.dynamicIslandHeight,
+            showHAPIToolbarButton: settings.showHAPIToolbarButton,
             showArchivedWorkspaces: settings.showArchivedWorkspaces,
             uiScale: settings.uiScale,
             terminalFontFamily: settings.terminalFontFamily,

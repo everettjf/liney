@@ -261,6 +261,10 @@ struct MainWindowView: View {
                     }
                     )
 
+                    if let hapiInstallation = availableHAPIInstallation, store.appSettings.showHAPIToolbarButton {
+                        hapiToolbarControl(using: hapiInstallation)
+                    }
+
                     ToolbarSegmentedControl(
                     backgroundColor: LineyTheme.chromeBackground.opacity(0.96),
                     borderColor: LineyTheme.border,
@@ -319,9 +323,6 @@ struct MainWindowView: View {
                         }
                     )
 
-                    if let hapiInstallation = availableHAPIInstallation {
-                        hapiToolbarControl(using: hapiInstallation)
-                    }
                 }
                 .scaleEffect(uiScale)
                 Button {

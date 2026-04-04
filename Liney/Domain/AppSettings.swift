@@ -319,6 +319,7 @@ struct AppSettings: Codable, Hashable {
     var dynamicIslandPixelAnimation: IslandPixelAnimationStyle
     var dynamicIslandWidth: IslandWidthPreset
     var dynamicIslandHeight: IslandHeightPreset
+    var showHAPIToolbarButton: Bool
     var showArchivedWorkspaces: Bool
     var uiScale: Double
     var terminalFontFamily: String?
@@ -362,6 +363,7 @@ struct AppSettings: Codable, Hashable {
         dynamicIslandPixelAnimation: IslandPixelAnimationStyle = .random,
         dynamicIslandWidth: IslandWidthPreset = .standard,
         dynamicIslandHeight: IslandHeightPreset = .notch,
+        showHAPIToolbarButton: Bool = true,
         showArchivedWorkspaces: Bool = false,
         uiScale: Double = 1,
         terminalFontFamily: String? = nil,
@@ -408,6 +410,7 @@ struct AppSettings: Codable, Hashable {
         self.dynamicIslandPixelAnimation = dynamicIslandPixelAnimation
         self.dynamicIslandWidth = dynamicIslandWidth
         self.dynamicIslandHeight = dynamicIslandHeight
+        self.showHAPIToolbarButton = showHAPIToolbarButton
         self.showArchivedWorkspaces = showArchivedWorkspaces
         self.uiScale = min(max(uiScale, 0.85), 1.5)
         self.terminalFontFamily = terminalFontFamily?
@@ -473,6 +476,7 @@ extension AppSettings {
         case dynamicIslandPixelAnimation
         case dynamicIslandWidth
         case dynamicIslandHeight
+        case showHAPIToolbarButton
         case showArchivedWorkspaces
         case uiScale
         case terminalFontFamily
@@ -527,6 +531,7 @@ extension AppSettings {
             dynamicIslandPixelAnimation: try container.decodeIfPresent(IslandPixelAnimationStyle.self, forKey: .dynamicIslandPixelAnimation) ?? .random,
             dynamicIslandWidth: try container.decodeIfPresent(IslandWidthPreset.self, forKey: .dynamicIslandWidth) ?? .standard,
             dynamicIslandHeight: try container.decodeIfPresent(IslandHeightPreset.self, forKey: .dynamicIslandHeight) ?? .notch,
+            showHAPIToolbarButton: try container.decodeIfPresent(Bool.self, forKey: .showHAPIToolbarButton) ?? true,
             showArchivedWorkspaces: try container.decodeIfPresent(Bool.self, forKey: .showArchivedWorkspaces) ?? false,
             uiScale: try container.decodeIfPresent(Double.self, forKey: .uiScale) ?? 1,
             terminalFontFamily: try container.decodeIfPresent(String.self, forKey: .terminalFontFamily),
