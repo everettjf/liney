@@ -207,31 +207,26 @@ struct MainWindowView: View {
                     leadingAction: { anchorView in
                         present(menu: makeQuickCommandMenu(), from: anchorView)
                     },
-                    trailingAction: { _ in
-                        store.presentQuickCommandEditor()
+                    trailingAction: { anchorView in
+                        present(menu: makeQuickCommandMenu(), from: anchorView)
                     },
                     isLeadingDisabled: false,
                     isTrailingDisabled: false,
-                    leadingAccessibilityLabel: localized("main.toolbar.insertQuickCommand"),
-                    leadingHelp: hasSelectedSession
-                        ? localized("main.toolbar.insertQuickCommandFocusedTerminal")
-                        : localized("main.toolbar.chooseQuickCommand"),
-                    trailingAccessibilityLabel: localized("main.toolbar.editQuickCommands"),
-                    trailingHelp: localized("main.toolbar.editQuickCommands"),
+                    leadingAccessibilityLabel: localized("main.toolbar.chooseQuickCommand"),
+                    leadingHelp: localized("main.toolbar.chooseQuickCommand"),
+                    trailingAccessibilityLabel: localized("main.toolbar.chooseQuickCommand"),
+                    trailingHelp: localized("main.toolbar.chooseQuickCommand"),
                     leadingContent: {
                         HStack(spacing: 6) {
                             ToolbarFeatureIcon(
                                 systemName: "chevron.left.slash.chevron.right",
                                 tint: LineyTheme.accent
                             )
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(LineyTheme.secondaryText)
                         }
                     },
                     trailingContent: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 11, weight: .semibold))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(LineyTheme.secondaryText)
                     }
                     )
