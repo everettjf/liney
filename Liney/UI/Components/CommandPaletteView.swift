@@ -223,6 +223,10 @@ private struct CommandPaletteEventMonitor: NSViewRepresentable {
                     self.store.moveCommandPaletteSelection(delta: -1)
                     return nil
                 case 36, 76:
+                    // Don't intercept Return key when IME is composing text
+                    if event.modifierFlags.contains(.imes) {
+                        return event
+                    }
                     self.store.activateSelectedCommandPaletteItem()
                     return nil
                 case 53:
