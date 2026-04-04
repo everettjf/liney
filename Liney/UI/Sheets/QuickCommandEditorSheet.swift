@@ -285,12 +285,16 @@ struct QuickCommandEditorSheet: View {
         HStack {
             Spacer()
 
-            Button(localized("common.cancel")) {
+            Button {
                 requestDismiss()
+            } label: {
+                Label(localized("common.cancel"), systemImage: "xmark")
             }
 
-            Button(localized("common.save")) {
+            Button {
                 saveAndDismiss()
+            } label: {
+                Label(localized("common.save"), systemImage: "checkmark")
             }
             .buttonStyle(.borderedProminent)
         }
@@ -1160,14 +1164,18 @@ private struct QuickCommandLibrarySheet: View {
 
                     Spacer()
 
-                    Button(localized("common.cancel")) {
+                    Button {
                         dismiss()
+                    } label: {
+                        Label(localized("common.cancel"), systemImage: "xmark")
                     }
 
-                    Button(localized("sheet.quickCommands.libraryImport")) {
+                    Button {
                         let selectedTemplates = QuickCommandCatalog.predefinedCommands.filter { selectedCommandIDs.contains($0.id) }
                         onImport(selectedTemplates)
                         dismiss()
+                    } label: {
+                        Label(localized("sheet.quickCommands.libraryImport"), systemImage: "arrow.down.circle")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(selectedCommandIDs.isEmpty)
@@ -1434,13 +1442,17 @@ private struct QuickCommandCategoryManagerSheet: View {
             HStack {
                 Spacer()
 
-                Button(localized("common.cancel")) {
+                Button {
                     dismiss()
+                } label: {
+                    Label(localized("common.cancel"), systemImage: "xmark")
                 }
 
-                Button(localized("common.save")) {
+                Button {
                     onSave(QuickCommandCatalog.normalizedCategories(categories), commands)
                     dismiss()
+                } label: {
+                    Label(localized("common.save"), systemImage: "checkmark")
                 }
                 .buttonStyle(.borderedProminent)
             }

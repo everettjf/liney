@@ -146,13 +146,17 @@ struct CreateWorktreeSheet: View {
 
             HStack {
                 Spacer()
-                Button(localized("common.cancel")) {
+                Button {
                     dismiss()
+                } label: {
+                    Label(localized("common.cancel"), systemImage: "xmark")
                 }
-                Button(localized("common.create")) {
+                Button {
                     if onSubmit(draft) {
                         dismiss()
                     }
+                } label: {
+                    Label(localized("common.create"), systemImage: "plus")
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(validationMessage != nil)

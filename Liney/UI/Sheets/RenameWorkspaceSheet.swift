@@ -135,12 +135,16 @@ struct RenameWorkspaceSheet: View {
 
             HStack {
                 Spacer()
-                Button(localized("common.cancel")) {
+                Button {
                     dismiss()
+                } label: {
+                    Label(localized("common.cancel"), systemImage: "xmark")
                 }
-                Button(localized("common.save")) {
+                Button {
                     onSubmit(name)
                     dismiss()
+                } label: {
+                    Label(localized("common.save"), systemImage: "checkmark")
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

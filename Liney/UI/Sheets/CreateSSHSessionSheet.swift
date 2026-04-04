@@ -141,12 +141,16 @@ struct CreateSSHSessionSheet: View {
 
             HStack {
                 Spacer()
-                Button(localized("common.cancel")) {
+                Button {
                     dismiss()
+                } label: {
+                    Label(localized("common.cancel"), systemImage: "xmark")
                 }
-                Button(localized("sheet.ssh.create")) {
+                Button {
                     onCreate(draft)
                     dismiss()
+                } label: {
+                    Label(localized("sheet.ssh.create"), systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canCreate)

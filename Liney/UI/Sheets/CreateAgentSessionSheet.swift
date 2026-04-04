@@ -80,12 +80,16 @@ struct CreateAgentSessionSheet: View {
 
             HStack {
                 Spacer()
-                Button(localized("common.cancel")) {
+                Button {
                     dismiss()
+                } label: {
+                    Label(localized("common.cancel"), systemImage: "xmark")
                 }
-                Button(localized("sheet.agent.create")) {
+                Button {
                     onCreate(draft)
                     dismiss()
+                } label: {
+                    Label(localized("sheet.agent.create"), systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(draft.configuration == nil)

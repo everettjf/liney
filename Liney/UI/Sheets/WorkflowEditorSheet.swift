@@ -59,8 +59,10 @@ struct WorkflowEditorSheet: View {
                 // Footer
                 HStack {
                     Spacer()
-                    Button(localized("sheet.workflowEditor.done")) {
+                    Button {
                         dismiss()
+                    } label: {
+                        Label(localized("sheet.workflowEditor.done"), systemImage: "checkmark")
                     }
                     .keyboardShortcut(.defaultAction)
                 }

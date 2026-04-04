@@ -339,12 +339,16 @@ struct SettingsSheet: View {
 
                 HStack {
                     Spacer()
-                    Button(localized("settings.button.cancel")) {
+                    Button {
                         LocalizationManager.shared.updateSelectedLanguage(originalAppLanguage)
                         dismiss()
+                    } label: {
+                        Label(localized("settings.button.cancel"), systemImage: "xmark")
                     }
-                    Button(localized("settings.button.save")) {
+                    Button {
                         save()
+                    } label: {
+                        Label(localized("settings.button.save"), systemImage: "checkmark")
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -1807,17 +1811,23 @@ struct SidebarIconCustomizationSheet: View {
             HStack {
                 Spacer()
                 if resetSupported {
-                    Button(localized("settings.sidebarIconCustomization.reset")) {
+                    Button {
                         store.resetSidebarIcon(for: request.target)
                         dismiss()
+                    } label: {
+                        Label(localized("settings.sidebarIconCustomization.reset"), systemImage: "arrow.counterclockwise")
                     }
                 }
-                Button(localized("settings.button.cancel")) {
+                Button {
                     dismiss()
+                } label: {
+                    Label(localized("settings.button.cancel"), systemImage: "xmark")
                 }
-                Button(localized("settings.button.save")) {
+                Button {
                     store.updateSidebarIcon(icon, for: request.target)
                     dismiss()
+                } label: {
+                    Label(localized("settings.button.save"), systemImage: "checkmark")
                 }
                 .buttonStyle(.borderedProminent)
             }

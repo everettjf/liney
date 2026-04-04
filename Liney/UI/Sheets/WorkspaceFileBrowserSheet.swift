@@ -104,8 +104,10 @@ struct WorkspaceFileBrowserSheet: View {
                             .textSelection(.enabled)
                     }
                     Spacer()
-                    Button(localized("common.ok")) {
+                    Button {
                         dismiss()
+                    } label: {
+                        Label(localized("common.ok"), systemImage: "checkmark")
                     }
                 }
 
@@ -133,23 +135,31 @@ struct WorkspaceFileBrowserSheet: View {
                     previewView(for: entry)
 
                     HStack {
-                        Button(localized("sheet.fileBrowser.reveal")) {
+                        Button {
                             store.openInFinder(path: entry.path)
+                        } label: {
+                            Label(localized("sheet.fileBrowser.reveal"), systemImage: "folder")
                         }
-                        Button(localized("sheet.fileBrowser.openExternal")) {
+                        Button {
                             store.openWorkspaceFileInExternalEditor(entry.path)
+                        } label: {
+                            Label(localized("sheet.fileBrowser.openExternal"), systemImage: "arrow.up.forward.square")
                         }
                         Spacer()
                         if case .text = previewState {
-                            Button(localized("sheet.fileBrowser.revert")) {
+                            Button {
                                 editableContents = lastLoadedContents
+                            } label: {
+                                Label(localized("sheet.fileBrowser.revert"), systemImage: "arrow.counterclockwise")
                             }
                             .disabled(!hasUnsavedChanges)
 
-                            Button(localized("common.save")) {
+                            Button {
                                 store.saveWorkspaceFileBrowserText(contents: editableContents, to: entry.path)
                                 lastLoadedContents = editableContents
                                 previewState = .text(editableContents)
+                            } label: {
+                                Label(localized("common.save"), systemImage: "checkmark")
                             }
                             .disabled(!hasUnsavedChanges)
                         }
