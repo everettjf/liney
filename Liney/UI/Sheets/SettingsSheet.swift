@@ -605,6 +605,24 @@ struct SettingsSheet: View {
                     Text(localized("settings.general.terminal.fontSizeHint"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
+
+                    Divider()
+
+                    Toggle(localized("settings.general.terminal.useCustomScrollback"), isOn: terminalScrollbackEnabledBinding)
+
+                    HStack {
+                        Text(localized("settings.general.terminal.scrollbackLines"))
+                        Spacer()
+                        Text(localizedFormat("settings.general.terminal.scrollbackLinesValue", appSettings.terminalScrollbackLines ?? 10000))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Slider(value: terminalScrollbackBinding, in: 1000...100_000, step: 1000)
+                        .disabled(appSettings.terminalScrollbackLines == nil)
+
+                    Text(localized("settings.general.terminal.scrollbackHint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
                 .padding(.top, 8)
             }
@@ -1249,6 +1267,26 @@ struct SettingsSheet: View {
         Binding(
             get: { appSettings.terminalFontSize ?? 13 },
             set: { appSettings.terminalFontSize = min(max($0, 10), 24) }
+        )
+    }
+
+    private var terminalScrollbackEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { appSettings.terminalScrollbackLines != nil },
+            set: { enabled in
+                if enabled {
+                    appSettings.terminalScrollbackLines = appSettings.terminalScrollbackLines ?? 10000
+                } else {
+                    appSettings.terminalScrollbackLines = nil
+                }
+            }
+        )
+    }
+
+    private var terminalScrollbackBinding: Binding<Double> {
+        Binding(
+            get: { Double(appSettings.terminalScrollbackLines ?? 10000) },
+            set: { appSettings.terminalScrollbackLines = Int(min(max($0, 1000), 100_000)) }
         )
     }
 }

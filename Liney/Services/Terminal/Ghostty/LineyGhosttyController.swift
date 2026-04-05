@@ -80,6 +80,10 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         _ = terminalView.performBindingAction("end_search")
     }
 
+    func selectedText() -> String? {
+        terminalView.currentSelectionText()
+    }
+
     func toggleReadOnly() {
         focus()
         _ = terminalView.performBindingAction("toggle_readonly")
@@ -1159,7 +1163,11 @@ private final class LineyGhosttySurfaceView: NSView {
     }
 
     @IBAction func find(_ sender: Any?) {
-        _ = performBindingAction("start_search")
+        if let selected = currentSelectionText(), !selected.isEmpty {
+            _ = performBindingAction(lineyGhosttySearchBindingAction(for: selected))
+        } else {
+            _ = performBindingAction("start_search")
+        }
     }
 
     @IBAction func findNext(_ sender: Any?) {
@@ -1230,7 +1238,7 @@ private final class LineyGhosttySurfaceView: NSView {
     }
 
     func writeSelection(to pboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> Bool {
-        guard let selection = selectionText() else { return false }
+        guard let selection = currentSelectionText() else { return false }
         pboard.clearContents()
         pboard.declareTypes([.string], owner: nil)
         pboard.setString(selection, forType: .string)
@@ -1562,7 +1570,7 @@ private final class LineyGhosttySurfaceView: NSView {
         }
     }
 
-    private func selectionText() -> String? {
+    func currentSelectionText() -> String? {
         guard let surface else { return nil }
         var text = ghostty_text_s()
         guard ghostty_surface_read_selection(surface, &text) else { return nil }
@@ -1778,7 +1786,7 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
     }
 
     func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
-        guard range.length > 0, let selection = selectionText() else { return nil }
+        guard range.length > 0, let selection = currentSelectionText() else { return nil }
         actualRange?.pointee = NSRange(location: 0, length: selection.count)
         return NSAttributedString(string: selection)
     }

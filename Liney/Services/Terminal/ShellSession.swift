@@ -270,8 +270,14 @@ final class ShellSession: ObservableObject, Identifiable {
         sendShellCommand("clear")
     }
 
+    func selectedText() -> String? {
+        surfaceController.selectedText()
+    }
+
     func beginSearch() {
-        surfaceController.beginSearch(initialText: surfaceStatus.searchQuery)
+        let initialText = surfaceController.selectedText()
+            ?? surfaceStatus.searchQuery
+        surfaceController.beginSearch(initialText: initialText)
     }
 
     func updateSearch(_ text: String) {

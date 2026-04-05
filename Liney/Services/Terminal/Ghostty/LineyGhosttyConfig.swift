@@ -54,6 +54,10 @@ enum LineyGhosttyConfigManager {
             lines.append("font-size = \(Int(terminalFontSize.rounded()))")
         }
 
+        if let scrollbackLines = settings.terminalScrollbackLines {
+            lines.append("scrollback-limit = \(scrollbackLines)")
+        }
+
         return lines.joined(separator: "\n") + "\n"
     }
 

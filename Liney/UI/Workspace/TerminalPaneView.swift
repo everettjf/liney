@@ -257,7 +257,10 @@ struct TerminalPaneView: View {
 
     private func presentSearch() {
         isSearchPresented = true
-        if searchDraft.isEmpty {
+        let selected = session.selectedText()
+        if let selected, !selected.isEmpty {
+            searchDraft = selected
+        } else if searchDraft.isEmpty {
             searchDraft = session.surfaceStatus.searchQuery ?? ""
         }
         session.beginSearch()

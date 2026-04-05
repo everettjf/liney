@@ -544,6 +544,7 @@ private final class FakeManagedTerminalSurfaceController: ManagedTerminalSession
     func searchNext() {}
     func searchPrevious() {}
     func endSearch() {}
+    func selectedText() -> String? { nil }
     func toggleReadOnly() {}
 
     func emitProcessExit(_ exitCode: Int32?) {

@@ -47,6 +47,7 @@ protocol TerminalSurfaceController: AnyObject {
     func searchNext()
     func searchPrevious()
     func endSearch()
+    func selectedText() -> String?
     func toggleReadOnly()
 }
 
@@ -116,6 +117,8 @@ private final class LineyTestManagedTerminalSurfaceController: ManagedTerminalSe
     func searchPrevious() {}
 
     func endSearch() {}
+
+    func selectedText() -> String? { nil }
 
     func toggleReadOnly() {}
 

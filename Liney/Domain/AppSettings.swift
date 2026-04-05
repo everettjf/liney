@@ -324,6 +324,7 @@ struct AppSettings: Codable, Hashable {
     var uiScale: Double
     var terminalFontFamily: String?
     var terminalFontSize: Double?
+    var terminalScrollbackLines: Int?
     var sidebarShowsSecondaryLabels: Bool
     var sidebarShowsWorkspaceBadges: Bool
     var sidebarShowsWorktreeBadges: Bool
@@ -368,6 +369,7 @@ struct AppSettings: Codable, Hashable {
         uiScale: Double = 1,
         terminalFontFamily: String? = nil,
         terminalFontSize: Double? = nil,
+        terminalScrollbackLines: Int? = nil,
         sidebarShowsSecondaryLabels: Bool = true,
         sidebarShowsWorkspaceBadges: Bool = true,
         sidebarShowsWorktreeBadges: Bool = true,
@@ -417,6 +419,7 @@ struct AppSettings: Codable, Hashable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
         self.terminalFontSize = terminalFontSize.map { min(max($0, 8), 32) }
+        self.terminalScrollbackLines = terminalScrollbackLines.map { min(max($0, 1000), 1_000_000) }
         self.sidebarShowsSecondaryLabels = sidebarShowsSecondaryLabels
         self.sidebarShowsWorkspaceBadges = sidebarShowsWorkspaceBadges
         self.sidebarShowsWorktreeBadges = sidebarShowsWorktreeBadges
@@ -481,6 +484,7 @@ extension AppSettings {
         case uiScale
         case terminalFontFamily
         case terminalFontSize
+        case terminalScrollbackLines
         case sidebarShowsSecondaryLabels
         case sidebarShowsWorkspaceBadges
         case sidebarShowsWorktreeBadges
@@ -536,6 +540,7 @@ extension AppSettings {
             uiScale: try container.decodeIfPresent(Double.self, forKey: .uiScale) ?? 1,
             terminalFontFamily: try container.decodeIfPresent(String.self, forKey: .terminalFontFamily),
             terminalFontSize: try container.decodeIfPresent(Double.self, forKey: .terminalFontSize),
+            terminalScrollbackLines: try container.decodeIfPresent(Int.self, forKey: .terminalScrollbackLines),
             sidebarShowsSecondaryLabels: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsSecondaryLabels) ?? true,
             sidebarShowsWorkspaceBadges: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsWorkspaceBadges) ?? true,
             sidebarShowsWorktreeBadges: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsWorktreeBadges) ?? true,
