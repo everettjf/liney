@@ -531,6 +531,22 @@ struct SettingsSheet: View {
         HStack(alignment: .top, spacing: 20) {
             GroupBox(localized("settings.general.terminal.group")) {
                 VStack(alignment: .leading, spacing: 14) {
+                    Toggle(localized("settings.general.terminal.useCustomTheme"), isOn: terminalThemeEnabledBinding)
+
+                    if appSettings.terminalTheme != nil {
+                        TextField(
+                            localized("settings.general.terminal.themeName"),
+                            text: terminalThemeBinding
+                        )
+                        .textFieldStyle(.roundedBorder)
+
+                        Text(localized("settings.general.terminal.themeHint"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Divider()
+
                     Toggle(localized("settings.general.terminal.useCustomFont"), isOn: terminalFontFamilyEnabledBinding)
 
                     if appSettings.terminalFontFamily != nil {
@@ -1203,6 +1219,26 @@ struct SettingsSheet: View {
                 guard let newShortcut else { return }
                 appSettings.hotKeyWindowShortcut = newShortcut
             }
+        )
+    }
+
+    private var terminalThemeEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { appSettings.terminalTheme != nil },
+            set: { enabled in
+                if enabled {
+                    appSettings.terminalTheme = appSettings.terminalTheme ?? ""
+                } else {
+                    appSettings.terminalTheme = nil
+                }
+            }
+        )
+    }
+
+    private var terminalThemeBinding: Binding<String> {
+        Binding(
+            get: { appSettings.terminalTheme ?? "" },
+            set: { appSettings.terminalTheme = $0 }
         )
     }
 
