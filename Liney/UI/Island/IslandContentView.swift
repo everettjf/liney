@@ -19,6 +19,7 @@ struct IslandContentView: View {
             } else {
                 IslandCollapsedView(
                     state: state,
+                    notchWidth: controller.notchWidth,
                     pixelAnimationStyle: controller.workspaceStore?.appSettings.dynamicIslandPixelAnimation ?? .random
                 )
                     .transition(.opacity)

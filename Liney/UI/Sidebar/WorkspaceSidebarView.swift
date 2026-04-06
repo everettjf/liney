@@ -267,6 +267,15 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
                 }
             }
 
+            // Append fixed archive group at the bottom
+            let archivedWorkspaces = store?.archivedWorkspaces ?? []
+            if !archivedWorkspaces.isEmpty {
+                let archiveChildren = archivedWorkspaces.compactMap { makeWorkspaceNode($0) }
+                if !archiveChildren.isEmpty {
+                    result.append(.archiveGroup(children: archiveChildren))
+                }
+            }
+
             return result
         }
 
@@ -319,6 +328,12 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
                         } else {
                             outlineView.collapseItem(child)
                         }
+                    }
+                case .archiveGroup:
+                    if store?.appSettings.showArchivedWorkspaces == true {
+                        outlineView.expandItem(node)
+                    } else {
+                        outlineView.collapseItem(node)
                     }
                 case .workspace:
                     if node.workspace?.isSidebarExpanded == true {
@@ -404,6 +419,8 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
                 switch node.kind {
                 case .group(let group):
                     return makeGroupMenu(group: group)
+                case .archiveGroup:
+                    return nil
                 case .workspace(let workspace):
                     return makeWorkspaceMenu(workspace: workspace)
                 case .branch:
@@ -1017,7 +1034,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
 
         private func performDefaultAction(for node: SidebarNodeItem, modifierFlags: NSEvent.ModifierFlags) {
             switch node.kind {
-            case .group:
+            case .group, .archiveGroup:
                 guard let outlineView = container?.outlineView else { return }
                 if outlineView.isItemExpanded(node) {
                     outlineView.collapseItem(node)
@@ -1091,7 +1108,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
         func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
             guard let node = item as? SidebarNodeItem else { return 48 }
             switch node.kind {
-            case .group:
+            case .group, .archiveGroup:
                 return 32
             case .workspace:
                 return 36
@@ -1115,7 +1132,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             guard nodes.count == 1, let node = nodes.first else { return }
 
             switch node.kind {
-            case .group:
+            case .group, .archiveGroup:
                 pinnedSelectionNodeID = node.id
                 suppressSelectionSync = true
                 isUserDrivenSelection = true
@@ -1143,6 +1160,10 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             switch node.kind {
             case .group(let group):
                 store?.setWorkspaceGroupExpanded(group.id, isExpanded: true)
+            case .archiveGroup:
+                if store?.appSettings.showArchivedWorkspaces != true {
+                    store?.dispatch(.toggleShowArchived)
+                }
             case .workspace(let workspace):
                 if !workspace.isSidebarExpanded {
                     workspace.isSidebarExpanded = true
@@ -1160,6 +1181,10 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             switch node.kind {
             case .group(let group):
                 store?.setWorkspaceGroupExpanded(group.id, isExpanded: false)
+            case .archiveGroup:
+                if store?.appSettings.showArchivedWorkspaces != false {
+                    store?.dispatch(.toggleShowArchived)
+                }
             case .workspace(let workspace):
                 if workspace.isSidebarExpanded {
                     workspace.isSidebarExpanded = false
@@ -1222,7 +1247,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             }
 
             // Workspace drag
-            if let node = item as? SidebarNodeItem, node.isGroupNode {
+            if let node = item as? SidebarNodeItem, (node.isGroupNode || node.isArchiveGroupNode) {
                 return .move
             }
             if item == nil { return .move }
@@ -1280,12 +1305,20 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
                 .compactMap { UUID(uuidString: String($0)) }
             guard !ids.isEmpty else { return false }
 
+            if let node = item as? SidebarNodeItem, node.isArchiveGroupNode {
+                store?.setWorkspacesArchived(ids, archived: true)
+                return true
+            }
+
             if let node = item as? SidebarNodeItem, let group = node.groupModel {
+                // Unarchive if needed before moving into a group
+                store?.setWorkspacesArchived(ids, archived: false)
                 store?.moveWorkspacesIntoGroup(ids: ids, groupID: group.id, atIndex: index == -1 ? group.workspaceIDs.count : index)
                 return true
             }
 
-            // Moving workspace(s) to root level
+            // Moving workspace(s) to root level — unarchive if needed
+            store?.setWorkspacesArchived(ids, archived: false)
             store?.removeWorkspacesFromAllGroups(ids: ids)
             let rootOrder = store?.effectiveSidebarRootOrder() ?? []
             let targetIndex = index == -1 ? rootOrder.count : index
@@ -1562,6 +1595,8 @@ private struct SidebarNodeRow: View {
         switch node.kind {
         case .group(let group):
             GroupRowContent(group: group, childCount: node.children.count, store: store, isSelected: isSelected)
+        case .archiveGroup:
+            ArchiveGroupRowContent(childCount: node.children.count, store: store)
         case .workspace(let workspace):
             WorkspaceRowContent(workspace: workspace, store: store, isSelected: isSelected)
         case .branch:
@@ -1626,6 +1661,46 @@ private struct GroupRowContent: View {
         )
         .onHover { isInside in
             isHovering = isInside
+        }
+    }
+}
+
+private struct ArchiveGroupRowContent: View {
+    let childCount: Int
+    let store: WorkspaceStore?
+
+    private var uiScale: CGFloat {
+        CGFloat(store?.appSettings.uiScale ?? 1)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6 * uiScale) {
+                Image(systemName: "archivebox.fill")
+                    .font(.system(size: 10 * uiScale, weight: .bold))
+                    .foregroundStyle(LineyTheme.mutedText.opacity(0.6))
+
+                Text(LocalizationManager.shared.string("sidebar.archiveGroup.title"))
+                    .font(.system(size: 11 * uiScale, weight: .bold, design: .rounded))
+                    .foregroundStyle(LineyTheme.mutedText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                Spacer(minLength: 4)
+
+                Text("\(childCount)")
+                    .font(.system(size: 9 * uiScale, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(LineyTheme.mutedText.opacity(0.7))
+            }
+            .padding(.vertical, 4 * uiScale)
+            .padding(.leading, 2 * uiScale)
+            .padding(.trailing, 8 * uiScale)
+
+            Rectangle()
+                .fill(LineyTheme.border.opacity(0.5))
+                .frame(height: 0.5)
+                .padding(.leading, 2 * uiScale)
+                .padding(.trailing, 8 * uiScale)
         }
     }
 }
@@ -2457,6 +2532,7 @@ private struct SidebarActionMoveToGroup {
 private final class SidebarNodeItem: NSObject {
     enum Kind {
         case group(WorkspaceGroup)
+        case archiveGroup
         case workspace(WorkspaceModel)
         case branch(workspace: WorkspaceModel, label: String, worktrees: [WorktreeModel])
         case worktree(workspace: WorkspaceModel, worktree: WorktreeModel)
@@ -2470,6 +2546,14 @@ private final class SidebarNodeItem: NSObject {
         SidebarNodeItem(
             id: "group:\(group.id.uuidString)",
             kind: .group(group),
+            children: children
+        )
+    }
+
+    static func archiveGroup(children: [SidebarNodeItem]) -> SidebarNodeItem {
+        SidebarNodeItem(
+            id: "archiveGroup",
+            kind: .archiveGroup,
             children: children
         )
     }
@@ -2514,6 +2598,11 @@ private final class SidebarNodeItem: NSObject {
         return false
     }
 
+    var isArchiveGroupNode: Bool {
+        if case .archiveGroup = kind { return true }
+        return false
+    }
+
     var isWorkspaceNode: Bool {
         if case .workspace = kind {
             return true
@@ -2528,7 +2617,7 @@ private final class SidebarNodeItem: NSObject {
 
     var workspace: WorkspaceModel? {
         switch kind {
-        case .group:
+        case .group, .archiveGroup:
             return nil
         case .workspace(let workspace):
             return workspace
@@ -2546,7 +2635,7 @@ private final class SidebarNodeItem: NSObject {
 
     var path: String? {
         switch kind {
-        case .group:
+        case .group, .archiveGroup:
             return nil
         case .workspace(let workspace):
             return workspace.activeWorktreePath
@@ -2559,7 +2648,7 @@ private final class SidebarNodeItem: NSObject {
 
     var representedWorktrees: [WorktreeModel] {
         switch kind {
-        case .group:
+        case .group, .archiveGroup:
             return []
         case .workspace:
             return []

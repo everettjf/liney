@@ -61,6 +61,9 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
 
     private var hasNotch: Bool { notchSize.height > 0 }
 
+    /// The width of the physical notch on the current screen, or 0 if no notch.
+    var notchWidth: CGFloat { notchSize.width }
+
     /// Collapsed height from preset, or match notch height when present.
     private var collapsedHeight: CGFloat {
         let presetHeight = heightPreset.collapsedHeight

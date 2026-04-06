@@ -46,6 +46,10 @@ enum LineyGhosttyConfigManager {
             "# Managed by Liney. Manual edits will be overwritten."
         ]
 
+        if let terminalTheme = settings.terminalTheme {
+            lines.append("theme = \(terminalTheme)")
+        }
+
         if let terminalFontFamily = settings.terminalFontFamily {
             lines.append("font-family = \(quotedValue(terminalFontFamily))")
         }

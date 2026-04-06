@@ -111,13 +111,19 @@ final class WorkspaceStore: ObservableObject {
     }
 
     var sidebarWorkspaces: [WorkspaceModel] {
-        let visible = workspaces.filter { appSettings.showArchivedWorkspaces || !$0.isArchived }
+        let visible = workspaces.filter { !$0.isArchived }
         return visible.enumerated().sorted { lhs, rhs in
             if lhs.element.isPinned != rhs.element.isPinned {
                 return lhs.element.isPinned && !rhs.element.isPinned
             }
             return lhs.offset < rhs.offset
         }.map(\.element)
+    }
+
+    var archivedWorkspaces: [WorkspaceModel] {
+        workspaces
+            .filter { $0.isArchived }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     var availableExternalEditors: [ExternalEditorDescriptor] {
@@ -1339,6 +1345,23 @@ final class WorkspaceStore: ObservableObject {
         persistAppSettings()
     }
 
+    func setWorkspacesArchived(_ ids: [UUID], archived: Bool) {
+        for id in ids {
+            guard let workspace = workspace(for: id) else { continue }
+            let wasArchived = workspace.isArchived
+            workspace.isArchived = archived
+            if archived {
+                removeWorkspacesFromAllGroups(ids: [id])
+                if selectedWorkspaceID == id {
+                    selectedWorkspaceID = sidebarWorkspaces.first(where: { $0.id != id })?.id
+                }
+            } else if wasArchived {
+                workspace.bootstrapIfNeeded()
+            }
+        }
+        persist()
+    }
+
     func isWorkspaceGroupExpanded(_ groupID: UUID) -> Bool {
         appSettings.workspaceGroups.first(where: { $0.id == groupID })?.isExpanded ?? true
     }
@@ -1361,13 +1384,17 @@ final class WorkspaceStore: ObservableObject {
     }
 
     /// Returns the effective root ordering, merging `sidebarRootOrder` with any items not yet tracked.
+    /// Archived workspaces are excluded — they appear in the virtual archive group instead.
     func effectiveSidebarRootOrder() -> [SidebarRootItem] {
+        let archivedIDs = Set(workspaces.filter(\.isArchived).map(\.id))
         let groupIDs = Set(appSettings.workspaceGroups.map(\.id))
         let groupedWorkspaceIDs = Set(appSettings.workspaceGroups.flatMap(\.workspaceIDs))
-        let ungroupedWorkspaceIDs = workspaces.map(\.id).filter { !groupedWorkspaceIDs.contains($0) }
+        let ungroupedWorkspaceIDs = workspaces.map(\.id).filter {
+            !groupedWorkspaceIDs.contains($0) && !archivedIDs.contains($0)
+        }
         let ungroupedSet = Set(ungroupedWorkspaceIDs)
 
-        // Filter saved order to only items that still exist
+        // Filter saved order to only items that still exist (excluding archived)
         var seen = Set<UUID>()
         var result: [SidebarRootItem] = []
         for item in appSettings.sidebarRootOrder {
@@ -2346,9 +2373,16 @@ final class WorkspaceStore: ObservableObject {
 
         case .toggleWorkspaceArchived(let id):
             if let workspace = workspace(for: id) {
+                let wasArchived = workspace.isArchived
                 workspace.isArchived.toggle()
-                if workspace.isArchived, selectedWorkspaceID == id, !appSettings.showArchivedWorkspaces {
-                    selectedWorkspaceID = sidebarWorkspaces.first(where: { $0.id != id })?.id
+                if workspace.isArchived {
+                    removeWorkspacesFromAllGroups(ids: [id])
+                    if selectedWorkspaceID == id {
+                        selectedWorkspaceID = sidebarWorkspaces.first(where: { $0.id != id })?.id
+                    }
+                }
+                if wasArchived, !workspace.isArchived {
+                    workspace.bootstrapIfNeeded()
                 }
                 persist()
             }

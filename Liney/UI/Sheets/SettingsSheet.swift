@@ -223,6 +223,95 @@ private enum LineyTerminalFontCatalog {
     }
 }
 
+enum LineyGhosttyThemeCatalog {
+    static let defaultVisibleCount = 50
+
+    private static let prioritizedThemes = [
+        "Catppuccin Mocha",
+        "Catppuccin Frappe",
+        "Catppuccin Macchiato",
+        "Catppuccin Latte",
+        "Dracula",
+        "Dracula+",
+        "TokyoNight",
+        "TokyoNight Storm",
+        "TokyoNight Day",
+        "Nord",
+        "Nord Light",
+        "Rose Pine",
+        "Rose Pine Moon",
+        "Rose Pine Dawn",
+        "Gruvbox Dark",
+        "Gruvbox Light",
+        "Kanagawa Wave",
+        "Kanagawa Dragon",
+        "Atom One Dark",
+        "Atom One Light",
+        "Everforest Dark Hard",
+        "Everforest Light Med",
+        "Monokai Pro",
+        "iTerm2 Solarized Dark",
+        "iTerm2 Solarized Light",
+        "Ayu",
+        "Ayu Light",
+        "Nightfox",
+    ]
+
+    static func availableThemes(limit: Int? = nil) -> [String] {
+        var seen = Set<String>()
+        var themes: [String] = []
+
+        for directory in themeSearchDirectories() {
+            guard let entries = try? FileManager.default.contentsOfDirectory(atPath: directory) else {
+                continue
+            }
+            for entry in entries {
+                let name = entry
+                guard !name.hasPrefix("."), seen.insert(name).inserted else { continue }
+                themes.append(name)
+            }
+        }
+
+        let sorted = themes.sorted { lhs, rhs in
+            let leftPriority = prioritizedThemes.firstIndex(of: lhs) ?? .max
+            let rightPriority = prioritizedThemes.firstIndex(of: rhs) ?? .max
+            if leftPriority != rightPriority {
+                return leftPriority < rightPriority
+            }
+            return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+        }
+
+        guard let limit else { return sorted }
+        return Array(sorted.prefix(limit))
+    }
+
+    static func themeSearchDirectories() -> [String] {
+        var directories: [String] = []
+
+        // User custom themes
+        let xdgConfig = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"]
+            ?? (NSHomeDirectory() + "/.config")
+        directories.append(xdgConfig + "/ghostty/themes")
+
+        // macOS Application Support config location
+        directories.append(NSHomeDirectory() + "/Library/Application Support/com.mitchellh.ghostty/themes")
+
+        // Ghostty.app bundled themes
+        let ghosttyAppPaths = [
+            "/Applications/Ghostty.app/Contents/Resources/ghostty/themes",
+            NSHomeDirectory() + "/Applications/Ghostty.app/Contents/Resources/ghostty/themes",
+        ]
+        directories.append(contentsOf: ghosttyAppPaths)
+
+        // Liney.app bundled themes
+        if let bundleResourcePath = Bundle.main.resourcePath {
+            directories.append(bundleResourcePath + "/ghostty/themes")
+        }
+
+        return directories
+    }
+}
+
 struct SettingsSheet: View {
     let request: WorkspaceSettingsRequest
 
@@ -233,6 +322,7 @@ struct SettingsSheet: View {
     @State private var selection: SettingsSheetSection = .general
     @State private var selectedWorkspaceID: UUID?
     @State private var terminalFontSearchText = ""
+    @State private var terminalThemeSearchText = ""
     @State private var workspaceSettings = WorkspaceSettings()
     @State private var localizationVersion = 0
     @State private var originalAppLanguage: AppLanguage = .automatic
@@ -254,6 +344,41 @@ struct SettingsSheet: View {
 
     private func localizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
         l10nFormat(localized(key), locale: Locale.current, arguments: arguments)
+    }
+
+    private var allTerminalThemes: [String] {
+        LineyGhosttyThemeCatalog.availableThemes(limit: nil)
+    }
+
+    private var terminalThemes: [String] {
+        let themes = LineyGhosttyThemeCatalog.availableThemes(
+            limit: LineyGhosttyThemeCatalog.defaultVisibleCount
+        )
+        guard let selected = appSettings.terminalTheme,
+              !selected.isEmpty,
+              !themes.contains(selected) else {
+            return themes
+        }
+        return [selected] + themes
+    }
+
+    private var filteredTerminalThemes: [String] {
+        let query = terminalThemeSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return terminalThemes }
+        let filtered = allTerminalThemes.filter { theme in
+            theme.localizedCaseInsensitiveContains(query)
+        }
+        guard let selected = appSettings.terminalTheme,
+              !selected.isEmpty,
+              !filtered.contains(selected) else {
+            return filtered
+        }
+        return [selected] + filtered
+    }
+
+    private var terminalThemeSummaryCount: Int {
+        let query = terminalThemeSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty ? min(allTerminalThemes.count, LineyGhosttyThemeCatalog.defaultVisibleCount) : filteredTerminalThemes.count
     }
 
     private var allTerminalFontFamilies: [String] {
@@ -531,6 +656,65 @@ struct SettingsSheet: View {
         HStack(alignment: .top, spacing: 20) {
             GroupBox(localized("settings.general.terminal.group")) {
                 VStack(alignment: .leading, spacing: 14) {
+                    Toggle(localized("settings.general.terminal.useCustomTheme"), isOn: terminalThemeEnabledBinding)
+
+                    if appSettings.terminalTheme != nil {
+                        TextField(
+                            localized("settings.general.terminal.themeName"),
+                            text: terminalThemeBinding
+                        )
+                        .textFieldStyle(.roundedBorder)
+
+                        if allTerminalThemes.isEmpty {
+                            Text(localized("settings.general.terminal.themeUnavailable"))
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            TextField(
+                                localized("settings.general.terminal.themeSearchPlaceholder"),
+                                text: $terminalThemeSearchText
+                            )
+                            .textFieldStyle(.roundedBorder)
+
+                            Text(
+                                localizedFormat(
+                                    "settings.general.terminal.availableThemesFormat",
+                                    terminalThemeSummaryCount,
+                                    allTerminalThemes.count
+                                )
+                            )
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 8) {
+                                    ForEach(filteredTerminalThemes, id: \.self) { theme in
+                                        TerminalThemeOptionRow(
+                                            name: theme,
+                                            isSelected: terminalThemeBinding.wrappedValue == theme
+                                        ) {
+                                            terminalThemeBinding.wrappedValue = theme
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                            .frame(height: 240)
+
+                            if filteredTerminalThemes.isEmpty {
+                                Text(localized("settings.general.terminal.noThemeSearchResults"))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Text(localized("settings.general.terminal.themeHint"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Divider()
+
                     Toggle(localized("settings.general.terminal.useCustomFont"), isOn: terminalFontFamilyEnabledBinding)
 
                     if appSettings.terminalFontFamily != nil {
@@ -1206,6 +1390,26 @@ struct SettingsSheet: View {
         )
     }
 
+    private var terminalThemeEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { appSettings.terminalTheme != nil },
+            set: { enabled in
+                if enabled {
+                    appSettings.terminalTheme = appSettings.terminalTheme ?? ""
+                } else {
+                    appSettings.terminalTheme = nil
+                }
+            }
+        )
+    }
+
+    private var terminalThemeBinding: Binding<String> {
+        Binding(
+            get: { appSettings.terminalTheme ?? "" },
+            set: { appSettings.terminalTheme = $0 }
+        )
+    }
+
     private var terminalFontFamilyEnabledBinding: Binding<Bool> {
         Binding(
             get: { appSettings.terminalFontFamily != nil },
@@ -1292,6 +1496,34 @@ private struct TerminalFontOptionRow: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(0.12) : LineyTheme.subtleFill)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct TerminalThemeOptionRow: View {
+    let name: String
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(name)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(isSelected ? Color.accentColor.opacity(0.12) : LineyTheme.subtleFill)

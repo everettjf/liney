@@ -257,6 +257,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
 
     func bootstrapIfNeeded() {
         ensureActiveWorktreeState()
+        guard !isArchived else { return }
         loadActiveWorktreeState()
     }
 
@@ -772,7 +773,9 @@ final class WorkspaceModel: ObservableObject, Identifiable {
             let initialPane = controller.createPane(defaultWorkingDirectory: activeWorktreePath)
             layout = .pane(PaneLeaf(paneID: initialPane))
         }
-        controller.sync(with: paneOrder, defaultWorkingDirectory: activeWorktreePath)
+        if !isArchived {
+            controller.sync(with: paneOrder, defaultWorkingDirectory: activeWorktreePath)
+        }
         wireWorkspaceActions()
         saveActiveWorktreeState()
     }
