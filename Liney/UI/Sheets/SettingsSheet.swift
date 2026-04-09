@@ -934,6 +934,7 @@ struct SettingsSheet: View {
                 },
                 localized: localized
             )
+            .id(appSettings.terminalTheme ?? "")
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }

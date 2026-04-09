@@ -229,10 +229,6 @@ struct GlobalCanvasView: View {
 
             HStack(spacing: 8) {
                 WorkspaceCanvasBadge(
-                    text: localizedFormat("canvas.header.workspaceCountFormat", workspaceFilters.count, workspaceFilters.count == 1 ? "" : "s"),
-                    tint: LineyTheme.accent
-                )
-                WorkspaceCanvasBadge(
                     text: isFiltering
                         ? localizedFormat("canvas.header.visibleLiveFormat", visibleCards.count, allCards.count)
                         : localizedFormat("canvas.header.liveTabsFormat", allCards.count, allCards.count == 1 ? "" : "s"),
@@ -246,17 +242,6 @@ struct GlobalCanvasView: View {
                     ),
                     tint: LineyTheme.success
                 )
-                if let activeCard = allCards.first(where: { $0.id == activeCardID }) {
-                    WorkspaceCanvasBadge(
-                        text: "\(activeCard.workspaceName) / \(activeCard.worktreeTitle)",
-                        tint: LineyTheme.warning
-                    )
-                }
-                WorkspaceCanvasBadge(
-                    text: localizedFormat("canvas.header.pinnedCountFormat", allCards.filter { layout(for: $0).isPinned }.count),
-                    tint: LineyTheme.tertiaryText
-                )
-                WorkspaceCanvasBadge(text: "\(Int(canvasScale * 100))%", tint: LineyTheme.tertiaryText)
             }
 
             HStack(spacing: 8) {
@@ -396,7 +381,9 @@ struct GlobalCanvasView: View {
             Button {
                 resetZoom()
             } label: {
-                Label(localized("canvas.resetZoom"), systemImage: "1.magnifyingglass")
+                Text("\(Int(canvasScale * 100))%")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .frame(minWidth: 36)
             }
             .buttonStyle(.bordered)
 
@@ -1066,7 +1053,7 @@ private struct GlobalCanvasCardView: View {
                     .onTapGesture(perform: onSelect)
             }
         }
-        .shadow(color: shadowColor, radius: card.isSelected ? 22 : 14, y: 10)
+        .shadow(color: shadowColor, radius: card.isSelected ? 16 : 8, y: 6)
     }
 
     private var titleBar: some View {
@@ -1112,10 +1099,6 @@ private struct GlobalCanvasCardView: View {
                 WorkspaceCanvasBadge(text: layout.colorGroup.title, tint: accentTint)
             }
 
-            WorkspaceCanvasBadge(
-                text: card.worktreeTitle,
-                tint: card.isSelected ? LineyTheme.warning : LineyTheme.secondaryText
-            )
             WorkspaceCanvasBadge(
                 text: localizedFormat("canvas.card.panesFormat", card.paneCount, card.paneCount == 1 ? "" : "s"),
                 tint: card.isSelected ? accentTint : LineyTheme.secondaryText
@@ -1215,25 +1198,12 @@ private struct GlobalCanvasCardView: View {
     private var inactiveOverlay: some View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
             .fill(Color.black.opacity(0.12))
-            .overlay(alignment: .bottomTrailing) {
-                Text(localized("canvas.card.clickToFocus"))
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(LineyTheme.secondaryText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(LineyTheme.chromeBackground.opacity(0.96), in: Capsule())
-                    .padding(12)
-            }
     }
 
-    private var cardBackground: LinearGradient {
-        LinearGradient(
-            colors: card.isSelected
-                ? [LineyTheme.panelRaised, accentTint.opacity(0.28)]
-                : [LineyTheme.panelBackground, accentTint.opacity(layout.colorGroup == .none ? 0.08 : 0.14)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+    private var cardBackground: Color {
+        card.isSelected
+            ? LineyTheme.panelRaised
+            : LineyTheme.panelBackground
     }
 
     private var cardBorder: Color {
@@ -1277,7 +1247,7 @@ private struct WorkspaceCanvasLiveNodeView: View {
 
     @ViewBuilder
     private func splitBody(_ split: PaneSplitNode, in size: CGSize) -> some View {
-        let dividerThickness: CGFloat = 6
+        let dividerThickness: CGFloat = 2
         let clampedFraction = min(max(split.fraction, 0.12), 0.88)
 
         if split.axis == .vertical {
@@ -1394,27 +1364,11 @@ private struct WorkspaceCanvasBadge: View {
 
 private struct GlobalCanvasBackdrop: View {
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                LinearGradient(
-                    colors: [LineyTheme.appBackground, LineyTheme.canvasBackground],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-
-                Circle()
-                    .fill(LineyTheme.backdropBlue)
-                    .frame(width: proxy.size.width * 0.34)
-                    .blur(radius: 76)
-                    .offset(x: proxy.size.width * 0.24, y: -proxy.size.height * 0.18)
-
-                Circle()
-                    .fill(LineyTheme.backdropTeal)
-                    .frame(width: proxy.size.width * 0.24)
-                    .blur(radius: 64)
-                    .offset(x: -proxy.size.width * 0.2, y: proxy.size.height * 0.25)
-            }
-            .ignoresSafeArea()
-        }
+        LinearGradient(
+            colors: [LineyTheme.appBackground, LineyTheme.canvasBackground],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
     }
 }
