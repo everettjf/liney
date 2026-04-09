@@ -50,7 +50,7 @@ final class PaneLayoutTests: XCTestCase {
         guard case .split(let outer) = root else {
             return XCTFail("Expected split root")
         }
-        XCTAssertEqual(outer.fraction, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(outer.fraction, 1.0 / 3.0, accuracy: 0.0001)
 
         guard case .split(let inner) = outer.second else {
             return XCTFail("Expected nested split")

@@ -259,7 +259,9 @@ indirect enum SessionLayoutNode: Codable, Equatable, Hashable {
         case .pane:
             return
         case .split(var split):
-            split.fraction = 0.5
+            let firstCount = Double(split.first.paneIDs.count)
+            let secondCount = Double(split.second.paneIDs.count)
+            split.fraction = firstCount / (firstCount + secondCount)
             split.first.equalizeSplits()
             split.second.equalizeSplits()
             self = .split(split)
