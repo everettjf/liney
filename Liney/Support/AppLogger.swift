@@ -9,7 +9,7 @@ import Foundation
 import os
 
 enum AppLogger {
-    private static let subsystem = "com.xnu.liney"
+    private static let subsystem = "com.xnuapp.liney"
 
     static let general = Logger(subsystem: subsystem, category: "general")
     static let workspace = Logger(subsystem: subsystem, category: "workspace")
