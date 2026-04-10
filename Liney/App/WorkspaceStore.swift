@@ -1191,6 +1191,11 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func refreshWorkspace(_ workspace: WorkspaceModel, persistAfterRefresh: Bool = true) async {
+        if workspace.isRemote {
+            await refreshRemoteWorkspace(workspace)
+            if persistAfterRefresh { persist() }
+            return
+        }
         guard workspace.supportsRepositoryFeatures else {
             workspace.bootstrapIfNeeded()
             objectWillChange.send()
