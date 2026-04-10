@@ -129,4 +129,50 @@ final class SSHConfigParserTests: XCTestCase {
         let entries = SSHConfigParser.parse(configPath: "/nonexistent/path/config")
         XCTAssertTrue(entries.isEmpty)
     }
+
+    func testTabSeparatedKeywordAndValue() {
+        let config = "Host myserver\n\tHostName\t10.0.0.1\n\tPort\t2222\n\tUser\tadmin"
+        let entries = SSHConfigParser.parse(from: config)
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].displayName, "myserver")
+        XCTAssertEqual(entries[0].host, "10.0.0.1")
+        XCTAssertEqual(entries[0].port, 2222)
+        XCTAssertEqual(entries[0].user, "admin")
+    }
+
+    func testEqualsSeparatedKeywordAndValue() {
+        let config = """
+        Host=myserver
+            HostName=10.0.0.1
+            Port=2222
+            User = admin
+        """
+        let entries = SSHConfigParser.parse(from: config)
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].displayName, "myserver")
+        XCTAssertEqual(entries[0].host, "10.0.0.1")
+        XCTAssertEqual(entries[0].port, 2222)
+        XCTAssertEqual(entries[0].user, "admin")
+    }
+
+    func testMultiPatternHostLine() {
+        let config = """
+        Host server1 server2
+            HostName shared.example.com
+            User deploy
+            Port 3022
+        """
+        let entries = SSHConfigParser.parse(from: config)
+        XCTAssertEqual(entries.count, 2)
+
+        XCTAssertEqual(entries[0].displayName, "server1")
+        XCTAssertEqual(entries[0].host, "shared.example.com")
+        XCTAssertEqual(entries[0].user, "deploy")
+        XCTAssertEqual(entries[0].port, 3022)
+
+        XCTAssertEqual(entries[1].displayName, "server2")
+        XCTAssertEqual(entries[1].host, "shared.example.com")
+        XCTAssertEqual(entries[1].user, "deploy")
+        XCTAssertEqual(entries[1].port, 3022)
+    }
 }
