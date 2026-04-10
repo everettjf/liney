@@ -1448,8 +1448,12 @@ private final class SidebarOutlineContainerView: NSView {
     }
 
     private func updateContentLayout() {
-        let visibleWidth = max(scrollView.contentSize.width, bounds.width)
-        let visibleHeight = max(scrollView.contentSize.height, bounds.height)
+        let viewportSize = scrollView.contentView.bounds.size
+        let visibleWidth = max(scrollView.contentSize.width, viewportSize.width)
+        let visibleHeight = max(scrollView.contentSize.height, viewportSize.height)
+        if let column = outlineView.tableColumns.first {
+            column.width = visibleWidth
+        }
         let outlineHeight = outlineContentHeight()
         contentView.outlineHeight = outlineHeight
         let requiredHeight = contentView.requiredHeight(forWidth: visibleWidth)
@@ -1537,11 +1541,10 @@ private final class SidebarOutlineView: NSOutlineView {
         var frame = super.frameOfCell(atColumn: column, row: row)
         let item = self.item(atRow: row) as? SidebarNodeItem
         let isExpandable = item?.isExpandable ?? false
-        let isTopLevel = item?.isWorkspaceNode ?? false
         let disclosureEnd: CGFloat = 20
+        let trailingInset: CGFloat = 8
         if !isExpandable {
             frame.origin.x = disclosureEnd
-            frame.size.width = bounds.width - disclosureEnd - 8
         } else {
             let shift = frame.origin.x - disclosureEnd
             if shift > 0 {
@@ -1549,6 +1552,8 @@ private final class SidebarOutlineView: NSOutlineView {
                 frame.size.width += shift
             }
         }
+        let visibleWidth = max(enclosingScrollView?.contentView.bounds.width ?? visibleRect.width, 0)
+        frame.size.width = max(0, min(frame.size.width, visibleWidth - frame.origin.x - trailingInset))
         return frame
     }
 
@@ -1585,10 +1590,67 @@ private final class SidebarOutlineView: NSOutlineView {
 }
 
 private final class SidebarOutlineRowView: NSTableRowView {
-    override func drawBackground(in dirtyRect: NSRect) {}
+    private var hoverTrackingArea: NSTrackingArea?
+    private var isHovering = false {
+        didSet {
+            guard oldValue != isHovering else { return }
+            needsDisplay = true
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTrackingArea {
+            removeTrackingArea(hoverTrackingArea)
+        }
+        let hoverTrackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.activeInKeyWindow, .inVisibleRect, .mouseEnteredAndExited],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(hoverTrackingArea)
+        self.hoverTrackingArea = hoverTrackingArea
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        isHovering = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        isHovering = false
+    }
+
+    override func drawBackground(in dirtyRect: NSRect) {
+        guard isHovering, !isSelected else { return }
+        let leadingInset: CGFloat = 6
+        let verticalInset: CGFloat = 1
+        let trailingInset: CGFloat = 6
+        let availableWidth = max(enclosingScrollView?.contentView.bounds.width ?? bounds.width, 0)
+        let rect = NSRect(
+            x: leadingInset,
+            y: verticalInset,
+            width: max(0, availableWidth - leadingInset - trailingInset),
+            height: max(0, bounds.height - (verticalInset * 2))
+        )
+        let path = NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8)
+        LineyTheme.sidebarHoverFill.setFill()
+        path.fill()
+    }
 
     override func drawSelection(in dirtyRect: NSRect) {
-        let rect = bounds.insetBy(dx: 6, dy: 1)
+        let leadingInset: CGFloat = 6
+        let verticalInset: CGFloat = 1
+        let trailingInset: CGFloat = 6
+        let availableWidth = max(enclosingScrollView?.contentView.bounds.width ?? bounds.width, 0)
+        let rect = NSRect(
+            x: leadingInset,
+            y: verticalInset,
+            width: max(0, availableWidth - leadingInset - trailingInset),
+            height: max(0, bounds.height - (verticalInset * 2))
+        )
         let path = NSBezierPath(roundedRect: rect, xRadius: 12, yRadius: 12)
         LineyTheme.sidebarSelectionFill.setFill()
         path.fill()
@@ -1654,7 +1716,6 @@ private struct GroupRowContent: View {
     let childCount: Int
     let store: WorkspaceStore?
     let isSelected: Bool
-    @State private var isHovering = false
 
     private var appSettings: AppSettings {
         store?.appSettings ?? AppSettings()
@@ -1697,13 +1758,6 @@ private struct GroupRowContent: View {
                 .padding(.leading, 2 * uiScale)
                 .padding(.trailing, 8 * uiScale)
         }
-        .background(
-            LineyTheme.subtleFill.opacity(isHovering ? 0.8 : 0),
-            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-        )
-        .onHover { isInside in
-            isHovering = isInside
-        }
     }
 }
 
@@ -1716,34 +1770,26 @@ private struct ArchiveGroupRowContent: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6 * uiScale) {
-                Image(systemName: "archivebox.fill")
-                    .font(.system(size: 10 * uiScale, weight: .bold))
-                    .foregroundStyle(LineyTheme.mutedText.opacity(0.6))
+        HStack(spacing: 6 * uiScale) {
+            Image(systemName: "archivebox.fill")
+                .font(.system(size: 10 * uiScale, weight: .bold))
+                .foregroundStyle(LineyTheme.mutedText.opacity(0.6))
 
-                Text(LocalizationManager.shared.string("sidebar.archiveGroup.title"))
-                    .font(.system(size: 11 * uiScale, weight: .bold, design: .rounded))
-                    .foregroundStyle(LineyTheme.mutedText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            Text(LocalizationManager.shared.string("sidebar.archiveGroup.title"))
+                .font(.system(size: 11 * uiScale, weight: .bold, design: .rounded))
+                .foregroundStyle(LineyTheme.mutedText)
+                .lineLimit(1)
+                .truncationMode(.tail)
 
-                Spacer(minLength: 4)
+            Spacer(minLength: 4)
 
-                Text("\(childCount)")
-                    .font(.system(size: 9 * uiScale, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(LineyTheme.mutedText.opacity(0.7))
-            }
-            .padding(.vertical, 4 * uiScale)
-            .padding(.leading, 2 * uiScale)
-            .padding(.trailing, 8 * uiScale)
-
-            Rectangle()
-                .fill(LineyTheme.border.opacity(0.5))
-                .frame(height: 0.5)
-                .padding(.leading, 2 * uiScale)
-                .padding(.trailing, 8 * uiScale)
+            Text("\(childCount)")
+                .font(.system(size: 9 * uiScale, weight: .semibold, design: .monospaced))
+                .foregroundStyle(LineyTheme.mutedText.opacity(0.7))
         }
+        .padding(.vertical, 4 * uiScale)
+        .padding(.leading, 2 * uiScale)
+        .padding(.trailing, 8 * uiScale)
     }
 }
 
@@ -1752,7 +1798,6 @@ private struct WorkspaceRowContent: View {
     @ObservedObject private var localization = LocalizationManager.shared
     let store: WorkspaceStore?
     let isSelected: Bool
-    @State private var isHovering = false
 
     private func localized(_ key: String) -> String {
         localization.string(key)
@@ -1847,13 +1892,6 @@ private struct WorkspaceRowContent: View {
         .padding(.vertical, 4 * uiScale)
         .padding(.leading, 2 * uiScale)
         .padding(.trailing, 8 * uiScale)
-        .background(
-            LineyTheme.subtleFill.opacity(isHovering ? 1 : 0),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-        )
-        .onHover { isInside in
-            isHovering = isInside
-        }
     }
 }
 
@@ -1863,7 +1901,6 @@ private struct WorktreeRowContent: View {
     let worktree: WorktreeModel
     let store: WorkspaceStore?
     let isSelected: Bool
-    @State private var isHovering = false
 
     private func localized(_ key: String) -> String {
         localization.string(key)
@@ -1940,13 +1977,6 @@ private struct WorktreeRowContent: View {
         .padding(.leading, leadingInset)
         .padding(.trailing, 8 * uiScale)
         .frame(maxWidth: .infinity, minHeight: 24 * uiScale, alignment: .leading)
-        .background(
-            LineyTheme.subtleFill.opacity(isHovering ? 1 : 0),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-        )
-        .onHover { isInside in
-            isHovering = isInside
-        }
         .help(worktreeNote ?? "")
     }
 }
