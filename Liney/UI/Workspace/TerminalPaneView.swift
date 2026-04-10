@@ -102,15 +102,12 @@ struct TerminalPaneView: View {
                 .background(isFocused ? LineyTheme.panelRaised : LineyTheme.paneHeaderBackground)
             }
 
-            if session.lifecycle != .idle {
-                TerminalHostView(session: session, shouldRestoreFocus: isFocused)
-                    .background(LineyTheme.paneBackground)
-                    .onTapGesture {
-                        workspace.focusPane(paneID)
-                    }
-            } else {
-                LineyTheme.paneBackground
-            }
+            TerminalHostView(session: session, shouldRestoreFocus: isFocused)
+                .id(session.lifecycle == .idle)
+                .background(LineyTheme.paneBackground)
+                .onTapGesture {
+                    workspace.focusPane(paneID)
+                }
 
             PaneStatusStrip(
                 backendLabel: session.backendLabel,
