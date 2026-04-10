@@ -464,8 +464,7 @@ struct GlobalCanvasView: View {
         cachedCards = store.workspaces.flatMap { workspace in
             workspace.canvasStates().flatMap { state in
                 state.tabs.compactMap { tab in
-                    guard let controller = workspace.existingTabController(for: state.worktreePath, tabID: tab.id),
-                          controller.hasStartedSessions else {
+                    guard let controller = workspace.existingTabController(for: state.worktreePath, tabID: tab.id) else {
                         return nil
                     }
                     let cardID = GlobalCanvasCardID(

@@ -25,10 +25,6 @@ final class WorkspaceSessionController: ObservableObject {
         replaceSessions(with: paneSnapshots, focusedPaneID: paneSnapshots.first?.id, defaultWorkingDirectory: paneSnapshots.first?.preferredWorkingDirectory ?? NSHomeDirectory())
     }
 
-    var hasStartedSessions: Bool {
-        sessions.values.contains { $0.lifecycle != .idle }
-    }
-
     var activeSessionCount: Int {
         sessions.values.filter(\.hasActiveProcess).count
     }
