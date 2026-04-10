@@ -40,6 +40,14 @@ struct CreateWorktreeRequest {
     var createNewBranch: Bool
 }
 
+struct RemoteGitSnapshot {
+    var branch: String
+    var head: String
+    var changedFileCount: Int
+    var aheadCount: Int
+    var behindCount: Int
+}
+
 actor GitRepositoryService {
     private let runner = ShellCommandRunner()
 
@@ -480,5 +488,90 @@ actor GitRepositoryService {
             normalizedError.contains("path '\(path.lowercased())' does not exist in 'head'") ||
             normalizedError.contains("fatal: path '\(path.lowercased())' exists on disk, but not in 'head'") ||
             normalizedError.contains("fatal: path '\(path.lowercased())' does not exist")
+    }
+
+    // MARK: - Remote Git Inspection
+
+    nonisolated static func parseRemoteInspection(_ output: String) -> RemoteGitSnapshot {
+        var branch = ""
+        var head = ""
+        var changedFileCount = 0
+        var aheadCount = 0
+        var behindCount = 0
+        var currentSection = ""
+
+        for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            switch trimmed {
+            case "__BRANCH__", "__HEAD__", "__STATUS__", "__AHEAD_BEHIND__":
+                currentSection = trimmed
+            default:
+                guard !trimmed.isEmpty else { continue }
+                switch currentSection {
+                case "__BRANCH__":
+                    branch = trimmed
+                case "__HEAD__":
+                    head = trimmed
+                case "__STATUS__":
+                    changedFileCount += 1
+                case "__AHEAD_BEHIND__":
+                    let parts = trimmed.split(whereSeparator: \.isWhitespace).compactMap { Int($0) }
+                    if parts.count >= 2 {
+                        aheadCount = parts[0]
+                        behindCount = parts[1]
+                    }
+                default:
+                    break
+                }
+            }
+        }
+
+        return RemoteGitSnapshot(
+            branch: branch,
+            head: head,
+            changedFileCount: changedFileCount,
+            aheadCount: aheadCount,
+            behindCount: behindCount
+        )
+    }
+
+    private static let remoteInspectTimeout: TimeInterval = 15
+
+    func inspectRemoteRepository(remotePath: String, sshConfig: SSHSessionConfiguration) async throws -> RemoteGitSnapshot {
+        let script = "cd \(remotePath) && " +
+            "echo __BRANCH__ && git rev-parse --abbrev-ref HEAD 2>/dev/null && " +
+            "echo __HEAD__ && git rev-parse --short HEAD 2>/dev/null && " +
+            "echo __STATUS__ && git status --porcelain 2>/dev/null && " +
+            "echo __AHEAD_BEHIND__ && git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null || true"
+
+        var arguments = [
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=10",
+        ]
+
+        if let port = sshConfig.port {
+            arguments.append(contentsOf: ["-p", "\(port)"])
+        }
+
+        if let identityFile = sshConfig.identityFilePath {
+            arguments.append(contentsOf: ["-i", identityFile])
+        }
+
+        arguments.append(sshConfig.destination)
+        arguments.append(script)
+
+        let result = try await runner.run(
+            executable: "/usr/bin/ssh",
+            arguments: arguments,
+            timeout: Self.remoteInspectTimeout
+        )
+
+        guard result.exitCode == 0 else {
+            throw GitServiceError.commandFailed(
+                result.stderr.nonEmptyOrFallback("Remote git inspection failed.")
+            )
+        }
+
+        return Self.parseRemoteInspection(result.stdout)
     }
 }
