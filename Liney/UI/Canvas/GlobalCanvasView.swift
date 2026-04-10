@@ -464,7 +464,8 @@ struct GlobalCanvasView: View {
         cachedCards = store.workspaces.flatMap { workspace in
             workspace.canvasStates().flatMap { state in
                 state.tabs.compactMap { tab in
-                    guard let controller = workspace.existingTabController(for: state.worktreePath, tabID: tab.id) else {
+                    guard tab.layout != nil,
+                          let controller = workspace.existingTabController(for: state.worktreePath, tabID: tab.id) else {
                         return nil
                     }
                     let cardID = GlobalCanvasCardID(
@@ -1182,16 +1183,6 @@ private struct GlobalCanvasCardView: View {
                     inactiveOverlay
                 }
             }
-        } else {
-            VStack(spacing: 10) {
-                Image(systemName: "terminal")
-                    .font(.system(size: 18, weight: .semibold))
-                Text(localized("canvas.card.noLiveTerminal"))
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .foregroundStyle(LineyTheme.mutedText)
-            .background(LineyTheme.paneBackground)
         }
     }
 
