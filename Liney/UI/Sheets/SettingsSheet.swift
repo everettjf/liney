@@ -869,53 +869,17 @@ struct SettingsSheet: View {
                     Toggle(localized("settings.general.terminal.useCustomTheme"), isOn: terminalThemeEnabledBinding)
 
                     if appSettings.terminalTheme != nil {
-                        TextField(
-                            localized("settings.general.terminal.themeName"),
-                            text: terminalThemeBinding
-                        )
-                        .textFieldStyle(.roundedBorder)
-
                         if allTerminalThemes.isEmpty {
                             Text(localized("settings.general.terminal.themeUnavailable"))
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(.secondary)
                         } else {
-                            TextField(
-                                localized("settings.general.terminal.themeSearchPlaceholder"),
-                                text: $terminalThemeSearchText
-                            )
-                            .textFieldStyle(.roundedBorder)
-
-                            Text(
-                                localizedFormat(
-                                    "settings.general.terminal.availableThemesFormat",
-                                    terminalThemeSummaryCount,
-                                    allTerminalThemes.count
-                                )
-                            )
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.secondary)
-
-                            ScrollView {
-                                LazyVStack(alignment: .leading, spacing: 8) {
-                                    ForEach(filteredTerminalThemes, id: \.self) { theme in
-                                        TerminalThemeOptionRow(
-                                            name: theme,
-                                            isSelected: terminalThemeBinding.wrappedValue == theme
-                                        ) {
-                                            terminalThemeBinding.wrappedValue = theme
-                                        }
-                                    }
+                            Picker(localized("settings.general.terminal.themeName"), selection: terminalThemeBinding) {
+                                ForEach(allTerminalThemes, id: \.self) { theme in
+                                    Text(theme).tag(theme)
                                 }
-                                .padding(.vertical, 2)
                             }
-                            .frame(maxHeight: .infinity)
-
-                            if filteredTerminalThemes.isEmpty {
-                                Text(localized("settings.general.terminal.noThemeSearchResults"))
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(.secondary)
-                            }
+                            .pickerStyle(.menu)
                         }
 
                         Text(localized("settings.general.terminal.themeHint"))
@@ -934,6 +898,7 @@ struct SettingsSheet: View {
                 },
                 localized: localized
             )
+            .id(appSettings.terminalTheme ?? "")
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
@@ -1524,7 +1489,7 @@ struct SettingsSheet: View {
             get: { appSettings.terminalTheme != nil },
             set: { enabled in
                 if enabled {
-                    appSettings.terminalTheme = appSettings.terminalTheme ?? ""
+                    appSettings.terminalTheme = appSettings.terminalTheme ?? LineyGhosttyConfigManager.defaultTheme
                 } else {
                     appSettings.terminalTheme = nil
                 }

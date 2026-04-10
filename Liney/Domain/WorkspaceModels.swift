@@ -352,6 +352,7 @@ struct WorkspaceSettings: Codable, Hashable {
     var isArchived: Bool
     var workspaceIcon: SidebarItemIcon?
     var worktreeIconOverrides: [String: SidebarItemIcon]
+    var worktreeNotes: [String: String]
     var runScript: String
     var setupScript: String
     var agentPresets: [AgentPreset]
@@ -365,6 +366,7 @@ struct WorkspaceSettings: Codable, Hashable {
         isArchived: Bool = false,
         workspaceIcon: SidebarItemIcon? = nil,
         worktreeIconOverrides: [String: SidebarItemIcon] = [:],
+        worktreeNotes: [String: String] = [:],
         runScript: String = "",
         setupScript: String = "",
         agentPresets: [AgentPreset] = AgentPreset.builtInPresets,
@@ -377,6 +379,7 @@ struct WorkspaceSettings: Codable, Hashable {
         self.isArchived = isArchived
         self.workspaceIcon = workspaceIcon
         self.worktreeIconOverrides = worktreeIconOverrides
+        self.worktreeNotes = worktreeNotes
         self.runScript = runScript
         self.setupScript = setupScript
         self.agentPresets = agentPresets
@@ -391,6 +394,7 @@ struct WorkspaceSettings: Codable, Hashable {
         case isArchived
         case workspaceIcon
         case worktreeIconOverrides
+        case worktreeNotes
         case runScript
         case setupScript
         case agentPresets
@@ -407,6 +411,7 @@ struct WorkspaceSettings: Codable, Hashable {
             isArchived: try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false,
             workspaceIcon: try container.decodeIfPresent(SidebarItemIcon.self, forKey: .workspaceIcon),
             worktreeIconOverrides: try container.decodeIfPresent([String: SidebarItemIcon].self, forKey: .worktreeIconOverrides) ?? [:],
+            worktreeNotes: try container.decodeIfPresent([String: String].self, forKey: .worktreeNotes) ?? [:],
             runScript: try container.decodeIfPresent(String.self, forKey: .runScript) ?? "",
             setupScript: try container.decodeIfPresent(String.self, forKey: .setupScript) ?? "",
             agentPresets: try container.decodeIfPresent([AgentPreset].self, forKey: .agentPresets) ?? AgentPreset.builtInPresets,

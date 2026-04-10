@@ -562,6 +562,13 @@ struct MainWindowView: View {
                 store.createWorktree(workspaceID: request.workspaceID, draft: draft)
             }
         }
+        .sheet(item: $store.editWorktreeNoteRequest) { request in
+            EditWorktreeNoteSheet(request: request) { note in
+                guard let workspace = store.workspaces.first(where: { $0.id == request.workspaceID }),
+                      let worktree = workspace.worktrees.first(where: { $0.path == request.worktreePath }) else { return }
+                store.setWorktreeNote(note.isEmpty ? nil : note, for: worktree, in: workspace)
+            }
+        }
         .sheet(item: $store.createSSHSessionRequest) { request in
             CreateSSHSessionSheet(request: request) { draft in
                 store.createSSHSession(workspaceID: request.workspaceID, draft: draft)

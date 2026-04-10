@@ -200,6 +200,13 @@ struct PendingWorktreeRemoval: Identifiable {
     }
 }
 
+struct EditWorktreeNoteRequest: Identifiable {
+    let id = UUID()
+    let workspaceID: UUID
+    let worktreePath: String
+    var currentNote: String
+}
+
 struct CreateWorktreeDraft {
     var directoryPath: String = ""
     var branchName: String = ""

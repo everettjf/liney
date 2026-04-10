@@ -9,6 +9,8 @@ import Foundation
 import GhosttyKit
 
 enum LineyGhosttyConfigManager {
+    static let defaultTheme = "Catppuccin Mocha"
+
     static func buildConfig(
         settings: AppSettings,
         fileManager: FileManager = .default
@@ -46,9 +48,8 @@ enum LineyGhosttyConfigManager {
             "# Managed by Liney. Manual edits will be overwritten."
         ]
 
-        if let terminalTheme = settings.terminalTheme {
-            lines.append("theme = \(terminalTheme)")
-        }
+        let theme = settings.terminalTheme ?? Self.defaultTheme
+        lines.append("theme = \(theme)")
 
         if let terminalFontFamily = settings.terminalFontFamily {
             lines.append("font-family = \(quotedValue(terminalFontFamily))")

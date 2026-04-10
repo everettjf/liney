@@ -238,9 +238,24 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         settings.worktreeIconOverrides[worktreePath] = icon
     }
 
+    func worktreeNote(for worktreePath: String) -> String? {
+        let note = settings.worktreeNotes[worktreePath]
+        if let note, note.isEmpty { return nil }
+        return note
+    }
+
+    func setWorktreeNote(_ note: String?, for worktreePath: String) {
+        if let note, !note.isEmpty {
+            settings.worktreeNotes[worktreePath] = note
+        } else {
+            settings.worktreeNotes[worktreePath] = nil
+        }
+    }
+
     func pruneWorktreeCustomizations() {
         let validPaths = Set(worktrees.map(\.path))
         settings.worktreeIconOverrides = settings.worktreeIconOverrides.filter { validPaths.contains($0.key) }
+        settings.worktreeNotes = settings.worktreeNotes.filter { validPaths.contains($0.key) }
     }
 
     var paneOrder: [UUID] {
