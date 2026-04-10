@@ -295,8 +295,15 @@ final class WorkspaceModel: ObservableObject, Identifiable {
 
     func createPane(splitAxis: PaneSplitAxis?, snapshot: PaneSnapshot? = nil, placement: PaneSplitPlacement) {
         let targetPane = sessionController.focusedPaneID ?? layout?.firstPaneID
+        let defaultSnapshot: PaneSnapshot = {
+            var s = PaneSnapshot.makeDefault(cwd: activeWorktreePath)
+            if let sshConfig = sshTarget {
+                s.backendConfiguration = .ssh(sshConfig)
+            }
+            return s
+        }()
         let newPaneID = sessionController.createPane(
-            from: snapshot ?? PaneSnapshot.makeDefault(cwd: activeWorktreePath)
+            from: snapshot ?? defaultSnapshot
         )
         zoomedPaneID = nil
 
@@ -775,7 +782,11 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         sessionController = controller
         zoomedPaneID = tab.zoomedPaneID
         if layout == nil {
-            let initialPane = controller.createPane(defaultWorkingDirectory: activeWorktreePath)
+            var initialSnapshot = PaneSnapshot.makeDefault(cwd: activeWorktreePath)
+            if let sshConfig = sshTarget {
+                initialSnapshot.backendConfiguration = .ssh(sshConfig)
+            }
+            let initialPane = controller.createPane(from: initialSnapshot)
             layout = .pane(PaneLeaf(paneID: initialPane))
         }
         if !isArchived {

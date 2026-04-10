@@ -1574,8 +1574,10 @@ final class WorkspaceStore: ObservableObject {
 
         let backendConfiguration: SessionBackendConfiguration = {
             guard let focusedPaneID = workspace.sessionController.focusedPaneID,
-                  let session = workspace.sessionController.session(for: focusedPaneID),
-                  session.backendConfiguration.kind == .localShell else {
+                  let session = workspace.sessionController.session(for: focusedPaneID) else {
+                if workspace.isRemote, let sshConfig = workspace.sshTarget {
+                    return .ssh(sshConfig)
+                }
                 return .local()
             }
             return session.backendConfiguration

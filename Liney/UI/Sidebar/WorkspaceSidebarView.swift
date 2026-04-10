@@ -803,12 +803,14 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             let menu = NSMenu()
             let actionPayload = SidebarActionWorktree(workspaceID: workspace.id, worktreePath: worktree.path)
 
-            addMenuItem(
-                to: menu,
-                title: localized("sidebar.menu.revealPath"),
-                action: #selector(revealPath(_:)),
-                representedObject: worktree.path
-            )
+            if !workspace.isRemote {
+                addMenuItem(
+                    to: menu,
+                    title: localized("sidebar.menu.revealPath"),
+                    action: #selector(revealPath(_:)),
+                    representedObject: worktree.path
+                )
+            }
             addMenuItem(
                 to: menu,
                 title: localized("sidebar.menu.copyPath"),
