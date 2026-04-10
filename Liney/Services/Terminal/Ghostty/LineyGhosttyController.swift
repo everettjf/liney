@@ -111,10 +111,8 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         let wasNew = terminalView.surface == nil
         terminalView.ensureSurface(runtime: LineyGhosttyRuntime.shared, launchConfiguration: launchConfiguration)
         terminalView.syncSurfaceMetrics()
-        if wasNew, terminalView.surface != nil {
-            DispatchQueue.main.async { [weak self] in
-                self?.terminalView.syncSurfaceMetrics()
-            }
+        if wasNew, terminalView.surface != nil, terminalView.window != nil {
+            terminalView.resurfaceAfterLazyStart()
         }
     }
 
@@ -535,6 +533,14 @@ private final class LineyGhosttySurfaceView: NSView {
     func recreateSurface(runtime: LineyGhosttyRuntime, launchConfiguration: TerminalLaunchConfiguration) {
         destroySurface()
         createSurface(runtime: runtime, launchConfiguration: launchConfiguration)
+    }
+
+    func resurfaceAfterLazyStart() {
+        guard let parent = superview else { return }
+        let constraints = parent.constraints.filter { ($0.firstItem as? NSView) === self || ($0.secondItem as? NSView) === self }
+        removeFromSuperview()
+        parent.addSubview(self)
+        NSLayoutConstraint.activate(constraints)
     }
 
     func setWorkspaceFocus(_ isFocused: Bool) {
