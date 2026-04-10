@@ -82,6 +82,7 @@ final class ShellSession: ObservableObject, Identifiable {
     @Published private(set) var lifecycle: ShellSessionLifecycle = .idle
     @Published var exitCode: Int32?
     @Published var pid: Int32?
+    @Published var detectedTmuxSession: String?
     @Published var rows: Int = 24
     @Published var cols: Int = 80
     @Published var surfaceStatus = TerminalSurfaceStatusSnapshot()
@@ -148,6 +149,7 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.onTitleChange = { [weak self] title in
             guard let self, !title.isEmpty else { return }
             self.title = title
+            self.detectTmux(fromTitle: title)
         }
         surfaceController.onWorkingDirectoryChange = { [weak self] directory in
             self?.reportedWorkingDirectory = directory
@@ -435,6 +437,83 @@ final class ShellSession: ObservableObject, Identifiable {
             backendConfiguration.localShell?.shellArguments.joined(separator: " ") ?? "",
         ]
         return candidates.contains { $0.localizedCaseInsensitiveContains("tmux") }
+    }
+
+    // MARK: - Tmux Detection
+
+    /// Detect if the shell is running inside tmux based on the terminal title.
+    /// Title can be a command string from preexec (e.g. "tmux new -s hello"),
+    /// a tmux status format like "[session-name] ...", or a tmux set-titles
+    /// format like "session:0:bash - \"hostname\"".
+    private func detectTmux(fromTitle title: String) {
+        if let session = TmuxTitleDetector.detectSession(fromTitle: title) {
+            if session == "tmux" {
+                // Bare "tmux" — resolve the session name after tmux starts.
+                detectedTmuxSession = "tmux"
+                resolveExactTmuxSession()
+            } else {
+                detectedTmuxSession = session
+            }
+        }
+    }
+
+    /// When bare `tmux` is detected, resolve the exact session by finding the tmux
+    /// client process that is a descendant of this pane's shell in the process tree.
+    private func resolveExactTmuxSession() {
+        Task { [weak self] in
+            // Step 1: Wait for shell PID to be resolved.
+            var shellPID: pid_t?
+            for _ in 0..<15 {  // 15 × 200ms = 3s
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                shellPID = await MainActor.run { self?.pid }
+                if shellPID != nil { break }
+            }
+
+            guard let shellPID else { return }
+
+            // Step 2: Poll for a tmux client descendant of the shell.
+            var sessionName: String?
+            for _ in 0..<10 {  // 10 × 300ms = 3s
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                let desc = ProcessTree.descendants(of: shellPID)
+                if desc.isEmpty { continue }
+
+                // Query tmux for all connected clients.
+                let result = await Self.queryTmuxClients()
+                guard let result else { continue }
+
+                let clients = ProcessTree.parseTmuxClientList(result)
+                // Find the client whose PID is a descendant of our shell.
+                if let match = clients.first(where: { desc.contains($0.clientPID) }) {
+                    sessionName = match.sessionName
+                    break
+                }
+            }
+
+            guard let sessionName else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.detectedTmuxSession == "tmux" else { return }
+                self.detectedTmuxSession = sessionName
+            }
+        }
+    }
+
+    /// Queries tmux for all connected clients and their session names.
+    private nonisolated static func queryTmuxClients() async -> String? {
+        let runner = ShellCommandRunner()
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        do {
+            let result = try await runner.run(
+                executable: shell,
+                arguments: ["-lc", "tmux list-clients -F '#{client_pid} #{session_name}'"],
+                timeout: 5
+            )
+            guard result.exitCode == 0 else { return nil }
+            let output = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            return output.isEmpty ? nil : output
+        } catch {
+            return nil
+        }
     }
 }
 
