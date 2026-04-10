@@ -77,7 +77,10 @@ private struct WorkspaceOutlineSidebar: NSViewRepresentable {
 
     func updateNSView(_ nsView: SidebarOutlineContainerView, context: Context) {
         context.coordinator.store = store
-        nsView.setOpenRepositoryAction(onOpenRepository)
+        nsView.setFooterActions(
+            openRepository: onOpenRepository,
+            addRemoteWorkspace: { [weak store] in store?.presentCreateRemoteWorkspace() }
+        )
         context.coordinator.apply(
             workspaces: store.sidebarWorkspaces,
             selectedWorkspaceID: store.selectedWorkspaceID,
@@ -121,6 +124,63 @@ private struct SidebarOpenRepositoryRow: View {
         )
         .foregroundStyle(LineyTheme.secondaryText)
         .help(localized("sidebar.openFolderHelp"))
+    }
+}
+
+private struct SidebarFooterView: View {
+    @ObservedObject private var localization = LocalizationManager.shared
+    @EnvironmentObject private var store: WorkspaceStore
+    let openRepositoryAction: () -> Void
+    let addRemoteWorkspaceAction: () -> Void
+
+    private func localized(_ key: String) -> String {
+        localization.string(key)
+    }
+
+    private var uiScale: CGFloat {
+        CGFloat(store.appSettings.uiScale)
+    }
+
+    var body: some View {
+        HStack(spacing: 6 * uiScale) {
+            Button(action: openRepositoryAction) {
+                HStack(spacing: 5) {
+                    Image(systemName: "folder.badge.plus")
+                        .font(.system(size: 11 * uiScale, weight: .semibold))
+                    Text(localized("sidebar.openFolder"))
+                        .font(.system(size: 11 * uiScale, weight: .semibold))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 10 * uiScale)
+                .frame(maxWidth: .infinity, minHeight: 30 * uiScale, alignment: .leading)
+                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .foregroundStyle(LineyTheme.border)
+            )
+            .foregroundStyle(LineyTheme.secondaryText)
+            .help(localized("sidebar.openFolderHelp"))
+
+            if LineyFeatureFlags.showsRemoteSessionCreationUI {
+                Button(action: addRemoteWorkspaceAction) {
+                    Image(systemName: "network")
+                        .font(.system(size: 12 * uiScale, weight: .semibold))
+                        .frame(width: 30 * uiScale, height: 30 * uiScale)
+                        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        .foregroundStyle(LineyTheme.border)
+                )
+                .foregroundStyle(LineyTheme.secondaryText)
+                .help(localized("sidebar.action.addRemoteWorkspace"))
+            }
+        }
     }
 }
 
@@ -1430,6 +1490,13 @@ private final class SidebarOutlineContainerView: NSView {
         footerHostingView.rootView = AnyView(SidebarOpenRepositoryRow(action: action))
     }
 
+    func setFooterActions(openRepository: @escaping () -> Void, addRemoteWorkspace: @escaping () -> Void) {
+        footerHostingView.rootView = AnyView(SidebarFooterView(
+            openRepositoryAction: openRepository,
+            addRemoteWorkspaceAction: addRemoteWorkspace
+        ))
+    }
+
     func relayout() {
         updateContentLayout()
     }
@@ -1806,6 +1873,10 @@ private struct WorkspaceRowContent: View {
                         Image(systemName: "archivebox.fill")
                             .font(.system(size: 9 * uiScale, weight: .bold))
                             .foregroundStyle(LineyTheme.mutedText)
+                    }
+
+                    if workspace.isRemote {
+                        SidebarInfoBadge(text: localized("sidebar.badge.remote"), tone: .accent)
                     }
 
                     if workspace.activeSessionCount > 1 {
