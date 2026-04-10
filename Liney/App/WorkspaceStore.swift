@@ -66,6 +66,8 @@ final class WorkspaceStore: ObservableObject {
     private var remoteRefreshTimer: Timer?
     private var remoteWindowObserver: NSObjectProtocol?
     private var isRefreshingRemotes = false
+    private var cachedWorkspaceIcons: [UUID: SidebarItemIcon] = [:]
+    private var cachedWorktreeIcons: [UUID: [String: SidebarItemIcon]] = [:]
 
     private func localized(_ key: String) -> String {
         LocalizationManager.shared.string(key)
@@ -921,11 +923,16 @@ final class WorkspaceStore: ObservableObject {
         if appSettings.defaultRepositoryIcon != .repositoryDefault {
             return appSettings.defaultRepositoryIcon
         }
+        if let cached = cachedWorkspaceIcons[workspace.id] {
+            return cached
+        }
         let existingIcons = workspaces
             .filter { $0.id != workspace.id && !$0.isArchived && $0.supportsRepositoryFeatures }
             .compactMap { $0.workspaceIconOverride }
         let iconSeed = URL(fileURLWithPath: workspace.repositoryRoot).lastPathComponent
-        return .randomRepository(preferredSeed: iconSeed, avoiding: existingIcons)
+        let icon = SidebarItemIcon.randomRepository(preferredSeed: iconSeed, avoiding: existingIcons)
+        cachedWorkspaceIcons[workspace.id] = icon
+        return icon
     }
 
     func sidebarIcon(for worktree: WorktreeModel, in workspace: WorkspaceModel) -> SidebarItemIcon {
@@ -937,6 +944,10 @@ final class WorkspaceStore: ObservableObject {
             return appSettings.defaultWorktreeIcon
         }
 
+        if let cached = cachedWorktreeIcons[workspace.id]?[worktree.path] {
+            return cached
+        }
+
         let generatedIcons = SidebarItemIcon.generatedWorktreeIcons(
             seedSourcesByID: Dictionary(
                 uniqueKeysWithValues: workspace.worktrees.map { candidate in
@@ -945,6 +956,8 @@ final class WorkspaceStore: ObservableObject {
             ),
             overrides: workspace.settings.worktreeIconOverrides
         )
+
+        cachedWorktreeIcons[workspace.id] = generatedIcons
 
         return generatedIcons[worktree.path] ?? .randomRepository(
             preferredSeed: worktreeIconSeed(for: worktree, in: workspace),
@@ -1003,17 +1016,29 @@ final class WorkspaceStore: ObservableObject {
         }
     }
 
+    func invalidateIconCaches(for workspaceID: UUID? = nil) {
+        if let workspaceID {
+            cachedWorkspaceIcons[workspaceID] = nil
+            cachedWorktreeIcons[workspaceID] = nil
+        } else {
+            cachedWorkspaceIcons.removeAll()
+            cachedWorktreeIcons.removeAll()
+        }
+    }
+
     func updateSidebarIcon(_ icon: SidebarItemIcon, for target: SidebarIconCustomizationTarget) {
         switch target {
         case .workspace(let workspaceID):
             guard let workspace = workspace(for: workspaceID) else { return }
             var settings = workspace.settings
             settings.workspaceIcon = icon
+            invalidateIconCaches(for: workspaceID)
             updateWorkspaceSettings(workspaceID: workspaceID, settings: settings)
         case .worktree(let workspaceID, let worktreePath):
             guard let workspace = workspace(for: workspaceID) else { return }
             var settings = workspace.settings
             settings.worktreeIconOverrides[worktreePath] = icon
+            invalidateIconCaches(for: workspaceID)
             updateWorkspaceSettings(workspaceID: workspaceID, settings: settings)
         case .workspaceGroup(let groupID):
             setWorkspaceGroupIcon(groupID, icon: icon)
@@ -1021,16 +1046,19 @@ final class WorkspaceStore: ObservableObject {
             var settings = appSettings
             settings.defaultRepositoryIcon = icon
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         case .appDefaultLocalTerminal:
             var settings = appSettings
             settings.defaultLocalTerminalIcon = icon
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         case .appDefaultWorktree:
             var settings = appSettings
             settings.defaultWorktreeIcon = icon
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         }
     }
@@ -1041,11 +1069,13 @@ final class WorkspaceStore: ObservableObject {
             guard let workspace = workspace(for: workspaceID) else { return }
             var settings = workspace.settings
             settings.workspaceIcon = nil
+            invalidateIconCaches(for: workspaceID)
             updateWorkspaceSettings(workspaceID: workspaceID, settings: settings)
         case .worktree(let workspaceID, let worktreePath):
             guard let workspace = workspace(for: workspaceID) else { return }
             var settings = workspace.settings
             settings.worktreeIconOverrides[worktreePath] = nil
+            invalidateIconCaches(for: workspaceID)
             updateWorkspaceSettings(workspaceID: workspaceID, settings: settings)
         case .workspaceGroup(let groupID):
             setWorkspaceGroupIcon(groupID, icon: .groupDefault)
@@ -1053,16 +1083,19 @@ final class WorkspaceStore: ObservableObject {
             var settings = appSettings
             settings.defaultRepositoryIcon = .repositoryDefault
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         case .appDefaultLocalTerminal:
             var settings = appSettings
             settings.defaultLocalTerminalIcon = .localTerminalDefault
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         case .appDefaultWorktree:
             var settings = appSettings
             settings.defaultWorktreeIcon = .worktreeDefault
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         }
     }
@@ -3131,6 +3164,7 @@ final class WorkspaceStore: ObservableObject {
             // Only replace worktrees array if it actually changed
             if workspace.worktrees != merged {
                 workspace.worktrees = merged
+                invalidateIconCaches(for: workspace.id)
             }
 
             // If active worktree was removed, fall back to repository root
