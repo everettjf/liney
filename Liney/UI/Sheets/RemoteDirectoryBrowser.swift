@@ -12,14 +12,19 @@ import SwiftUI
 /// Extracted into its own View to support recursive DisclosureGroup rendering.
 private struct DirectoryRowView: View {
     @ObservedObject var node: DirectoryNode
-    let viewModel: RemoteDirectoryBrowserViewModel
+    @Binding var selectedPath: String?
+    let expandAction: (DirectoryNode) async -> Void
+
+    private var isSelected: Bool {
+        selectedPath == node.path
+    }
 
     var body: some View {
         DisclosureGroup(isExpanded: Binding(
             get: { node.isExpanded },
             set: { newValue in
                 if newValue {
-                    Task { await viewModel.expandNode(node) }
+                    Task { await expandAction(node) }
                 } else {
                     node.isExpanded = false
                 }
@@ -35,16 +40,37 @@ private struct DirectoryRowView: View {
                     .foregroundStyle(.red)
             } else {
                 ForEach(node.children) { child in
-                    DirectoryRowView(node: child, viewModel: viewModel)
+                    DirectoryRowView(
+                        node: child,
+                        selectedPath: $selectedPath,
+                        expandAction: expandAction
+                    )
                 }
             }
         } label: {
-            Label(node.name, systemImage: "folder")
-                .font(.system(size: 13))
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    viewModel.selectedPath = node.path
-                }
+            HStack(spacing: 6) {
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(.blue)
+                    .font(.system(size: 13))
+                Text(node.name)
+                    .lineLimit(1)
+                    .font(.system(size: 13))
+            }
+            .padding(.vertical, 2)
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(isSelected ? Color(nsColor: LineyTheme.sidebarSelectionFill) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .strokeBorder(isSelected ? Color(nsColor: LineyTheme.sidebarSelectionStroke) : Color.clear, lineWidth: 1)
+            )
+            .onTapGesture {
+                selectedPath = node.path
+            }
         }
     }
 }
