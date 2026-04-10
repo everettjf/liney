@@ -62,7 +62,7 @@ final class WorkspaceStore: ObservableObject {
     private var autoRefreshTask: Task<Void, Never>?
     private var statusMessageTask: Task<Void, Never>?
     private var sleepPreventionTickerTask: Task<Void, Never>?
-    private static let remoteRefreshInterval: TimeInterval = 30
+    private static let remoteRefreshInterval: TimeInterval = 5
     private var remoteRefreshTimer: Timer?
     private var remoteWindowObserver: NSObjectProtocol?
     private var isRefreshingRemotes = false
@@ -3004,7 +3004,7 @@ final class WorkspaceStore: ObservableObject {
                 await self?.refreshAllRemoteWorkspaces()
             }
         }
-        timer.tolerance = 5
+        timer.tolerance = 1
         RunLoop.main.add(timer, forMode: .common)
         remoteRefreshTimer = timer
 
@@ -3041,7 +3041,7 @@ final class WorkspaceStore: ObservableObject {
 
     private func refreshRemoteWorkspace(_ workspace: WorkspaceModel) async {
         guard let sshConfig = workspace.sshTarget else { return }
-        let remotePath = workspace.activeWorktreePath
+        let remotePath = workspace.repositoryRoot
         do {
             let snapshot = try await gitRepositoryService.inspectRemoteRepository(
                 remotePath: remotePath, sshConfig: sshConfig
@@ -3052,6 +3052,32 @@ final class WorkspaceStore: ObservableObject {
             workspace.changedFileCount = snapshot.changedFileCount
             workspace.aheadCount = snapshot.aheadCount
             workspace.behindCount = snapshot.behindCount
+
+            // Merge worktrees: preserve existing paths to keep stable IDs and session state
+            var merged: [WorktreeModel] = []
+            for newWT in snapshot.worktrees {
+                if let existing = workspace.worktrees.first(where: { $0.path == newWT.path }) {
+                    merged.append(WorktreeModel(
+                        path: existing.path,
+                        branch: newWT.branch,
+                        head: newWT.head,
+                        isMainWorktree: newWT.isMainWorktree,
+                        isLocked: newWT.isLocked,
+                        lockReason: newWT.lockReason
+                    ))
+                } else {
+                    merged.append(newWT)
+                }
+            }
+            workspace.worktrees = merged
+
+            // If active worktree was removed, fall back to repository root
+            if !workspace.worktrees.contains(where: { $0.path == workspace.activeWorktreePath }) {
+                workspace.activeWorktreePath = workspace.repositoryRoot
+            }
+
+            workspace.ensureKnownWorktreeStates()
+            workspace.pruneWorktreeCustomizations()
         } catch {
             if AppLogger.isEnabled {
                 AppLogger.workspace.error("Remote refresh failed for \(workspace.name): \(error.localizedDescription)")

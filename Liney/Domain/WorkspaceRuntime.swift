@@ -792,7 +792,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         worktreeStates[activeWorktreePath]?.ensureTabs()
     }
 
-    private func ensureKnownWorktreeStates() {
+    func ensureKnownWorktreeStates() {
         for worktree in worktrees {
             if worktreeStates[worktree.path] == nil {
                 worktreeStates[worktree.path] = WorktreeSessionStateRecord.makeDefault(for: worktree.path)
