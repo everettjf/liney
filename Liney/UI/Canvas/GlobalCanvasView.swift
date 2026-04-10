@@ -1054,7 +1054,7 @@ private struct GlobalCanvasCardView: View {
                     .onTapGesture(perform: onSelect)
             }
         }
-        .shadow(color: shadowColor, radius: card.isSelected ? 16 : 8, y: 6)
+        .shadow(color: .clear, radius: 0)
     }
 
     private var titleBar: some View {
