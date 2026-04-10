@@ -99,6 +99,7 @@ enum SessionBackendKind: String, Codable, CaseIterable {
     case localShell
     case ssh
     case agent
+    case tmuxAttach
 
     var displayName: String {
         switch self {
@@ -108,6 +109,8 @@ enum SessionBackendKind: String, Codable, CaseIterable {
             return lineyLocalizedModelString("session.backend.ssh")
         case .agent:
             return lineyLocalizedModelString("session.backend.agent")
+        case .tmuxAttach:
+            return lineyLocalizedModelString("session.backend.tmuxAttach")
         }
     }
 }
@@ -171,6 +174,13 @@ struct AgentSessionConfiguration: Codable, Hashable {
     var arguments: [String]
     var environment: [String: String]
     var workingDirectory: String?
+}
+
+struct TmuxAttachConfiguration: Codable, Hashable {
+    var sessionName: String
+    var windowIndex: Int?
+    var isRemote: Bool
+    var sshConfig: SSHSessionConfiguration?
 }
 
 struct AgentPreset: Codable, Hashable, Identifiable {
@@ -631,6 +641,7 @@ struct SessionBackendConfiguration: Codable, Hashable {
     var localShell: LocalShellSessionConfiguration?
     var ssh: SSHSessionConfiguration?
     var agent: AgentSessionConfiguration?
+    var tmuxAttach: TmuxAttachConfiguration?
 
     static func local(
         shellPath: String? = nil,
@@ -644,7 +655,8 @@ struct SessionBackendConfiguration: Codable, Hashable {
                 shellArguments: shellArguments ?? defaultShell.shellArguments
             ),
             ssh: nil,
-            agent: nil
+            agent: nil,
+            tmuxAttach: nil
         )
     }
 
@@ -653,7 +665,8 @@ struct SessionBackendConfiguration: Codable, Hashable {
             kind: .ssh,
             localShell: nil,
             ssh: configuration,
-            agent: nil
+            agent: nil,
+            tmuxAttach: nil
         )
     }
 
@@ -662,7 +675,18 @@ struct SessionBackendConfiguration: Codable, Hashable {
             kind: .agent,
             localShell: nil,
             ssh: nil,
-            agent: configuration
+            agent: configuration,
+            tmuxAttach: nil
+        )
+    }
+
+    static func tmuxAttach(_ configuration: TmuxAttachConfiguration) -> SessionBackendConfiguration {
+        SessionBackendConfiguration(
+            kind: .tmuxAttach,
+            localShell: nil,
+            ssh: nil,
+            agent: nil,
+            tmuxAttach: configuration
         )
     }
 
@@ -674,6 +698,8 @@ struct SessionBackendConfiguration: Codable, Hashable {
             return ssh?.destination ?? kind.displayName
         case .agent:
             return agent?.name ?? kind.displayName
+        case .tmuxAttach:
+            return "tmux: \(tmuxAttach?.sessionName ?? kind.displayName)"
         }
     }
 

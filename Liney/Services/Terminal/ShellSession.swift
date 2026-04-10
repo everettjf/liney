@@ -405,7 +405,8 @@ final class ShellSession: ObservableObject, Identifiable {
                 kind: .localShell,
                 localShell: configuration,
                 ssh: nil,
-                agent: nil
+                agent: nil,
+                tmuxAttach: nil
             )
 
         case .ssh:
@@ -418,6 +419,9 @@ final class ShellSession: ObservableObject, Identifiable {
             return .ssh(configuration)
 
         case .agent:
+            return backendConfiguration
+
+        case .tmuxAttach:
             return backendConfiguration
         }
     }

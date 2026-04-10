@@ -101,6 +101,57 @@ extension SessionBackendConfiguration {
                 backendConfiguration: self,
                 initialInput: nil
             )
+
+        case .tmuxAttach:
+            let configuration = tmuxAttach ?? TmuxAttachConfiguration(
+                sessionName: "default",
+                windowIndex: nil,
+                isRemote: false,
+                sshConfig: nil
+            )
+            let tmuxTarget: String = {
+                if let windowIndex = configuration.windowIndex {
+                    return "\(configuration.sessionName.shellQuoted):\(windowIndex)"
+                }
+                return configuration.sessionName.shellQuoted
+            }()
+
+            if configuration.isRemote, let sshConfig = configuration.sshConfig {
+                var sshArgs: [String] = ["-t"]
+                if let port = sshConfig.port {
+                    sshArgs.append(contentsOf: ["-p", String(port)])
+                }
+                if let identityFilePath = sshConfig.identityFilePath, !identityFilePath.isEmpty {
+                    sshArgs.append(contentsOf: ["-i", identityFilePath])
+                }
+                sshArgs.append(sshConfig.destination)
+                sshArgs.append("tmux attach-session -t \(tmuxTarget)")
+
+                return TerminalLaunchConfiguration(
+                    workingDirectory: NSHomeDirectory(),
+                    environment: baseEnvironment,
+                    command: TerminalCommandDefinition(
+                        executablePath: "/usr/bin/ssh",
+                        arguments: sshArgs,
+                        displayName: "tmux: \(configuration.sessionName)"
+                    ),
+                    backendConfiguration: self,
+                    initialInput: nil
+                )
+            } else {
+                let shellPath = LocalShellSessionConfiguration.default.shellPath
+                return TerminalLaunchConfiguration(
+                    workingDirectory: NSHomeDirectory(),
+                    environment: baseEnvironment,
+                    command: TerminalCommandDefinition(
+                        executablePath: shellPath,
+                        arguments: ["--login", "-c", "exec tmux attach-session -t \(tmuxTarget)"],
+                        displayName: "tmux: \(configuration.sessionName)"
+                    ),
+                    backendConfiguration: self,
+                    initialInput: nil
+                )
+            }
         }
     }
 }
