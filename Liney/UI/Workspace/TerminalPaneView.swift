@@ -110,9 +110,6 @@ struct TerminalPaneView: View {
                     }
             } else {
                 LineyTheme.paneBackground
-                    .onAppear {
-                        session.startIfNeeded()
-                    }
             }
 
             PaneStatusStrip(
