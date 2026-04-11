@@ -8,7 +8,18 @@
 import XCTest
 @testable import Liney
 
+@MainActor
 final class SleepPreventionSupportTests: XCTestCase {
+    override func setUp() async throws {
+        try await super.setUp()
+        LocalizationManager.shared.updateSelectedLanguage(.english)
+    }
+
+    override func tearDown() async throws {
+        LocalizationManager.shared.updateSelectedLanguage(.automatic)
+        try await super.tearDown()
+    }
+    
     func testSleepPreventionDurationsMatchExpectedSeconds() {
         XCTAssertEqual(SleepPreventionDurationOption.oneHour.duration, 3_600)
         XCTAssertEqual(SleepPreventionDurationOption.twelveHours.duration, 43_200)
@@ -22,10 +33,11 @@ final class SleepPreventionSupportTests: XCTestCase {
         XCTAssertEqual(SleepPreventionFormat.duration(duration), "1d 2h")
     }
 
-    func testForeverSessionUsesOnStatus() {
+    func testForeverSessionUsesOnStatus() async {
         let now = Date(timeIntervalSince1970: 1_000)
         let session = SleepPreventionSession(option: .forever, startedAt: now, expiresAt: nil)
 
-        XCTAssertEqual(session.remainingDescription(relativeTo: now), "On")
+        let description = await session.remainingDescription(relativeTo: now)
+        XCTAssertEqual(description, "On")
     }
 }

@@ -350,6 +350,11 @@ func lineyGhosttySSHWordNavigationEscapeSequence(
     modifierFlags: NSEvent.ModifierFlags,
     backendConfiguration: SessionBackendConfiguration
 ) -> String? {
+    // Only SSH backends should use word navigation escape sequences
+    guard backendConfiguration.kind == .ssh else {
+        return nil
+    }
+    
     let relevantModifiers = lineyGhosttyRelevantModifierFlags(modifierFlags)
     guard relevantModifiers.contains(.option),
           !relevantModifiers.contains(.command),

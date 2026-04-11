@@ -9,6 +9,16 @@ import XCTest
 @testable import Liney
 
 final class ReleaseUpdateTests: XCTestCase {
+    override func setUp() async throws {
+        try await super.setUp()
+        LocalizationManager.shared.updateSelectedLanguage(.english)
+    }
+
+    override func tearDown() async throws {
+        LocalizationManager.shared.updateSelectedLanguage(.automatic)
+        try await super.tearDown()
+    }
+    
     func testNewWindowShortcutDefaultsToCommandN() {
         XCTAssertEqual(LineyShortcutAction.newWindow.category, .window)
         XCTAssertEqual(LineyShortcutAction.newWindow.title, "New Window")

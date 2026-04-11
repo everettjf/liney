@@ -10,6 +10,17 @@ import XCTest
 
 @MainActor
 final class WorkspaceGitHubCoordinatorTests: XCTestCase {
+    override func setUp() async throws {
+        try await super.setUp()
+        // Force English language for test assertions
+        LocalizationManager.shared.updateSelectedLanguage(.english)
+    }
+
+    override func tearDown() async throws {
+        LocalizationManager.shared.updateSelectedLanguage(.automatic)
+        try await super.tearDown()
+    }
+    
     func testBatchUpdateDeduplicatesTargetsAndSummarizesFailures() async throws {
         let workspace = makeCoordinatorWorkspace(name: "App", rootPath: "/tmp/app", prNumber: 101)
         let failingWorkspace = makeCoordinatorWorkspace(name: "API", rootPath: "/tmp/api", prNumber: 202)
