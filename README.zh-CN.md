@@ -53,6 +53,11 @@ brew update && brew install --cask everettjf/tap/liney
 - Issues: <https://github.com/everettjf/liney/issues>
 - Discord: <https://discord.com/invite/eGzEaP6TzR>
 
+## 分支说明
+
+- `main` — 开发分支，可能不稳定。
+- `stable` — 稳定发布分支。如果需要可靠的源代码版本，请使用此分支。
+
 ## 面向开发者
 
 开发环境配置、构建命令、测试方式、仓库结构以及发布流程文档位于 [`DEVELOP.md`](./DEVELOP.md)。
