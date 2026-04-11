@@ -66,7 +66,7 @@ actor SFTPService {
     /// List directories at the given remote path.
     func listDirectories(at path: String) async throws -> [SFTPDirectoryEntry] {
         let target = try currentTarget()
-        let result = try await executeRemoteCommand("ls -1pa \(path)", target: target)
+        let result = try await executeRemoteCommand("ls -1pa \(path.shellQuoted)", target: target)
         guard result.exitCode == 0 else {
             throw SFTPServiceError.commandFailed(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
         }

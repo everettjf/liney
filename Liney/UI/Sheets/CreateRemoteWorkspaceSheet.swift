@@ -90,9 +90,10 @@ struct CreateRemoteWorkspaceSheet: View {
             case .authRequired:
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.yellow)
-            case .unreachable:
+            case .unreachable(let error):
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.red)
+                    .help(error.localizedDescription)
             }
         }
     }
@@ -181,6 +182,7 @@ struct CreateRemoteWorkspaceSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canCreate)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .task {

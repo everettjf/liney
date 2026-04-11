@@ -62,7 +62,7 @@ final class WorkspaceStore: ObservableObject {
     private var autoRefreshTask: Task<Void, Never>?
     private var statusMessageTask: Task<Void, Never>?
     private var sleepPreventionTickerTask: Task<Void, Never>?
-    private static let remoteRefreshInterval: TimeInterval = 5
+    private static let remoteRefreshInterval: TimeInterval = 30
     private var remoteRefreshTimer: Timer?
     private var remoteWindowObserver: NSObjectProtocol?
     private var isRefreshingRemotes = false
@@ -1631,6 +1631,9 @@ final class WorkspaceStore: ObservableObject {
                 }
                 return .local()
             }
+            if !workspace.isRemote && session.backendConfiguration.kind != .localShell {
+                return .local()
+            }
             return session.backendConfiguration
         }()
 
@@ -3086,13 +3089,14 @@ final class WorkspaceStore: ObservableObject {
 
     // MARK: - Remote workspace refresh
 
-    func startRemoteWorkspaceRefreshScheduler() {
+    private func startRemoteWorkspaceRefreshScheduler() {
+        stopRemoteWorkspaceRefreshScheduler()
         let timer = Timer(timeInterval: Self.remoteRefreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.refreshAllRemoteWorkspaces()
             }
         }
-        timer.tolerance = 1
+        timer.tolerance = 5
         RunLoop.main.add(timer, forMode: .common)
         remoteRefreshTimer = timer
 
@@ -3107,7 +3111,7 @@ final class WorkspaceStore: ObservableObject {
         }
     }
 
-    func stopRemoteWorkspaceRefreshScheduler() {
+    private func stopRemoteWorkspaceRefreshScheduler() {
         remoteRefreshTimer?.invalidate()
         remoteRefreshTimer = nil
         if let observer = remoteWindowObserver {

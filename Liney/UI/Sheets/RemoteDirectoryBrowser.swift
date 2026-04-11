@@ -109,6 +109,9 @@ struct RemoteDirectoryBrowser: View {
         .task {
             await viewModel.connect()
         }
+        .onDisappear {
+            Task { await viewModel.disconnect() }
+        }
     }
 
     // MARK: - Title Bar

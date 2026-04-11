@@ -84,13 +84,27 @@ final class TmuxServiceTests: XCTestCase {
     func testAttachCommand() {
         let service = TmuxService()
         let command = service.attachCommand(for: "mysession")
-        XCTAssertEqual(command, "tmux attach-session -t mysession")
+        XCTAssertEqual(command, "tmux attach-session -t 'mysession'")
     }
 
     func testAttachCommandWithSpecialName() {
         let service = TmuxService()
         let command = service.attachCommand(for: "my-session-123")
-        XCTAssertEqual(command, "tmux attach-session -t my-session-123")
+        XCTAssertEqual(command, "tmux attach-session -t 'my-session-123'")
+    }
+
+    func testAttachCommandQuotesShellMetacharacters() {
+        let service = TmuxService()
+        // A malicious session name should be single-quoted so the shell
+        // does not interpret the metacharacters.
+        let command = service.attachCommand(for: "foo; rm -rf /")
+        XCTAssertEqual(command, "tmux attach-session -t 'foo; rm -rf /'")
+    }
+
+    func testAttachCommandEscapesEmbeddedSingleQuote() {
+        let service = TmuxService()
+        let command = service.attachCommand(for: "it's")
+        XCTAssertEqual(command, "tmux attach-session -t 'it'\\''s'")
     }
 
     // MARK: - remoteAttachCommand format
@@ -103,7 +117,7 @@ final class TmuxServiceTests: XCTestCase {
             port: 2222
         )
         let command = service.remoteAttachCommand(for: "prod", via: config)
-        XCTAssertEqual(command, "ssh -p 2222 -t deploy@example.com tmux attach-session -t prod")
+        XCTAssertEqual(command, "ssh -p 2222 -t deploy@example.com tmux attach-session -t 'prod'")
     }
 
     func testRemoteAttachCommandWithDefaultPort() {
@@ -115,7 +129,7 @@ final class TmuxServiceTests: XCTestCase {
         )
         let command = service.remoteAttachCommand(for: "dev", via: config)
         // Default port 22 should not produce a -p flag
-        XCTAssertEqual(command, "ssh -t admin@example.com tmux attach-session -t dev")
+        XCTAssertEqual(command, "ssh -t admin@example.com tmux attach-session -t 'dev'")
         XCTAssertFalse(command.contains("-p"))
     }
 
@@ -126,7 +140,7 @@ final class TmuxServiceTests: XCTestCase {
             user: "user"
         )
         let command = service.remoteAttachCommand(for: "session1", via: config)
-        XCTAssertEqual(command, "ssh -t user@myserver.local tmux attach-session -t session1")
+        XCTAssertEqual(command, "ssh -t user@myserver.local tmux attach-session -t 'session1'")
         XCTAssertFalse(command.contains("-p"))
     }
 
@@ -136,7 +150,7 @@ final class TmuxServiceTests: XCTestCase {
             host: "192.168.1.100"
         )
         let command = service.remoteAttachCommand(for: "main", via: config)
-        XCTAssertEqual(command, "ssh -t 192.168.1.100 tmux attach-session -t main")
+        XCTAssertEqual(command, "ssh -t 192.168.1.100 tmux attach-session -t 'main'")
     }
 
     func testRemoteAttachCommandWithIdentityFile() {
@@ -148,6 +162,6 @@ final class TmuxServiceTests: XCTestCase {
             identityFilePath: "~/.ssh/id_ed25519"
         )
         let command = service.remoteAttachCommand(for: "prod", via: config)
-        XCTAssertEqual(command, "ssh -p 2222 -i ~/.ssh/id_ed25519 -t deploy@example.com tmux attach-session -t prod")
+        XCTAssertEqual(command, "ssh -p 2222 -i '~/.ssh/id_ed25519' -t deploy@example.com tmux attach-session -t 'prod'")
     }
 }

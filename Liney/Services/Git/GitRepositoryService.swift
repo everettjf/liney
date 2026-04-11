@@ -403,11 +403,11 @@ actor GitRepositoryService {
     func createRemoteWorktree(rootPath: String, request: CreateWorktreeRequest, sshConfig: SSHSessionConfiguration) async throws {
         var gitArgs = "git worktree add"
         if request.createNewBranch {
-            gitArgs += " -b '\(request.branchName)' '\(request.directoryPath)' HEAD"
+            gitArgs += " -b \(request.branchName.shellQuoted) \(request.directoryPath.shellQuoted) HEAD"
         } else {
-            gitArgs += " '\(request.directoryPath)' '\(request.branchName)'"
+            gitArgs += " \(request.directoryPath.shellQuoted) \(request.branchName.shellQuoted)"
         }
-        let script = "cd '\(rootPath)' && \(gitArgs)"
+        let script = "cd \(rootPath.shellQuoted) && \(gitArgs)"
 
         var arguments = [
             "-o", "BatchMode=yes",
@@ -439,8 +439,8 @@ actor GitRepositoryService {
         if force {
             gitArgs += " --force"
         }
-        gitArgs += " '\(path)'"
-        let script = "cd '\(rootPath)' && \(gitArgs)"
+        gitArgs += " \(path.shellQuoted)"
+        let script = "cd \(rootPath.shellQuoted) && \(gitArgs)"
 
         var arguments = [
             "-o", "BatchMode=yes",
@@ -629,7 +629,7 @@ actor GitRepositoryService {
     private static let remoteInspectTimeout: TimeInterval = 15
 
     func inspectRemoteRepository(remotePath: String, sshConfig: SSHSessionConfiguration) async throws -> RemoteGitSnapshot {
-        let script = "cd \(remotePath) && " +
+        let script = "cd \(remotePath.shellQuoted) && " +
             "echo __BRANCH__ && git rev-parse --abbrev-ref HEAD 2>/dev/null && " +
             "echo __HEAD__ && git rev-parse --short HEAD 2>/dev/null && " +
             "echo __WORKTREE__ && git worktree list --porcelain 2>/dev/null && " +
@@ -675,7 +675,7 @@ actor GitRepositoryService {
 
         var scriptParts: [String] = []
         for path in worktreePaths {
-            scriptParts.append("echo '__WT_PATH__' && echo '\(path)' && cd '\(path)' 2>/dev/null && echo '__WT_STATUS__' && git status --porcelain 2>/dev/null && echo '__WT_AHEAD_BEHIND__' && git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null || true")
+            scriptParts.append("echo '__WT_PATH__' && echo \(path.shellQuoted) && cd \(path.shellQuoted) 2>/dev/null && echo '__WT_STATUS__' && git status --porcelain 2>/dev/null && echo '__WT_AHEAD_BEHIND__' && git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null || true")
         }
         let script = scriptParts.joined(separator: " && ")
 

@@ -80,7 +80,7 @@ actor TmuxService {
     // MARK: - Attach Commands
 
     nonisolated func attachCommand(for sessionName: String) -> String {
-        "tmux attach-session -t \(sessionName)"
+        "tmux attach-session -t \(sessionName.shellQuoted)"
     }
 
     nonisolated func remoteAttachCommand(for sessionName: String, via sshConfig: SSHSessionConfiguration) -> String {
@@ -91,12 +91,12 @@ actor TmuxService {
         }
 
         if let identityFilePath = sshConfig.identityFilePath, !identityFilePath.isEmpty {
-            parts.append("-i \(identityFilePath)")
+            parts.append("-i \(identityFilePath.shellQuoted)")
         }
 
         parts.append("-t")
         parts.append(sshConfig.destination)
-        parts.append("tmux attach-session -t \(sessionName)")
+        parts.append("tmux attach-session -t \(sessionName.shellQuoted)")
 
         return parts.joined(separator: " ")
     }
