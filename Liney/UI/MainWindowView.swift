@@ -366,6 +366,16 @@ struct MainWindowView: View {
                 .help(localized("menu.view.openDiff"))
 
                 Button {
+                    openHistoryWindow()
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .padding(4 * uiScale)
+                }
+                .scaleEffect(uiScale)
+                .accessibilityLabel(localized("menu.view.openHistory"))
+                .help(localized("menu.view.openHistory"))
+
+                Button {
                     store.dispatch(.toggleCommandPalette)
                 } label: {
                     Image(systemName: "command")
@@ -499,6 +509,10 @@ struct MainWindowView: View {
 
                     Button(localized("menu.view.openDiff")) {
                         openDiffWindow()
+                    }
+
+                    Button(localized("menu.view.openHistory")) {
+                        openHistoryWindow()
                     }
 
                     if let workspace = store.selectedWorkspace,
@@ -658,6 +672,26 @@ struct MainWindowView: View {
             branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
             emptyStateMessage: diffEmptyStateMessage(for: workspace, supportsDiff: supportsDiff)
         )
+    }
+
+    private func openHistoryWindow() {
+        let workspace = store.selectedWorkspace
+        let supportsHistory = workspace?.supportsRepositoryFeatures == true
+        HistoryWindowManager.shared.show(
+            worktreePath: supportsHistory ? workspace?.activeWorktreePath : nil,
+            branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
+            emptyStateMessage: historyEmptyStateMessage(for: workspace, supportsHistory: supportsHistory)
+        )
+    }
+
+    private func historyEmptyStateMessage(for workspace: WorkspaceModel?, supportsHistory: Bool) -> String {
+        guard let workspace else {
+            return localized("main.history.selectWorkspace")
+        }
+        if supportsHistory {
+            return localized("main.history.noCommits")
+        }
+        return localizedFormat("main.history.noContextFormat", workspace.name)
     }
 
     private func diffEmptyStateMessage(for workspace: WorkspaceModel?, supportsDiff: Bool) -> String {

@@ -873,6 +873,7 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
     case toggleSidebar
     case toggleOverview
     case openDiff
+    case openHistory
     case refreshSelectedWorkspace
     case refreshAllRepositories
     case newTab
@@ -914,7 +915,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
              .toggleCommandPalette,
              .toggleSidebar,
              .toggleOverview,
-             .openDiff:
+             .openDiff,
+             .openHistory:
             return .general
         case .refreshSelectedWorkspace,
              .refreshAllRepositories:
@@ -983,6 +985,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.toggleOverview.title")
         case .openDiff:
             return lineyLocalizedSettingsString("settings.shortcuts.action.openDiff.title")
+        case .openHistory:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.openHistory.title")
         case .refreshSelectedWorkspace:
             return lineyLocalizedSettingsString("settings.shortcuts.action.refreshSelectedWorkspace.title")
         case .refreshAllRepositories:
@@ -1064,6 +1068,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.toggleOverview.subtitle")
         case .openDiff:
             return lineyLocalizedSettingsString("settings.shortcuts.action.openDiff.subtitle")
+        case .openHistory:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.openHistory.subtitle")
         case .refreshSelectedWorkspace:
             return lineyLocalizedSettingsString("settings.shortcuts.action.refreshSelectedWorkspace.subtitle")
         case .refreshAllRepositories:
@@ -1145,6 +1151,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return StoredShortcut(key: "o", command: true, shift: true, option: false, control: false)
         case .openDiff:
             return StoredShortcut(key: ".", command: true, shift: true, option: false, control: false)
+        case .openHistory:
+            return StoredShortcut(key: "h", command: true, shift: true, option: false, control: false)
         case .refreshSelectedWorkspace:
             return StoredShortcut(key: "r", command: true, shift: false, option: false, control: false)
         case .refreshAllRepositories:
