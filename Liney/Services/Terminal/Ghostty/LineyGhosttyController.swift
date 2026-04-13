@@ -104,6 +104,7 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
     func applyConfig(_ config: ghostty_config_t) {
         guard let surface = currentSurface else { return }
         ghostty_surface_update_config(surface, config)
+        ghostty_surface_refresh(surface)
         terminalView.syncSurfaceMetrics()
     }
 
@@ -202,9 +203,13 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
             return true
 
         case GHOSTTY_ACTION_OPEN_URL:
-            guard let cString = action.action.open_url.url,
-                  let url = URL(string: String(cString: cString)) else {
-                return false
+            guard let cString = action.action.open_url.url else { return false }
+            let value = String(cString: cString)
+            let url: URL
+            if let candidate = URL(string: value), candidate.scheme != nil {
+                url = candidate
+            } else {
+                url = URL(fileURLWithPath: NSString(string: value).expandingTildeInPath)
             }
             NSWorkspace.shared.open(url)
             return true

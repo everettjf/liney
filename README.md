@@ -53,6 +53,11 @@ Download the latest signed `.dmg` from GitHub Releases:
 - Issues: <https://github.com/everettjf/liney/issues>
 - Discord: <https://discord.com/invite/eGzEaP6TzR>
 
+## Branches
+
+- `main` — development branch, may be unstable.
+- `stable` — stable release branch. Use this if you need a reliable version of the source code.
+
 ## For Developers
 
 Development setup, build commands, testing, repo layout, and release docs live in [`DEVELOP.md`](./DEVELOP.md).

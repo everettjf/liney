@@ -312,6 +312,16 @@ public final class LineyDesktopApplication: NSObject {
         )
     }
 
+    func openHistoryWindow() {
+        let workspace = activeStore?.selectedWorkspace
+        let supportsHistory = workspace?.supportsRepositoryFeatures == true
+        HistoryWindowManager.shared.show(
+            worktreePath: supportsHistory ? workspace?.activeWorktreePath : nil,
+            branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
+            emptyStateMessage: historyEmptyStateMessage(for: workspace, supportsHistory: supportsHistory)
+        )
+    }
+
     public var hasSelectedWorkspace: Bool {
         activeStore?.selectedWorkspace != nil
     }
@@ -370,6 +380,16 @@ public final class LineyDesktopApplication: NSObject {
             return LocalizationManager.shared.string("main.diff.workingDirectoryClean")
         }
         return l10nFormat(LocalizationManager.shared.string("main.diff.noContextFormat"), arguments: [workspace.name])
+    }
+
+    private func historyEmptyStateMessage(for workspace: WorkspaceModel?, supportsHistory: Bool) -> String {
+        guard let workspace else {
+            return LocalizationManager.shared.string("main.history.selectWorkspace")
+        }
+        if supportsHistory {
+            return LocalizationManager.shared.string("main.history.noCommits")
+        }
+        return l10nFormat(LocalizationManager.shared.string("main.history.noContextFormat"), arguments: [workspace.name])
     }
 
     static var sharedWindowTabbingIdentifier: String {

@@ -869,53 +869,39 @@ struct SettingsSheet: View {
                     Toggle(localized("settings.general.terminal.useCustomTheme"), isOn: terminalThemeEnabledBinding)
 
                     if appSettings.terminalTheme != nil {
-                        TextField(
-                            localized("settings.general.terminal.themeName"),
-                            text: terminalThemeBinding
-                        )
-                        .textFieldStyle(.roundedBorder)
-
                         if allTerminalThemes.isEmpty {
                             Text(localized("settings.general.terminal.themeUnavailable"))
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(.secondary)
                         } else {
-                            TextField(
-                                localized("settings.general.terminal.themeSearchPlaceholder"),
-                                text: $terminalThemeSearchText
-                            )
-                            .textFieldStyle(.roundedBorder)
-
-                            Text(
-                                localizedFormat(
-                                    "settings.general.terminal.availableThemesFormat",
-                                    terminalThemeSummaryCount,
-                                    allTerminalThemes.count
-                                )
-                            )
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.secondary)
-
-                            ScrollView {
-                                LazyVStack(alignment: .leading, spacing: 8) {
-                                    ForEach(filteredTerminalThemes, id: \.self) { theme in
-                                        TerminalThemeOptionRow(
-                                            name: theme,
-                                            isSelected: terminalThemeBinding.wrappedValue == theme
-                                        ) {
-                                            terminalThemeBinding.wrappedValue = theme
-                                        }
-                                    }
+                            Picker(localized("settings.general.terminal.themeName"), selection: terminalThemeBinding) {
+                                ForEach(allTerminalThemes, id: \.self) { theme in
+                                    Text(theme).tag(theme)
                                 }
-                                .padding(.vertical, 2)
                             }
-                            .frame(maxHeight: .infinity)
+                            .pickerStyle(.menu)
 
-                            if filteredTerminalThemes.isEmpty {
-                                Text(localized("settings.general.terminal.noThemeSearchResults"))
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                Button {
+                                    navigateTheme(direction: -1)
+                                } label: {
+                                    Label(localized("settings.general.terminal.themePrevious"), systemImage: "chevron.up")
+                                }
+
+                                Button {
+                                    navigateTheme(direction: 1)
+                                } label: {
+                                    Label(localized("settings.general.terminal.themeNext"), systemImage: "chevron.down")
+                                }
+
+                                Button {
+                                    navigateThemeRandom()
+                                } label: {
+                                    Label(localized("settings.general.terminal.themeRandom"), systemImage: "shuffle")
+                                }
                             }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
 
                         Text(localized("settings.general.terminal.themeHint"))
@@ -1525,7 +1511,7 @@ struct SettingsSheet: View {
             get: { appSettings.terminalTheme != nil },
             set: { enabled in
                 if enabled {
-                    appSettings.terminalTheme = appSettings.terminalTheme ?? ""
+                    appSettings.terminalTheme = appSettings.terminalTheme ?? LineyGhosttyConfigManager.defaultTheme
                 } else {
                     appSettings.terminalTheme = nil
                 }
@@ -1538,6 +1524,38 @@ struct SettingsSheet: View {
             get: { appSettings.terminalTheme ?? "" },
             set: { appSettings.terminalTheme = $0 }
         )
+    }
+
+    private func navigateTheme(direction: Int) {
+        let themes = allTerminalThemes
+        guard !themes.isEmpty else { return }
+        let current = appSettings.terminalTheme ?? ""
+        if let index = themes.firstIndex(of: current) {
+            let next = (index + direction + themes.count) % themes.count
+            appSettings.terminalTheme = themes[next]
+        } else {
+            appSettings.terminalTheme = themes[0]
+        }
+        applyThemeLive()
+    }
+
+    private func navigateThemeRandom() {
+        let themes = allTerminalThemes
+        guard themes.count > 1 else { return }
+        let current = appSettings.terminalTheme ?? ""
+        var random = themes.randomElement()!
+        while random == current {
+            random = themes.randomElement()!
+        }
+        appSettings.terminalTheme = random
+        applyThemeLive()
+    }
+
+    private func applyThemeLive() {
+        var settings = appSettings
+        settings.autoRefreshIntervalSeconds = max(10, settings.autoRefreshIntervalSeconds)
+        settings.keyboardShortcutOverrides = LineyKeyboardShortcuts.normalizedOverrides(settings.keyboardShortcutOverrides)
+        store.updateAppSettings(settings)
     }
 
     private var terminalFontFamilyEnabledBinding: Binding<Bool> {

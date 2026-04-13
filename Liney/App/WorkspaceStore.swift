@@ -37,6 +37,7 @@ final class WorkspaceStore: ObservableObject {
     @Published var presentedError: PresentedError?
     @Published var renameWorkspaceRequest: RenameWorkspaceRequest?
     @Published var createWorktreeRequest: CreateWorktreeSheetRequest?
+    @Published var editWorktreeNoteRequest: EditWorktreeNoteRequest?
     @Published var createSSHSessionRequest: CreateSSHSessionRequest?
     @Published var createAgentSessionRequest: CreateAgentSessionRequest?
     @Published var createRemoteWorkspaceRequest: CreateRemoteWorkspaceRequest?
@@ -933,6 +934,23 @@ final class WorkspaceStore: ObservableObject {
         let icon = SidebarItemIcon.randomRepository(preferredSeed: iconSeed, avoiding: existingIcons)
         cachedWorkspaceIcons[workspace.id] = icon
         return icon
+    }
+
+    func worktreeNote(for worktree: WorktreeModel, in workspace: WorkspaceModel) -> String? {
+        workspace.worktreeNote(for: worktree.path)
+    }
+
+    func setWorktreeNote(_ note: String?, for worktree: WorktreeModel, in workspace: WorkspaceModel) {
+        workspace.setWorktreeNote(note, for: worktree.path)
+        persist()
+    }
+
+    func presentEditWorktreeNote(for worktree: WorktreeModel, in workspace: WorkspaceModel) {
+        editWorktreeNoteRequest = EditWorktreeNoteRequest(
+            workspaceID: workspace.id,
+            worktreePath: worktree.path,
+            currentNote: workspace.worktreeNote(for: worktree.path) ?? ""
+        )
     }
 
     func sidebarIcon(for worktree: WorktreeModel, in workspace: WorkspaceModel) -> SidebarItemIcon {

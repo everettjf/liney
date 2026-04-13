@@ -366,6 +366,16 @@ struct MainWindowView: View {
                 .help(localized("menu.view.openDiff"))
 
                 Button {
+                    openHistoryWindow()
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .padding(4 * uiScale)
+                }
+                .scaleEffect(uiScale)
+                .accessibilityLabel(localized("menu.view.openHistory"))
+                .help(localized("menu.view.openHistory"))
+
+                Button {
                     store.dispatch(.toggleCommandPalette)
                 } label: {
                     Image(systemName: "command")
@@ -501,6 +511,10 @@ struct MainWindowView: View {
                         openDiffWindow()
                     }
 
+                    Button(localized("menu.view.openHistory")) {
+                        openHistoryWindow()
+                    }
+
                     if let workspace = store.selectedWorkspace,
                        !workspace.remoteTargets.isEmpty {
                         Menu(localized("main.menu.remoteTargets")) {
@@ -560,6 +574,13 @@ struct MainWindowView: View {
         .sheet(item: $store.createWorktreeRequest) { request in
             CreateWorktreeSheet(request: request) { draft in
                 store.createWorktree(workspaceID: request.workspaceID, draft: draft)
+            }
+        }
+        .sheet(item: $store.editWorktreeNoteRequest) { request in
+            EditWorktreeNoteSheet(request: request) { note in
+                guard let workspace = store.workspaces.first(where: { $0.id == request.workspaceID }),
+                      let worktree = workspace.worktrees.first(where: { $0.path == request.worktreePath }) else { return }
+                store.setWorktreeNote(note.isEmpty ? nil : note, for: worktree, in: workspace)
             }
         }
         .sheet(item: $store.createSSHSessionRequest) { request in
@@ -656,6 +677,26 @@ struct MainWindowView: View {
             branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
             emptyStateMessage: diffEmptyStateMessage(for: workspace, supportsDiff: supportsDiff)
         )
+    }
+
+    private func openHistoryWindow() {
+        let workspace = store.selectedWorkspace
+        let supportsHistory = workspace?.supportsRepositoryFeatures == true
+        HistoryWindowManager.shared.show(
+            worktreePath: supportsHistory ? workspace?.activeWorktreePath : nil,
+            branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
+            emptyStateMessage: historyEmptyStateMessage(for: workspace, supportsHistory: supportsHistory)
+        )
+    }
+
+    private func historyEmptyStateMessage(for workspace: WorkspaceModel?, supportsHistory: Bool) -> String {
+        guard let workspace else {
+            return localized("main.history.selectWorkspace")
+        }
+        if supportsHistory {
+            return localized("main.history.noCommits")
+        }
+        return localizedFormat("main.history.noContextFormat", workspace.name)
     }
 
     private func diffEmptyStateMessage(for workspace: WorkspaceModel?, supportsDiff: Bool) -> String {

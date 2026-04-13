@@ -9,6 +9,8 @@ import Foundation
 import GhosttyKit
 
 enum LineyGhosttyConfigManager {
+    static let defaultTheme = "Catppuccin Mocha"
+
     static func buildConfig(
         settings: AppSettings,
         fileManager: FileManager = .default
@@ -46,9 +48,19 @@ enum LineyGhosttyConfigManager {
             "# Managed by Liney. Manual edits will be overwritten."
         ]
 
-        if let terminalTheme = settings.terminalTheme {
-            lines.append("theme = \(terminalTheme)")
+        if let themeName = settings.terminalTheme {
+            if let themeContents = readThemeFileContents(named: themeName) {
+                // Inline the theme colors directly so that ghostty_config_load_file
+                // picks them up without relying on Ghostty's own theme lookup.
+                lines.append("# theme: \(themeName)")
+                lines.append(themeContents)
+            } else {
+                // Fallback: let Ghostty resolve the theme by name.
+                lines.append("theme = \(themeName)")
+            }
         }
+        // When terminalTheme is nil, no theme config is written so Ghostty
+        // uses its native dark default (black background).
 
         if let terminalFontFamily = settings.terminalFontFamily {
             lines.append("font-family = \(quotedValue(terminalFontFamily))")
@@ -63,6 +75,19 @@ enum LineyGhosttyConfigManager {
         }
 
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    private static func readThemeFileContents(named name: String) -> String? {
+        guard let path = LineyGhosttyThemeCatalog.findThemeFile(named: name),
+              let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return nil
+        }
+        // Strip comments and blank lines, keep only key = value lines.
+        return contents
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+            .joined(separator: "\n")
     }
 
     static func managedConfigFileURL(fileManager: FileManager = .default) -> URL {
