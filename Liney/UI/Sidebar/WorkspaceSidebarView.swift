@@ -181,7 +181,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             lastDataFingerprint = fingerprint
             currentQuery = trimmedQuery
             rootNodes = buildNodes(from: workspaces)
-            nodeLookup = Dictionary(uniqueKeysWithValues: rootNodes.flatMap { $0.flattened() }.map { ($0.id, $0) })
+            nodeLookup = Dictionary(rootNodes.flatMap { $0.flattened() }.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
 
             isApplyingSelection = true
             container?.reloadOutlineData()
@@ -243,9 +243,10 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
 
         private func buildNodes(from workspaces: [WorkspaceModel]) -> [SidebarNodeItem] {
             let groupsByID = Dictionary(
-                uniqueKeysWithValues: (store?.appSettings.workspaceGroups ?? []).map { ($0.id, $0) }
+                (store?.appSettings.workspaceGroups ?? []).map { ($0.id, $0) },
+                uniquingKeysWith: { _, new in new }
             )
-            let workspaceByID = Dictionary(uniqueKeysWithValues: workspaces.map { ($0.id, $0) })
+            let workspaceByID = Dictionary(workspaces.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
             let rootOrder = store?.effectiveSidebarRootOrder() ?? []
 
             var result: [SidebarNodeItem] = []
@@ -1347,7 +1348,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
                 let fingerprint = self.dataFingerprint(workspaces: workspaces, query: self.currentQuery)
                 self.lastDataFingerprint = fingerprint
                 self.rootNodes = self.buildNodes(from: workspaces)
-                self.nodeLookup = Dictionary(uniqueKeysWithValues: self.rootNodes.flatMap { $0.flattened() }.map { ($0.id, $0) })
+                self.nodeLookup = Dictionary(self.rootNodes.flatMap { $0.flattened() }.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
                 self.isApplyingSelection = true
                 self.container?.reloadOutlineData()
                 self.isRestoringExpansion = true
