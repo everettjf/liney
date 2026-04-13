@@ -1107,11 +1107,9 @@ private final class LineyGhosttySurfaceView: NSView {
             handledTextInputCommand = true
             _ = performBindingAction("scroll_to_bottom")
         case .moveBackwardWord:
-            guard backendConfiguration.kind == .ssh else { break }
             handledTextInputCommand = true
             sendSSHWordNavigation("\u{1B}b")
         case .moveForwardWord:
-            guard backendConfiguration.kind == .ssh else { break }
             handledTextInputCommand = true
             sendSSHWordNavigation("\u{1B}f")
         case .deleteWordBackward:

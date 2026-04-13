@@ -109,13 +109,14 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
         )
     }
 
-    func testLocalOptionArrowDoesNotUseSSHWordNavigationEscapeSequence() {
-        XCTAssertNil(
+    func testLocalOptionArrowUsesWordNavigationEscapeSequence() {
+        XCTAssertEqual(
             lineyGhosttySSHWordNavigationEscapeSequence(
                 keyCode: UInt16(kVK_LeftArrow),
                 modifierFlags: [.option],
                 backendConfiguration: .local()
-            )
+            ),
+            "\u{1B}b"
         )
     }
 
