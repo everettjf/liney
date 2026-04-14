@@ -23,6 +23,10 @@ final class WorkspaceMetadataWatchService {
     private let queue = DispatchQueue(label: "com.liney.workspace-metadata-watch")
     private var handles: [WatchHandle] = []
     private var pendingCallbacks: [UUID: DispatchWorkItem] = [:]
+    private var lastCallbackTime: [UUID: CFAbsoluteTime] = [:]
+    /// Minimum interval between callbacks for the same workspace, to prevent
+    /// queue buildup during bulk file operations (e.g. git checkout).
+    private let minCallbackInterval: CFAbsoluteTime = 1.0
 
     func configure(
         workspaces: [WorkspaceModel],
@@ -45,6 +49,7 @@ final class WorkspaceMetadataWatchService {
             workItem.cancel()
         }
         pendingCallbacks.removeAll()
+        lastCallbackTime.removeAll()
 
         for handle in handles {
             handle.source.cancel()
@@ -82,11 +87,21 @@ final class WorkspaceMetadataWatchService {
         onChange: @escaping @Sendable (UUID) -> Void
     ) {
         pendingCallbacks[workspaceID]?.cancel()
-        let workItem = DispatchWorkItem {
+
+        // Calculate delay: at least minCallbackInterval since the last actual callback
+        let now = CFAbsoluteTimeGetCurrent()
+        let lastTime = lastCallbackTime[workspaceID] ?? 0
+        let elapsed = now - lastTime
+        let delay = max(0.5, minCallbackInterval - elapsed)
+
+        let workItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.lastCallbackTime[workspaceID] = CFAbsoluteTimeGetCurrent()
+            }
             onChange(workspaceID)
         }
         pendingCallbacks[workspaceID] = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     private func watchPaths(for workspace: WorkspaceModel) -> [String] {

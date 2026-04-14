@@ -69,6 +69,7 @@ final class WorkspaceStore: ObservableObject {
     private var remoteRefreshTimer: Timer?
     private var remoteWindowObserver: NSObjectProtocol?
     private var isRefreshingRemotes = false
+    private var lastRemoteRefreshTime: Date = .distantPast
     private var cachedWorkspaceIcons: [UUID: SidebarItemIcon] = [:]
     private var cachedWorktreeIcons: [UUID: [String: SidebarItemIcon]] = [:]
 
@@ -2894,10 +2895,13 @@ final class WorkspaceStore: ObservableObject {
 
     private func startSleepPreventionTicker() {
         sleepPreventionTickerTask?.cancel()
-        sleepPreventionTickerTask = Task { @MainActor in
+        sleepPreventionTickerTask = Task.detached { [weak self] in
             while !Task.isCancelled {
-                sleepPreventionReferenceDate = Date()
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run { [weak self] in
+                    self?.sleepPreventionReferenceDate = Date()
+                }
             }
         }
     }
@@ -3196,7 +3200,10 @@ final class WorkspaceStore: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                await self?.refreshAllRemoteWorkspaces()
+                guard let self else { return }
+                // Skip if last refresh was less than 10 seconds ago
+                guard Date().timeIntervalSince(self.lastRemoteRefreshTime) >= 10 else { return }
+                await self.refreshAllRemoteWorkspaces()
             }
         }
     }
@@ -3215,6 +3222,7 @@ final class WorkspaceStore: ObservableObject {
         let remotes = workspaces.filter { $0.isRemote && !$0.isArchived }
         guard !remotes.isEmpty else { return }
         isRefreshingRemotes = true
+        lastRemoteRefreshTime = Date()
         defer { isRefreshingRemotes = false }
         for workspace in remotes {
             await refreshRemoteWorkspace(workspace)

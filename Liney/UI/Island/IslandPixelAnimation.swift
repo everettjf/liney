@@ -5,7 +5,6 @@
 //  Author: everettjf
 //
 
-import Combine
 import SwiftUI
 
 // MARK: - Animation Style Enum
@@ -69,8 +68,7 @@ struct IslandPixelCreature: View {
 
     @State private var frameIndex: Int = 0
     @State private var colorIndex: Int = 0
-
-    private let timer = Timer.publish(every: 0.6, on: .main, in: .common).autoconnect()
+    @State private var animationTask: Task<Void, Never>?
 
     private let pixelSize: CGFloat = 2
 
@@ -87,11 +85,21 @@ struct IslandPixelCreature: View {
                 }
             }
         }
-        .onReceive(timer) { _ in
-            withAnimation(.easeInOut(duration: 0.3)) {
-                frameIndex = (frameIndex + 1) % frames.count
-                colorIndex = (colorIndex + 1) % palette.count
+        .onAppear {
+            animationTask = Task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        frameIndex = (frameIndex + 1) % frames.count
+                        colorIndex = (colorIndex + 1) % palette.count
+                    }
+                }
             }
+        }
+        .onDisappear {
+            animationTask?.cancel()
+            animationTask = nil
         }
     }
 }
