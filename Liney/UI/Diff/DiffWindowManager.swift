@@ -43,7 +43,7 @@ final class DiffWindowManager: NSObject, NSWindowDelegate {
         newWindow.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         newWindow.tabbingMode = .preferred
         newWindow.tabbingIdentifier = LineyDesktopApplication.sharedWindowTabbingIdentifier
-        newWindow.toolbarStyle = .unified
+        newWindow.toolbarStyle = .unifiedCompact
         newWindow.isReleasedWhenClosed = false
         newWindow.minSize = NSSize(width: 760, height: 520)
         newWindow.setFrameAutosaveName("LineyDiffWindow")

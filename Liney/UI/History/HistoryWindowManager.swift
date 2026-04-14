@@ -42,7 +42,7 @@ final class HistoryWindowManager: NSObject, NSWindowDelegate {
         newWindow.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         newWindow.tabbingMode = .preferred
         newWindow.tabbingIdentifier = LineyDesktopApplication.sharedWindowTabbingIdentifier
-        newWindow.toolbarStyle = .unified
+        newWindow.toolbarStyle = .unifiedCompact
         newWindow.isReleasedWhenClosed = false
         newWindow.minSize = NSSize(width: 900, height: 520)
         newWindow.setFrameAutosaveName("LineyHistoryWindow")
