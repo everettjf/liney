@@ -107,7 +107,7 @@ private struct SidebarFooterView: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
+        HStack(spacing: 6 * uiScale) {
             Button(action: openRepositoryAction) {
                 HStack(spacing: 5) {
                     Image(systemName: "folder.badge.plus")
@@ -129,18 +129,27 @@ private struct SidebarFooterView: View {
             .foregroundStyle(LineyTheme.secondaryText)
             .help(localized("sidebar.openFolderHelp"))
 
-            HStack(spacing: 6 * uiScale) {
-                Button(action: connectSSHAction) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "network")
-                            .font(.system(size: 11 * uiScale, weight: .semibold))
-                        Text(localized("main.sidebar.connectSSH"))
-                            .font(.system(size: 11 * uiScale, weight: .semibold))
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 10 * uiScale)
-                    .frame(maxWidth: .infinity, minHeight: 30 * uiScale, alignment: .leading)
+            Button(action: connectSSHAction) {
+                Image(systemName: "network")
+                    .font(.system(size: 12 * uiScale, weight: .semibold))
+                    .frame(width: 30 * uiScale, height: 30 * uiScale)
                     .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .foregroundStyle(LineyTheme.border)
+            )
+            .foregroundStyle(LineyTheme.secondaryText)
+            .help(localized("main.sidebar.connectSSH"))
+
+            if LineyFeatureFlags.showsRemoteSessionCreationUI {
+                Button(action: addRemoteWorkspaceAction) {
+                    Image(systemName: "server.rack")
+                        .font(.system(size: 12 * uiScale, weight: .semibold))
+                        .frame(width: 30 * uiScale, height: 30 * uiScale)
+                        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .background(
@@ -149,24 +158,7 @@ private struct SidebarFooterView: View {
                         .foregroundStyle(LineyTheme.border)
                 )
                 .foregroundStyle(LineyTheme.secondaryText)
-                .help(localized("main.sidebar.connectSSH"))
-
-                if LineyFeatureFlags.showsRemoteSessionCreationUI {
-                    Button(action: addRemoteWorkspaceAction) {
-                        Image(systemName: "server.rack")
-                            .font(.system(size: 12 * uiScale, weight: .semibold))
-                            .frame(width: 30 * uiScale, height: 30 * uiScale)
-                            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                            .foregroundStyle(LineyTheme.border)
-                    )
-                    .foregroundStyle(LineyTheme.secondaryText)
-                    .help(localized("sidebar.action.addRemoteWorkspace"))
-                }
+                .help(localized("sidebar.action.addRemoteWorkspace"))
             }
         }
     }
@@ -1479,7 +1471,7 @@ private final class SidebarOutlineContainerView: NSView {
             footerHostingView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
             footerHostingView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
             footerHostingView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
-            footerHostingView.heightAnchor.constraint(equalToConstant: 70),
+            footerHostingView.heightAnchor.constraint(equalToConstant: 35),
         ])
     }
 
