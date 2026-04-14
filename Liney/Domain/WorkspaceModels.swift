@@ -76,6 +76,7 @@ private func lineyLocalizedModelFormat(_ key: String, _ arguments: CVarArg...) -
 enum WorkspaceKind: String, Codable {
     case repository
     case localTerminal
+    case remoteServer
     case sshTerminal
 
     var displayName: String {
@@ -84,6 +85,8 @@ enum WorkspaceKind: String, Codable {
             return lineyLocalizedModelString("workspace.kind.repository")
         case .localTerminal:
             return lineyLocalizedModelString("workspace.kind.localTerminal")
+        case .remoteServer:
+            return lineyLocalizedModelString("workspace.kind.remoteServer")
         case .sshTerminal:
             return lineyLocalizedModelString("workspace.kind.sshTerminal")
         }
@@ -102,6 +105,7 @@ enum SessionBackendKind: String, Codable, CaseIterable {
     case localShell
     case ssh
     case agent
+    case tmuxAttach
 
     var displayName: String {
         switch self {
@@ -111,6 +115,8 @@ enum SessionBackendKind: String, Codable, CaseIterable {
             return lineyLocalizedModelString("session.backend.ssh")
         case .agent:
             return lineyLocalizedModelString("session.backend.agent")
+        case .tmuxAttach:
+            return lineyLocalizedModelString("session.backend.tmuxAttach")
         }
     }
 }
@@ -174,6 +180,13 @@ struct AgentSessionConfiguration: Codable, Hashable {
     var arguments: [String]
     var environment: [String: String]
     var workingDirectory: String?
+}
+
+struct TmuxAttachConfiguration: Codable, Hashable {
+    var sessionName: String
+    var windowIndex: Int?
+    var isRemote: Bool
+    var sshConfig: SSHSessionConfiguration?
 }
 
 struct AgentPreset: Codable, Hashable, Identifiable {
@@ -649,6 +662,7 @@ struct SessionBackendConfiguration: Codable, Hashable {
     var localShell: LocalShellSessionConfiguration?
     var ssh: SSHSessionConfiguration?
     var agent: AgentSessionConfiguration?
+    var tmuxAttach: TmuxAttachConfiguration?
 
     static func local(
         shellPath: String? = nil,
@@ -662,7 +676,8 @@ struct SessionBackendConfiguration: Codable, Hashable {
                 shellArguments: shellArguments ?? defaultShell.shellArguments
             ),
             ssh: nil,
-            agent: nil
+            agent: nil,
+            tmuxAttach: nil
         )
     }
 
@@ -671,7 +686,8 @@ struct SessionBackendConfiguration: Codable, Hashable {
             kind: .ssh,
             localShell: nil,
             ssh: configuration,
-            agent: nil
+            agent: nil,
+            tmuxAttach: nil
         )
     }
 
@@ -680,7 +696,18 @@ struct SessionBackendConfiguration: Codable, Hashable {
             kind: .agent,
             localShell: nil,
             ssh: nil,
-            agent: configuration
+            agent: configuration,
+            tmuxAttach: nil
+        )
+    }
+
+    static func tmuxAttach(_ configuration: TmuxAttachConfiguration) -> SessionBackendConfiguration {
+        SessionBackendConfiguration(
+            kind: .tmuxAttach,
+            localShell: nil,
+            ssh: nil,
+            agent: nil,
+            tmuxAttach: configuration
         )
     }
 
@@ -692,6 +719,8 @@ struct SessionBackendConfiguration: Codable, Hashable {
             return ssh?.destination ?? kind.displayName
         case .agent:
             return agent?.name ?? kind.displayName
+        case .tmuxAttach:
+            return "tmux: \(tmuxAttach?.sessionName ?? kind.displayName)"
         }
     }
 
@@ -942,6 +971,7 @@ struct PaneSnapshot: Codable, Hashable, Identifiable {
     var preferredWorkingDirectory: String
     var preferredEngine: TerminalEngineKind
     var backendConfiguration: SessionBackendConfiguration
+    var detectedTmuxSession: String?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -950,18 +980,21 @@ struct PaneSnapshot: Codable, Hashable, Identifiable {
         case backendConfiguration
         case shellPath
         case shellArguments
+        case detectedTmuxSession
     }
 
     init(
         id: UUID,
         preferredWorkingDirectory: String,
         preferredEngine: TerminalEngineKind,
-        backendConfiguration: SessionBackendConfiguration
+        backendConfiguration: SessionBackendConfiguration,
+        detectedTmuxSession: String? = nil
     ) {
         self.id = id
         self.preferredWorkingDirectory = preferredWorkingDirectory
         self.preferredEngine = preferredEngine
         self.backendConfiguration = backendConfiguration
+        self.detectedTmuxSession = detectedTmuxSession
     }
 
     static func makeDefault(id: UUID = UUID(), cwd: String) -> PaneSnapshot {
@@ -969,7 +1002,8 @@ struct PaneSnapshot: Codable, Hashable, Identifiable {
             id: id,
             preferredWorkingDirectory: cwd,
             preferredEngine: .libghosttyPreferred,
-            backendConfiguration: .local()
+            backendConfiguration: .local(),
+            detectedTmuxSession: nil
         )
     }
 
@@ -990,6 +1024,7 @@ struct PaneSnapshot: Codable, Hashable, Identifiable {
             let shellArguments = try container.decodeIfPresent([String].self, forKey: .shellArguments) ?? LocalShellSessionConfiguration.default.shellArguments
             backendConfiguration = .local(shellPath: shellPath, shellArguments: shellArguments)
         }
+        detectedTmuxSession = try container.decodeIfPresent(String.self, forKey: .detectedTmuxSession)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -998,6 +1033,7 @@ struct PaneSnapshot: Codable, Hashable, Identifiable {
         try container.encode(preferredWorkingDirectory, forKey: .preferredWorkingDirectory)
         try container.encode(preferredEngine, forKey: .preferredEngine)
         try container.encode(backendConfiguration, forKey: .backendConfiguration)
+        try container.encodeIfPresent(detectedTmuxSession, forKey: .detectedTmuxSession)
     }
 }
 
@@ -1308,6 +1344,7 @@ struct WorkspaceRecord: Codable, Identifiable {
     var worktrees: [WorktreeModel]
     var settings: WorkspaceSettings
     var activityLog: [WorkspaceActivityEntry]
+    var sshTarget: SSHSessionConfiguration?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -1323,6 +1360,7 @@ struct WorkspaceRecord: Codable, Identifiable {
         case layout
         case panes
         case focusedPaneID
+        case sshTarget
     }
 
     init(
@@ -1335,7 +1373,8 @@ struct WorkspaceRecord: Codable, Identifiable {
         isSidebarExpanded: Bool,
         worktrees: [WorktreeModel] = [],
         settings: WorkspaceSettings = WorkspaceSettings(),
-        activityLog: [WorkspaceActivityEntry] = []
+        activityLog: [WorkspaceActivityEntry] = [],
+        sshTarget: SSHSessionConfiguration? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -1347,6 +1386,7 @@ struct WorkspaceRecord: Codable, Identifiable {
         self.worktrees = worktrees
         self.settings = settings
         self.activityLog = activityLog
+        self.sshTarget = sshTarget
     }
 
     init(from decoder: Decoder) throws {
@@ -1360,6 +1400,7 @@ struct WorkspaceRecord: Codable, Identifiable {
         worktrees = try container.decodeIfPresent([WorktreeModel].self, forKey: .worktrees) ?? []
         settings = try container.decodeIfPresent(WorkspaceSettings.self, forKey: .settings) ?? WorkspaceSettings()
         activityLog = try container.decodeIfPresent([WorkspaceActivityEntry].self, forKey: .activityLog) ?? []
+        sshTarget = try container.decodeIfPresent(SSHSessionConfiguration.self, forKey: .sshTarget)
 
         if let states = try container.decodeIfPresent([WorktreeSessionStateRecord].self, forKey: .worktreeStates), !states.isEmpty {
             worktreeStates = states
@@ -1390,6 +1431,7 @@ struct WorkspaceRecord: Codable, Identifiable {
         try container.encode(worktrees, forKey: .worktrees)
         try container.encode(settings, forKey: .settings)
         try container.encode(activityLog, forKey: .activityLog)
+        try container.encodeIfPresent(sshTarget, forKey: .sshTarget)
     }
 }
 

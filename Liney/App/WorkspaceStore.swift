@@ -41,6 +41,7 @@ final class WorkspaceStore: ObservableObject {
     @Published var createSSHSessionRequest: CreateSSHSessionRequest?
     @Published var createSSHWorkspaceRequest: CreateSSHWorkspaceRequest?
     @Published var createAgentSessionRequest: CreateAgentSessionRequest?
+    @Published var createRemoteWorkspaceRequest: CreateRemoteWorkspaceRequest?
     @Published var pendingWorktreeSwitch: PendingWorktreeSwitch?
     @Published var pendingWorktreeRemoval: PendingWorktreeRemoval?
     @Published var sleepPreventionSession: SleepPreventionSession?
@@ -64,6 +65,12 @@ final class WorkspaceStore: ObservableObject {
     private var autoRefreshTask: Task<Void, Never>?
     private var statusMessageTask: Task<Void, Never>?
     private var sleepPreventionTickerTask: Task<Void, Never>?
+    private static let remoteRefreshInterval: TimeInterval = 30
+    private var remoteRefreshTimer: Timer?
+    private var remoteWindowObserver: NSObjectProtocol?
+    private var isRefreshingRemotes = false
+    private var cachedWorkspaceIcons: [UUID: SidebarItemIcon] = [:]
+    private var cachedWorktreeIcons: [UUID: [String: SidebarItemIcon]] = [:]
 
     private func localized(_ key: String) -> String {
         LocalizationManager.shared.string(key)
@@ -92,6 +99,7 @@ final class WorkspaceStore: ObservableObject {
         sleepPreventionTickerTask?.cancel()
         guard Thread.isMainThread else { return }
         MainActor.assumeIsolated {
+            stopRemoteWorkspaceRefreshScheduler()
             metadataWatchService.stop()
             sleepPreventionController.onEvent = nil
             sleepPreventionController.stop()
@@ -319,6 +327,20 @@ final class WorkspaceStore: ObservableObject {
                 kind: .command(.openLatestRelease)
             ),
         ]
+
+        if LineyFeatureFlags.showsRemoteSessionCreationUI {
+            items.append(
+                CommandPaletteItem(
+                    id: "create-remote-workspace",
+                    title: localized("main.commandPalette.createRemoteWorkspace"),
+                    subtitle: nil,
+                    group: .sessions,
+                    keywords: ["remote", "server", "ssh", "workspace"],
+                    isGlobal: true,
+                    kind: .command(.createRemoteWorkspace)
+                )
+            )
+        }
 
         items.append(
             contentsOf: LineyFeatureRegistry.shared.commandPaletteItems(
@@ -664,6 +686,7 @@ final class WorkspaceStore: ObservableObject {
 
         configureUpdater(checkInBackground: true)
         syncAutomationServices()
+        startRemoteWorkspaceRefreshScheduler()
         persist()
     }
 
@@ -894,7 +917,25 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func sidebarIcon(for workspace: WorkspaceModel) -> SidebarItemIcon {
-        workspace.workspaceIconOverride ?? (workspace.supportsRepositoryFeatures ? appSettings.defaultRepositoryIcon : appSettings.defaultLocalTerminalIcon)
+        if let override = workspace.workspaceIconOverride {
+            return override
+        }
+        guard workspace.supportsRepositoryFeatures else {
+            return appSettings.defaultLocalTerminalIcon
+        }
+        if appSettings.defaultRepositoryIcon != .repositoryDefault {
+            return appSettings.defaultRepositoryIcon
+        }
+        if let cached = cachedWorkspaceIcons[workspace.id] {
+            return cached
+        }
+        let existingIcons = workspaces
+            .filter { $0.id != workspace.id && !$0.isArchived && $0.supportsRepositoryFeatures }
+            .compactMap { $0.workspaceIconOverride }
+        let iconSeed = URL(fileURLWithPath: workspace.repositoryRoot).lastPathComponent
+        let icon = SidebarItemIcon.randomRepository(preferredSeed: iconSeed, avoiding: existingIcons)
+        cachedWorkspaceIcons[workspace.id] = icon
+        return icon
     }
 
     func worktreeNote(for worktree: WorktreeModel, in workspace: WorkspaceModel) -> String? {
@@ -923,6 +964,10 @@ final class WorkspaceStore: ObservableObject {
             return appSettings.defaultWorktreeIcon
         }
 
+        if let cached = cachedWorktreeIcons[workspace.id]?[worktree.path] {
+            return cached
+        }
+
         let generatedIcons = SidebarItemIcon.generatedWorktreeIcons(
             seedSourcesByID: Dictionary(
                 uniqueKeysWithValues: workspace.worktrees.map { candidate in
@@ -931,6 +976,8 @@ final class WorkspaceStore: ObservableObject {
             ),
             overrides: workspace.settings.worktreeIconOverrides
         )
+
+        cachedWorktreeIcons[workspace.id] = generatedIcons
 
         return generatedIcons[worktree.path] ?? .randomRepository(
             preferredSeed: worktreeIconSeed(for: worktree, in: workspace),
@@ -989,17 +1036,29 @@ final class WorkspaceStore: ObservableObject {
         }
     }
 
+    func invalidateIconCaches(for workspaceID: UUID? = nil) {
+        if let workspaceID {
+            cachedWorkspaceIcons[workspaceID] = nil
+            cachedWorktreeIcons[workspaceID] = nil
+        } else {
+            cachedWorkspaceIcons.removeAll()
+            cachedWorktreeIcons.removeAll()
+        }
+    }
+
     func updateSidebarIcon(_ icon: SidebarItemIcon, for target: SidebarIconCustomizationTarget) {
         switch target {
         case .workspace(let workspaceID):
             guard let workspace = workspace(for: workspaceID) else { return }
             var settings = workspace.settings
             settings.workspaceIcon = icon
+            invalidateIconCaches(for: workspaceID)
             updateWorkspaceSettings(workspaceID: workspaceID, settings: settings)
         case .worktree(let workspaceID, let worktreePath):
             guard let workspace = workspace(for: workspaceID) else { return }
             var settings = workspace.settings
             settings.worktreeIconOverrides[worktreePath] = icon
+            invalidateIconCaches(for: workspaceID)
             updateWorkspaceSettings(workspaceID: workspaceID, settings: settings)
         case .workspaceGroup(let groupID):
             setWorkspaceGroupIcon(groupID, icon: icon)
@@ -1007,16 +1066,19 @@ final class WorkspaceStore: ObservableObject {
             var settings = appSettings
             settings.defaultRepositoryIcon = icon
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         case .appDefaultLocalTerminal:
             var settings = appSettings
             settings.defaultLocalTerminalIcon = icon
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         case .appDefaultWorktree:
             var settings = appSettings
             settings.defaultWorktreeIcon = icon
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         }
     }
@@ -1027,11 +1089,13 @@ final class WorkspaceStore: ObservableObject {
             guard let workspace = workspace(for: workspaceID) else { return }
             var settings = workspace.settings
             settings.workspaceIcon = nil
+            invalidateIconCaches(for: workspaceID)
             updateWorkspaceSettings(workspaceID: workspaceID, settings: settings)
         case .worktree(let workspaceID, let worktreePath):
             guard let workspace = workspace(for: workspaceID) else { return }
             var settings = workspace.settings
             settings.worktreeIconOverrides[worktreePath] = nil
+            invalidateIconCaches(for: workspaceID)
             updateWorkspaceSettings(workspaceID: workspaceID, settings: settings)
         case .workspaceGroup(let groupID):
             setWorkspaceGroupIcon(groupID, icon: .groupDefault)
@@ -1039,16 +1103,19 @@ final class WorkspaceStore: ObservableObject {
             var settings = appSettings
             settings.defaultRepositoryIcon = .repositoryDefault
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         case .appDefaultLocalTerminal:
             var settings = appSettings
             settings.defaultLocalTerminalIcon = .localTerminalDefault
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         case .appDefaultWorktree:
             var settings = appSettings
             settings.defaultWorktreeIcon = .worktreeDefault
             appSettings = settings
+            invalidateIconCaches()
             persistAppSettings()
         }
     }
@@ -1177,6 +1244,11 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func refreshWorkspace(_ workspace: WorkspaceModel, persistAfterRefresh: Bool = true) async {
+        if workspace.isRemote {
+            await refreshRemoteWorkspace(workspace)
+            if persistAfterRefresh { persist() }
+            return
+        }
         if workspace.kind == .sshTerminal {
             await refreshSSHWorkspace(workspace, persistAfterRefresh: persistAfterRefresh)
             return
@@ -1607,8 +1679,13 @@ final class WorkspaceStore: ObservableObject {
 
         let backendConfiguration: SessionBackendConfiguration = {
             guard let focusedPaneID = workspace.sessionController.focusedPaneID,
-                  let session = workspace.sessionController.session(for: focusedPaneID),
-                  session.backendConfiguration.kind == .localShell else {
+                  let session = workspace.sessionController.session(for: focusedPaneID) else {
+                if workspace.isRemote, let sshConfig = workspace.sshTarget {
+                    return .ssh(sshConfig)
+                }
+                return .local()
+            }
+            if !workspace.isRemote && session.backendConfiguration.kind != .localShell {
                 return .local()
             }
             return session.backendConfiguration
@@ -1733,7 +1810,8 @@ final class WorkspaceStore: ObservableObject {
         createWorktreeRequest = CreateWorktreeSheetRequest(
             workspaceID: workspace.id,
             workspaceName: workspace.name,
-            repositoryRoot: workspace.repositoryRoot
+            repositoryRoot: workspace.repositoryRoot,
+            isRemote: workspace.isRemote
         )
     }
 
@@ -1775,6 +1853,31 @@ final class WorkspaceStore: ObservableObject {
             presets: appSettings.agentPresets,
             preferredPresetID: appSettings.preferredAgentPresetID ?? appSettings.agentPresets.first?.id ?? AgentPreset.claudeCode.id
         )
+    }
+
+    func presentCreateRemoteWorkspace() {
+        createRemoteWorkspaceRequest = CreateRemoteWorkspaceRequest()
+    }
+
+    func addRemoteWorkspace(sshConfig: SSHSessionConfiguration, name: String) {
+        let record = WorkspaceRecord(
+            id: UUID(),
+            kind: .remoteServer,
+            name: name,
+            repositoryRoot: sshConfig.remoteWorkingDirectory ?? "/",
+            activeWorktreePath: sshConfig.remoteWorkingDirectory ?? "/",
+            worktreeStates: [],
+            isSidebarExpanded: false,
+            sshTarget: sshConfig
+        )
+        let model = WorkspaceModel(record: record)
+        workspaces.append(model)
+        selectedWorkspaceID = model.id
+        persist()
+
+        Task {
+            await refreshRemoteWorkspace(model)
+        }
     }
 
     func createSSHSession(workspaceID: UUID, draft: CreateSSHSessionDraft) {
@@ -2172,9 +2275,16 @@ final class WorkspaceStore: ObservableObject {
         guard let workspace = workspaces.first(where: { $0.id == workspaceID }),
               workspace.supportsRepositoryFeatures else { return false }
 
-        let normalizedDirectoryPath = URL(fileURLWithPath: draft.normalizedDirectoryPath)
-            .standardizedFileURL
-            .path
+        let isRemote = workspace.isRemote
+
+        let normalizedDirectoryPath: String
+        if isRemote {
+            normalizedDirectoryPath = draft.normalizedDirectoryPath
+        } else {
+            normalizedDirectoryPath = URL(fileURLWithPath: draft.normalizedDirectoryPath)
+                .standardizedFileURL
+                .path
+        }
         let normalizedBranchName = draft.normalizedBranchName
 
         guard !normalizedDirectoryPath.isEmpty else {
@@ -2189,9 +2299,11 @@ final class WorkspaceStore: ObservableObject {
             presentError(title: localized("main.error.createWorktree.title"), message: localized("main.error.createWorktree.branchNoSpaces"))
             return false
         }
-        guard !FileManager.default.fileExists(atPath: normalizedDirectoryPath) else {
-            presentError(title: localized("main.error.createWorktree.title"), message: localized("main.error.createWorktree.pathExists"))
-            return false
+        if !isRemote {
+            guard !FileManager.default.fileExists(atPath: normalizedDirectoryPath) else {
+                presentError(title: localized("main.error.createWorktree.title"), message: localized("main.error.createWorktree.pathExists"))
+                return false
+            }
         }
 
         let request = CreateWorktreeRequest(
@@ -2202,14 +2314,25 @@ final class WorkspaceStore: ObservableObject {
 
         Task { @MainActor in
             do {
-                try await gitRepositoryService.createWorktree(rootPath: workspace.repositoryRoot, request: request)
-                await refreshWorkspace(workspace)
+                if isRemote, let sshConfig = workspace.sshTarget {
+                    try await gitRepositoryService.createRemoteWorktree(
+                        rootPath: workspace.repositoryRoot, request: request, sshConfig: sshConfig
+                    )
+                    await refreshRemoteWorkspace(workspace)
+                } else {
+                    try await gitRepositoryService.createWorktree(rootPath: workspace.repositoryRoot, request: request)
+                    await refreshWorkspace(workspace)
+                }
                 objectWillChange.send()
                 if let worktree = workspace.worktrees.first(where: {
-                    URL(fileURLWithPath: $0.path).standardizedFileURL.path == normalizedDirectoryPath
+                    isRemote
+                        ? $0.path == normalizedDirectoryPath
+                        : URL(fileURLWithPath: $0.path).standardizedFileURL.path == normalizedDirectoryPath
                 }) {
                     activateWorktree(workspace: workspace, worktree: worktree, restartRunning: false, requestedAction: .none)
-                    runSetupScriptIfNeeded(in: workspace)
+                    if !isRemote {
+                        runSetupScriptIfNeeded(in: workspace)
+                    }
                 }
             } catch {
                 presentError(title: localized("main.error.createWorktree.title"), message: error.localizedDescription)
@@ -2304,13 +2427,27 @@ final class WorkspaceStore: ObservableObject {
         Task { @MainActor in
             do {
                 workspace.prepareForWorktreeRemoval(paths: pendingWorktreeRemoval.worktreePaths)
-                for path in pendingWorktreeRemoval.worktreePaths {
-                    try await gitRepositoryService.removeWorktree(rootPath: workspace.repositoryRoot, path: path, force: force)
+                if workspace.isRemote, let sshConfig = workspace.sshTarget {
+                    for path in pendingWorktreeRemoval.worktreePaths {
+                        try await gitRepositoryService.removeRemoteWorktree(
+                            rootPath: workspace.repositoryRoot, path: path, force: force, sshConfig: sshConfig
+                        )
+                    }
+                    workspace.forgetWorktrees(paths: pendingWorktreeRemoval.worktreePaths)
+                    await refreshRemoteWorkspace(workspace)
+                } else {
+                    for path in pendingWorktreeRemoval.worktreePaths {
+                        try await gitRepositoryService.removeWorktree(rootPath: workspace.repositoryRoot, path: path, force: force)
+                    }
+                    workspace.forgetWorktrees(paths: pendingWorktreeRemoval.worktreePaths)
+                    await refreshWorkspace(workspace)
                 }
-                workspace.forgetWorktrees(paths: pendingWorktreeRemoval.worktreePaths)
-                await refreshWorkspace(workspace)
             } catch {
-                await refreshWorkspace(workspace)
+                if workspace.isRemote {
+                    await refreshRemoteWorkspace(workspace)
+                } else {
+                    await refreshWorkspace(workspace)
+                }
                 presentError(title: localized("main.error.removeWorktree.title"), message: error.localizedDescription)
             }
         }
@@ -2432,6 +2569,10 @@ final class WorkspaceStore: ObservableObject {
         case .copyRemoteTargetWorkingDirectory(let workspaceID, let targetID):
             dismissCommandPalette()
             copyRemoteTargetWorkingDirectory(workspaceID: workspaceID, targetID: targetID)
+
+        case .createRemoteWorkspace:
+            dismissCommandPalette()
+            presentCreateRemoteWorkspace()
 
         case .runWorkspaceScript(let id):
             dismissCommandPalette()
@@ -3034,6 +3175,129 @@ final class WorkspaceStore: ObservableObject {
             checkInBackground: checkInBackground
         )
         hasConfiguredUpdater = true
+    }
+
+    // MARK: - Remote workspace refresh
+
+    private func startRemoteWorkspaceRefreshScheduler() {
+        stopRemoteWorkspaceRefreshScheduler()
+        let timer = Timer(timeInterval: Self.remoteRefreshInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.refreshAllRemoteWorkspaces()
+            }
+        }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        remoteRefreshTimer = timer
+
+        remoteWindowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.refreshAllRemoteWorkspaces()
+            }
+        }
+    }
+
+    private func stopRemoteWorkspaceRefreshScheduler() {
+        remoteRefreshTimer?.invalidate()
+        remoteRefreshTimer = nil
+        if let observer = remoteWindowObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        remoteWindowObserver = nil
+    }
+
+    private func refreshAllRemoteWorkspaces() async {
+        guard !isRefreshingRemotes else { return }
+        let remotes = workspaces.filter { $0.isRemote && !$0.isArchived }
+        guard !remotes.isEmpty else { return }
+        isRefreshingRemotes = true
+        defer { isRefreshingRemotes = false }
+        for workspace in remotes {
+            await refreshRemoteWorkspace(workspace)
+        }
+    }
+
+    private func refreshRemoteWorkspace(_ workspace: WorkspaceModel) async {
+        guard let sshConfig = workspace.sshTarget else { return }
+        let remotePath = workspace.repositoryRoot
+        do {
+            let snapshot = try await gitRepositoryService.inspectRemoteRepository(
+                remotePath: remotePath, sshConfig: sshConfig
+            )
+
+            // Only update @Published properties when values actually changed to avoid unnecessary SwiftUI rebuilds
+            if workspace.currentBranch != snapshot.branch { workspace.currentBranch = snapshot.branch }
+            if workspace.head != snapshot.head { workspace.head = snapshot.head }
+            let newHasUncommitted = snapshot.changedFileCount > 0
+            if workspace.hasUncommittedChanges != newHasUncommitted { workspace.hasUncommittedChanges = newHasUncommitted }
+            if workspace.changedFileCount != snapshot.changedFileCount { workspace.changedFileCount = snapshot.changedFileCount }
+            if workspace.aheadCount != snapshot.aheadCount { workspace.aheadCount = snapshot.aheadCount }
+            if workspace.behindCount != snapshot.behindCount { workspace.behindCount = snapshot.behindCount }
+
+            // Merge worktrees: preserve existing paths to keep stable IDs and session state
+            var merged: [WorktreeModel] = []
+            for newWT in snapshot.worktrees {
+                if let existing = workspace.worktrees.first(where: { $0.path == newWT.path }) {
+                    merged.append(WorktreeModel(
+                        path: existing.path,
+                        branch: newWT.branch,
+                        head: newWT.head,
+                        isMainWorktree: newWT.isMainWorktree,
+                        isLocked: newWT.isLocked,
+                        lockReason: newWT.lockReason
+                    ))
+                } else {
+                    merged.append(newWT)
+                }
+            }
+
+            // Only replace worktrees array if it actually changed
+            let worktreesChanged = workspace.worktrees != merged
+            if worktreesChanged {
+                workspace.worktrees = merged
+                invalidateIconCaches(for: workspace.id)
+
+                // If active worktree was removed, fall back to repository root
+                if !merged.contains(where: { $0.path == workspace.activeWorktreePath }) {
+                    workspace.activeWorktreePath = workspace.repositoryRoot
+                }
+
+                workspace.ensureKnownWorktreeStates()
+                workspace.pruneWorktreeCustomizations()
+            }
+
+            // Fetch per-worktree status
+            if workspace.worktrees.count > 1 {
+                do {
+                    let statuses = try await gitRepositoryService.inspectRemoteWorktreeStatuses(
+                        worktreePaths: workspace.worktrees.map(\.path),
+                        sshConfig: sshConfig
+                    )
+                    var repoStatuses: [String: RepositoryStatusSnapshot] = [:]
+                    for (path, status) in statuses {
+                        repoStatuses[path] = RepositoryStatusSnapshot(
+                            hasUncommittedChanges: status.changedFileCount > 0,
+                            changedFileCount: status.changedFileCount,
+                            aheadCount: status.aheadCount,
+                            behindCount: status.behindCount,
+                            localBranches: [],
+                            remoteBranches: []
+                        )
+                    }
+                    workspace.mergeWorktreeStatuses(repoStatuses)
+                } catch {
+                    // Per-worktree status is best-effort, don't fail the whole refresh
+                }
+            }
+        } catch {
+            if AppLogger.isEnabled {
+                AppLogger.workspace.error("Remote refresh failed for \(workspace.name): \(error.localizedDescription)")
+            }
+        }
     }
 
     private func refreshGitHubStatus(for workspace: WorkspaceModel) async {

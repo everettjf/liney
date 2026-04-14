@@ -41,13 +41,35 @@ final class WorkspaceSessionController: ObservableObject {
         sessions[paneID]
     }
 
+    /// If the snapshot has a detected tmux session, replace the backend with tmuxAttach.
+    static func applyTmuxRestore(to snapshot: PaneSnapshot) -> PaneSnapshot {
+        guard let tmuxSession = snapshot.detectedTmuxSession else { return snapshot }
+
+        var restored = snapshot
+        switch snapshot.backendConfiguration.kind {
+        case .localShell:
+            restored.backendConfiguration = .tmuxAttach(TmuxAttachConfiguration(
+                sessionName: tmuxSession, windowIndex: nil, isRemote: false, sshConfig: nil
+            ))
+        case .ssh:
+            restored.backendConfiguration = .tmuxAttach(TmuxAttachConfiguration(
+                sessionName: tmuxSession, windowIndex: nil, isRemote: true,
+                sshConfig: snapshot.backendConfiguration.ssh
+            ))
+        default:
+            break
+        }
+        return restored
+    }
+
     func replaceSessions(with paneSnapshots: [PaneSnapshot], focusedPaneID: UUID?, defaultWorkingDirectory: String) {
         sessions.values.forEach { $0.terminate() }
         sessions.removeAll()
 
         let preparedSnapshots = paneSnapshots.isEmpty ? [PaneSnapshot.makeDefault(cwd: defaultWorkingDirectory)] : paneSnapshots
         for snapshot in preparedSnapshots {
-            sessions[snapshot.id] = ShellSession(snapshot: snapshot)
+            let restoredSnapshot = Self.applyTmuxRestore(to: snapshot)
+            sessions[restoredSnapshot.id] = ShellSession(snapshot: restoredSnapshot)
         }
         self.focusedPaneID = focusedPaneID ?? preparedSnapshots.first?.id
         self.previousFocusedPaneID = nil

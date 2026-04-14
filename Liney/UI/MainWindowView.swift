@@ -596,6 +596,11 @@ struct MainWindowView: View {
                 store.createAgentSession(workspaceID: request.workspaceID, draft: draft)
             }
         }
+        .sheet(item: $store.createRemoteWorkspaceRequest) { _ in
+            CreateRemoteWorkspaceSheet { sshConfig, name in
+                store.addRemoteWorkspace(sshConfig: sshConfig, name: name)
+            }
+        }
         .sheet(item: $store.settingsRequest) { request in
             SettingsSheet(request: request)
                 .environmentObject(store)

@@ -55,6 +55,7 @@ enum WorkspaceCommand: Hashable {
     case copyFailingCheckURL(UUID, String)
     case rerunLatestFailedJobs(UUID, String)
     case copyLatestRunLogs(UUID, String)
+    case createRemoteWorkspace
 }
 
 enum WorkspaceEvent {

@@ -79,6 +79,7 @@ struct CreateWorktreeSheetRequest: Identifiable {
     let workspaceID: UUID
     let workspaceName: String
     let repositoryRoot: String
+    var isRemote: Bool = false
 }
 
 struct CreateSSHSessionRequest: Identifiable {
@@ -103,6 +104,10 @@ struct CreateAgentSessionRequest: Identifiable {
     let defaultWorkingDirectory: String
     let presets: [AgentPreset]
     let preferredPresetID: UUID?
+}
+
+struct CreateRemoteWorkspaceRequest: Identifiable {
+    let id = UUID()
 }
 
 struct PendingWorktreeSwitch: Identifiable {

@@ -22,21 +22,34 @@ struct CreateWorktreeSheet: View {
         self.onSubmit = onSubmit
 
         let branchName = (request.repositoryRoot as NSString).lastPathComponent
-        let parentDirectoryPath = URL(fileURLWithPath: request.repositoryRoot)
-            .deletingLastPathComponent()
-            .standardizedFileURL
-            .path
 
-        _draft = State(
-            initialValue: CreateWorktreeDraft(
-                directoryPath: URL(fileURLWithPath: parentDirectoryPath)
-                    .appendingPathComponent(branchName)
-                    .standardizedFileURL
-                    .path,
-                branchName: branchName
+        if request.isRemote {
+            let parentDirectoryPath = (request.repositoryRoot as NSString).deletingLastPathComponent
+            let directoryPath = (parentDirectoryPath as NSString).appendingPathComponent(branchName)
+            _draft = State(
+                initialValue: CreateWorktreeDraft(
+                    directoryPath: directoryPath,
+                    branchName: branchName
+                )
             )
-        )
-        _parentDirectoryPath = State(initialValue: parentDirectoryPath)
+            _parentDirectoryPath = State(initialValue: parentDirectoryPath)
+        } else {
+            let parentDirectoryPath = URL(fileURLWithPath: request.repositoryRoot)
+                .deletingLastPathComponent()
+                .standardizedFileURL
+                .path
+
+            _draft = State(
+                initialValue: CreateWorktreeDraft(
+                    directoryPath: URL(fileURLWithPath: parentDirectoryPath)
+                        .appendingPathComponent(branchName)
+                        .standardizedFileURL
+                        .path,
+                    branchName: branchName
+                )
+            )
+            _parentDirectoryPath = State(initialValue: parentDirectoryPath)
+        }
     }
 
     private func localized(_ key: String) -> String {
@@ -57,7 +70,7 @@ struct CreateWorktreeSheet: View {
         if draft.normalizedBranchName.contains(" ") {
             return localized("sheet.worktree.validation.branchNoSpaces")
         }
-        if FileManager.default.fileExists(atPath: draft.normalizedDirectoryPath) {
+        if !request.isRemote && FileManager.default.fileExists(atPath: draft.normalizedDirectoryPath) {
             return localized("sheet.worktree.validation.pathExists")
         }
         return nil
@@ -73,61 +86,69 @@ struct CreateWorktreeSheet: View {
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
+                if request.isRemote {
                     Text(localized("sheet.worktree.directoryPath"))
                         .font(.headline)
-                    Spacer()
-                    HStack(spacing: 6) {
-                        directoryActionButton(
-                            systemImage: "folder.badge.gearshape",
-                            help: localized("sheet.worktree.chooseParentDirectory"),
-                            action: chooseParentDirectory
-                        )
-                        directoryActionButton(
-                            systemImage: "arrow.up.forward.app",
-                            help: localized("sheet.worktree.openInFinder"),
-                            action: openDirectoryInFinder
-                        )
-                        .disabled(draft.directoryPath.isEmpty)
+                    TextField(localized("sheet.worktree.pathPlaceholder"), text: $draft.directoryPath)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 13, design: .monospaced))
+                } else {
+                    HStack {
+                        Text(localized("sheet.worktree.directoryPath"))
+                            .font(.headline)
+                        Spacer()
+                        HStack(spacing: 6) {
+                            directoryActionButton(
+                                systemImage: "folder.badge.gearshape",
+                                help: localized("sheet.worktree.chooseParentDirectory"),
+                                action: chooseParentDirectory
+                            )
+                            directoryActionButton(
+                                systemImage: "arrow.up.forward.app",
+                                help: localized("sheet.worktree.openInFinder"),
+                                action: openDirectoryInFinder
+                            )
+                            .disabled(draft.directoryPath.isEmpty)
+                        }
                     }
-                }
 
-                HStack(spacing: 10) {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 18)
+                    HStack(spacing: 10) {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 18)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(localized("sheet.worktree.targetFolderPreview"))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(localized("sheet.worktree.targetFolderPreview"))
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
 
-                        Text(draft.directoryPath.isEmpty ? localized("sheet.worktree.pathPlaceholder") : draft.directoryPath)
-                            .font(.system(size: 13, design: .monospaced))
-                            .foregroundStyle(draft.directoryPath.isEmpty ? .tertiary : .primary)
-                            .lineLimit(2)
-                            .textSelection(.enabled)
+                            Text(draft.directoryPath.isEmpty ? localized("sheet.worktree.pathPlaceholder") : draft.directoryPath)
+                                .font(.system(size: 13, design: .monospaced))
+                                .foregroundStyle(draft.directoryPath.isEmpty ? .tertiary : .primary)
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                Color(nsColor: .controlBackgroundColor).opacity(0.92),
+                                Color(nsColor: .controlBackgroundColor).opacity(0.72)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    )
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    LinearGradient(
-                        colors: [
-                            Color(nsColor: .controlBackgroundColor).opacity(0.92),
-                            Color(nsColor: .controlBackgroundColor).opacity(0.72)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                )
 
                 Text(localized("sheet.worktree.branchName"))
                     .font(.headline)
@@ -197,10 +218,14 @@ struct CreateWorktreeSheet: View {
             draft.directoryPath = ""
         } else {
             let leafName = trimmed.replacingOccurrences(of: "/", with: "-")
-            draft.directoryPath = URL(fileURLWithPath: parentDirectoryPath)
-                .appendingPathComponent(leafName)
-                .standardizedFileURL
-                .path
+            if request.isRemote {
+                draft.directoryPath = (parentDirectoryPath as NSString).appendingPathComponent(leafName)
+            } else {
+                draft.directoryPath = URL(fileURLWithPath: parentDirectoryPath)
+                    .appendingPathComponent(leafName)
+                    .standardizedFileURL
+                    .path
+            }
         }
     }
 

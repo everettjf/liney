@@ -78,7 +78,11 @@ private struct WorkspaceOutlineSidebar: NSViewRepresentable {
 
     func updateNSView(_ nsView: SidebarOutlineContainerView, context: Context) {
         context.coordinator.store = store
-        nsView.setFooterActions(onOpenRepository: onOpenRepository, onConnectSSH: onConnectSSH)
+        nsView.setFooterActions(
+            openRepository: onOpenRepository,
+            addRemoteWorkspace: { [weak store] in store?.presentCreateRemoteWorkspace() },
+            connectSSH: onConnectSSH
+        )
         context.coordinator.apply(
             workspaces: store.sidebarWorkspaces,
             selectedWorkspaceID: store.selectedWorkspaceID,
@@ -87,11 +91,12 @@ private struct WorkspaceOutlineSidebar: NSViewRepresentable {
     }
 }
 
-private struct SidebarFooterActionsRow: View {
+private struct SidebarFooterView: View {
     @ObservedObject private var localization = LocalizationManager.shared
     @EnvironmentObject private var store: WorkspaceStore
-    let onOpenRepository: () -> Void
-    let onConnectSSH: () -> Void
+    let openRepositoryAction: () -> Void
+    let addRemoteWorkspaceAction: () -> Void
+    let connectSSHAction: () -> Void
 
     private func localized(_ key: String) -> String {
         localization.string(key)
@@ -103,13 +108,12 @@ private struct SidebarFooterActionsRow: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Button(action: onOpenRepository) {
+            Button(action: openRepositoryAction) {
                 HStack(spacing: 5) {
                     Image(systemName: "folder.badge.plus")
                         .font(.system(size: 11 * uiScale, weight: .semibold))
                     Text(localized("sidebar.openFolder"))
                         .font(.system(size: 11 * uiScale, weight: .semibold))
-
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 10 * uiScale)
@@ -125,27 +129,45 @@ private struct SidebarFooterActionsRow: View {
             .foregroundStyle(LineyTheme.secondaryText)
             .help(localized("sidebar.openFolderHelp"))
 
-            Button(action: onConnectSSH) {
-                HStack(spacing: 5) {
-                    Image(systemName: "network")
-                        .font(.system(size: 11 * uiScale, weight: .semibold))
-                    Text(localized("main.sidebar.connectSSH"))
-                        .font(.system(size: 11 * uiScale, weight: .semibold))
-
-                    Spacer(minLength: 0)
+            HStack(spacing: 6 * uiScale) {
+                Button(action: connectSSHAction) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "network")
+                            .font(.system(size: 11 * uiScale, weight: .semibold))
+                        Text(localized("main.sidebar.connectSSH"))
+                            .font(.system(size: 11 * uiScale, weight: .semibold))
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 10 * uiScale)
+                    .frame(maxWidth: .infinity, minHeight: 30 * uiScale, alignment: .leading)
+                    .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
-                .padding(.horizontal, 10 * uiScale)
-                .frame(maxWidth: .infinity, minHeight: 30 * uiScale, alignment: .leading)
-                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .buttonStyle(.plain)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        .foregroundStyle(LineyTheme.border)
+                )
+                .foregroundStyle(LineyTheme.secondaryText)
+                .help(localized("main.sidebar.connectSSH"))
+
+                if LineyFeatureFlags.showsRemoteSessionCreationUI {
+                    Button(action: addRemoteWorkspaceAction) {
+                        Image(systemName: "server.rack")
+                            .font(.system(size: 12 * uiScale, weight: .semibold))
+                            .frame(width: 30 * uiScale, height: 30 * uiScale)
+                            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                            .foregroundStyle(LineyTheme.border)
+                    )
+                    .foregroundStyle(LineyTheme.secondaryText)
+                    .help(localized("sidebar.action.addRemoteWorkspace"))
+                }
             }
-            .buttonStyle(.plain)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                    .foregroundStyle(LineyTheme.border)
-            )
-            .foregroundStyle(LineyTheme.secondaryText)
-            .help(localized("main.sidebar.connectSSH"))
         }
     }
 }
@@ -777,12 +799,14 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             let menu = NSMenu()
             let actionPayload = SidebarActionWorktree(workspaceID: workspace.id, worktreePath: worktree.path)
 
-            addMenuItem(
-                to: menu,
-                title: localized("sidebar.menu.revealPath"),
-                action: #selector(revealPath(_:)),
-                representedObject: worktree.path
-            )
+            if !workspace.isRemote {
+                addMenuItem(
+                    to: menu,
+                    title: localized("sidebar.menu.revealPath"),
+                    action: #selector(revealPath(_:)),
+                    representedObject: worktree.path
+                )
+            }
             addMenuItem(
                 to: menu,
                 title: localized("sidebar.menu.copyPath"),
@@ -1473,8 +1497,12 @@ private final class SidebarOutlineContainerView: NSView {
         updateContentLayout()
     }
 
-    func setFooterActions(onOpenRepository: @escaping () -> Void, onConnectSSH: @escaping () -> Void) {
-        footerHostingView.rootView = AnyView(SidebarFooterActionsRow(onOpenRepository: onOpenRepository, onConnectSSH: onConnectSSH))
+    func setFooterActions(openRepository: @escaping () -> Void, addRemoteWorkspace: @escaping () -> Void, connectSSH: @escaping () -> Void) {
+        footerHostingView.rootView = AnyView(SidebarFooterView(
+            openRepositoryAction: openRepository,
+            addRemoteWorkspaceAction: addRemoteWorkspace,
+            connectSSHAction: connectSSH
+        ))
     }
 
     func relayout() {
@@ -1853,6 +1881,10 @@ private struct WorkspaceRowContent: View {
                         Image(systemName: "archivebox.fill")
                             .font(.system(size: 9 * uiScale, weight: .bold))
                             .foregroundStyle(LineyTheme.mutedText)
+                    }
+
+                    if workspace.isRemote {
+                        SidebarInfoBadge(text: localized("sidebar.badge.remote"), tone: .accent)
                     }
 
                     if workspace.activeSessionCount > 1 {

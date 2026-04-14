@@ -13,6 +13,8 @@ final class ApplicationMenuController: NSObject {
     private let feedbackURL = URL(string: "https://github.com/everettjf/liney/issues/new")!
     private let repositoryURL = URL(string: "https://github.com/everettjf/liney")!
 
+    var activeWorkspaceStoreProvider: (() -> WorkspaceStore?)?
+
     private var shortcutItemsByAction: [LineyShortcutAction: [NSMenuItem]] = [:]
 
     private func localized(_ key: String) -> String {
@@ -100,6 +102,15 @@ final class ApplicationMenuController: NSObject {
         fileMenuItem.submenu = fileMenu
         addShortcutItem(title: localized("menu.file.newWindow"), shortcutAction: .newWindow, to: fileMenu, target: target)
         addShortcutItem(title: localized("menu.file.newTab"), shortcutAction: .newTab, to: fileMenu, target: target)
+        if LineyFeatureFlags.showsRemoteSessionCreationUI {
+            let remoteItem = addItem(
+                title: localized("menu.file.newRemoteWorkspace"),
+                action: #selector(newRemoteWorkspace(_:)),
+                keyEquivalent: "",
+                to: fileMenu
+            )
+            remoteItem.target = self
+        }
         fileMenu.addItem(.separator())
         addShortcutItem(title: localized("menu.file.splitRight"), shortcutAction: .splitRight, to: fileMenu, target: target)
         addShortcutItem(title: localized("menu.file.splitDown"), shortcutAction: .splitDown, to: fileMenu, target: target)
@@ -219,10 +230,14 @@ final class ApplicationMenuController: NSObject {
         NSWorkspace.shared.open(repositoryURL)
     }
 
+    @objc private func newRemoteWorkspace(_ sender: Any?) {
+        activeWorkspaceStoreProvider?()?.presentCreateRemoteWorkspace()
+    }
+
     @discardableResult
     private func addItem(title: String, action: Selector?, keyEquivalent: String, to menu: NSMenu) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
-        if action == #selector(openWebsite(_:)) || action == #selector(submitFeedback(_:)) || action == #selector(openRepository(_:)) {
+        if action == #selector(openWebsite(_:)) || action == #selector(submitFeedback(_:)) || action == #selector(openRepository(_:)) || action == #selector(newRemoteWorkspace(_:)) {
             item.target = self
         }
         menu.addItem(item)

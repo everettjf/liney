@@ -34,6 +34,9 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     @Published var activityLog: [WorkspaceActivityEntry]
     @Published var sessionController: WorkspaceSessionController
     @Published var zoomedPaneID: UUID?
+    @Published var sshTarget: SSHSessionConfiguration?
+
+    var isRemote: Bool { sshTarget != nil }
 
     private var worktreeStates: [String: WorktreeSessionStateRecord]
     private var worktreeControllers: [String: [UUID: WorkspaceSessionController]]
@@ -42,6 +45,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         self.id = record.id
         self.kind = record.kind
         self.repositoryRoot = record.repositoryRoot
+        self.sshTarget = record.sshTarget
         self.name = record.name
         self.activeWorktreePath = record.activeWorktreePath
         self.currentBranch = "-"
@@ -192,7 +196,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     }
 
     var supportsRepositoryFeatures: Bool {
-        kind == .repository || (kind == .sshTerminal && worktrees.count > 1)
+        kind == .repository || kind == .remoteServer || (kind == .sshTerminal && worktrees.count > 1)
     }
 
     var supportsLocalRepositoryFeatures: Bool {
@@ -315,8 +319,14 @@ final class WorkspaceModel: ObservableObject, Identifiable {
 
     func pruneWorktreeCustomizations() {
         let validPaths = Set(worktrees.map(\.path))
-        settings.worktreeIconOverrides = settings.worktreeIconOverrides.filter { validPaths.contains($0.key) }
-        settings.worktreeNotes = settings.worktreeNotes.filter { validPaths.contains($0.key) }
+        let prunedIcons = settings.worktreeIconOverrides.filter { validPaths.contains($0.key) }
+        if prunedIcons.count != settings.worktreeIconOverrides.count {
+            settings.worktreeIconOverrides = prunedIcons
+        }
+        let prunedNotes = settings.worktreeNotes.filter { validPaths.contains($0.key) }
+        if prunedNotes.count != settings.worktreeNotes.count {
+            settings.worktreeNotes = prunedNotes
+        }
     }
 
     var paneOrder: [UUID] {
@@ -383,13 +393,24 @@ final class WorkspaceModel: ObservableObject, Identifiable {
 
     func createPane(splitAxis: PaneSplitAxis?, snapshot: PaneSnapshot? = nil, placement: PaneSplitPlacement) {
         let targetPane = sessionController.focusedPaneID ?? layout?.firstPaneID
-        let effectiveSnapshot = snapshot ?? PaneSnapshot(
-            id: UUID(),
-            preferredWorkingDirectory: activeWorktreePath,
-            preferredEngine: .libghosttyPreferred,
-            backendConfiguration: defaultPaneBackendConfiguration
+        let defaultSnapshot: PaneSnapshot = {
+            if kind == .sshTerminal {
+                return PaneSnapshot(
+                    id: UUID(),
+                    preferredWorkingDirectory: activeWorktreePath,
+                    preferredEngine: .libghosttyPreferred,
+                    backendConfiguration: defaultPaneBackendConfiguration
+                )
+            }
+            var s = PaneSnapshot.makeDefault(cwd: activeWorktreePath)
+            if let sshConfig = sshTarget {
+                s.backendConfiguration = .ssh(sshConfig)
+            }
+            return s
+        }()
+        let newPaneID = sessionController.createPane(
+            from: snapshot ?? defaultSnapshot
         )
-        let newPaneID = sessionController.createPane(from: effectiveSnapshot)
         zoomedPaneID = nil
 
         guard let splitAxis, let layout else {
@@ -528,7 +549,8 @@ final class WorkspaceModel: ObservableObject, Identifiable {
             isSidebarExpanded: isSidebarExpanded,
             worktrees: worktrees,
             settings: settings,
-            activityLog: activityLog
+            activityLog: activityLog,
+            sshTarget: sshTarget
         )
     }
 
@@ -554,15 +576,18 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     }
 
     func mergeWorktreeStatuses(_ statuses: [String: RepositoryStatusSnapshot]) {
+        var changed = false
         for (path, status) in statuses {
-            worktreeStatuses[path] = status
+            if worktreeStatuses[path] != status {
+                worktreeStatuses[path] = status
+                changed = true
+            }
         }
-        if let activeStatus = worktreeStatuses[activeWorktreePath] {
-            hasUncommittedChanges = activeStatus.hasUncommittedChanges
-            changedFileCount = activeStatus.changedFileCount
-            aheadCount = activeStatus.aheadCount
-            behindCount = activeStatus.behindCount
-        }
+        guard changed, let activeStatus = worktreeStatuses[activeWorktreePath] else { return }
+        if hasUncommittedChanges != activeStatus.hasUncommittedChanges { hasUncommittedChanges = activeStatus.hasUncommittedChanges }
+        if changedFileCount != activeStatus.changedFileCount { changedFileCount = activeStatus.changedFileCount }
+        if aheadCount != activeStatus.aheadCount { aheadCount = activeStatus.aheadCount }
+        if behindCount != activeStatus.behindCount { behindCount = activeStatus.behindCount }
     }
 
     func status(for worktreePath: String) -> RepositoryStatusSnapshot? {
@@ -880,13 +905,22 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         sessionController = controller
         zoomedPaneID = tab.zoomedPaneID
         if layout == nil {
-            let snapshot = PaneSnapshot(
-                id: UUID(),
-                preferredWorkingDirectory: activeWorktreePath,
-                preferredEngine: .libghosttyPreferred,
-                backendConfiguration: defaultPaneBackendConfiguration
-            )
-            let initialPane = controller.createPane(from: snapshot)
+            let initialSnapshot: PaneSnapshot = {
+                if kind == .sshTerminal {
+                    return PaneSnapshot(
+                        id: UUID(),
+                        preferredWorkingDirectory: activeWorktreePath,
+                        preferredEngine: .libghosttyPreferred,
+                        backendConfiguration: defaultPaneBackendConfiguration
+                    )
+                }
+                var s = PaneSnapshot.makeDefault(cwd: activeWorktreePath)
+                if let sshConfig = sshTarget {
+                    s.backendConfiguration = .ssh(sshConfig)
+                }
+                return s
+            }()
+            let initialPane = controller.createPane(from: initialSnapshot)
             layout = .pane(PaneLeaf(paneID: initialPane))
         }
         if !isArchived {
@@ -920,7 +954,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         worktreeStates[activeWorktreePath]?.ensureTabs()
     }
 
-    private func ensureKnownWorktreeStates() {
+    func ensureKnownWorktreeStates() {
         for worktree in worktrees {
             if worktreeStates[worktree.path] == nil {
                 if kind == .sshTerminal, let sshConfig = settings.sshConfiguration {

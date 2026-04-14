@@ -63,6 +63,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         Task { @MainActor in
             let desktopApplication = LineyDesktopApplication()
             self.desktopApplication = desktopApplication
+            self.applicationMenuController.activeWorkspaceStoreProvider = { [weak self] in
+                self?.desktopApplication?.activeWorkspaceStore
+            }
             appSettingsObserver = NotificationCenter.default.addObserver(
                 forName: .lineyAppSettingsDidChange,
                 object: nil,
