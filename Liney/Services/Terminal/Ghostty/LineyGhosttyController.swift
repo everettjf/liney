@@ -880,9 +880,8 @@ private final class LineyGhosttySurfaceView: NSView {
             return
         }
 
-        if lineyGhosttyOptionDeleteEscapeSequence(keyCode: event.keyCode, modifierFlags: event.modifierFlags) != nil {
-            logArrowKeyDebug(event, phase: "keyDown option-delete")
-            sendOptionDelete(keyCode: event.keyCode, on: surface)
+        if let deleteSequence = lineyGhosttyOptionDeleteEscapeSequence(keyCode: event.keyCode, modifierFlags: event.modifierFlags) {
+            sendSSHWordNavigation(deleteSequence)
             return
         }
 
@@ -891,7 +890,6 @@ private final class LineyGhosttySurfaceView: NSView {
             modifierFlags: event.modifierFlags,
             backendConfiguration: backendConfiguration
         ) {
-            logArrowKeyDebug(event, phase: "keyDown ssh-word-nav")
             sendSSHWordNavigation(escapeSequence)
             return
         }
@@ -899,7 +897,6 @@ private final class LineyGhosttySurfaceView: NSView {
         let (translationEvent, translationMods) = translationState(for: event, on: surface)
 
         if shouldPreferRawKeyEvent(for: event) {
-            logArrowKeyDebug(event, phase: "keyDown raw-preferred")
             sendRawKeyEvent(
                 event,
                 on: surface,
@@ -933,7 +930,6 @@ private final class LineyGhosttySurfaceView: NSView {
             }
 
             if !accumulated.isEmpty {
-                logIMEDebug("keyDown translated text=\(accumulated.debugDescription)")
                 sendTranslatedKeyEvent(
                     event,
                     on: surface,
@@ -945,7 +941,6 @@ private final class LineyGhosttySurfaceView: NSView {
             }
 
             if handledTextInputCommand {
-                logIMEDebug("keyDown handled by text input command")
                 return
             }
 
@@ -955,7 +950,6 @@ private final class LineyGhosttySurfaceView: NSView {
                 hadMarkedTextBeforeInterpretation: hadMarkedTextBeforeInterpretation,
                 hasMarkedTextAfterInterpretation: hasMarkedTextAfterInterpretation
             ) {
-                logIMEDebug("keyDown IME consumed event, skip raw fallback")
                 return
             }
 
@@ -963,7 +957,6 @@ private final class LineyGhosttySurfaceView: NSView {
                 hadMarkedTextBeforeInterpretation: hadMarkedTextBeforeInterpretation,
                 hasMarkedTextAfterInterpretation: hasMarkedTextAfterInterpretation
             )
-            logIMEDebug("keyDown raw fallback composing=\(composing)")
             sendRawKeyEvent(
                 event,
                 on: surface,
@@ -990,8 +983,8 @@ private final class LineyGhosttySurfaceView: NSView {
         }
         guard let surface else { return false }
 
-        if lineyGhosttyOptionDeleteEscapeSequence(keyCode: event.keyCode, modifierFlags: event.modifierFlags) != nil {
-            sendOptionDelete(keyCode: event.keyCode, on: surface)
+        if let deleteSequence = lineyGhosttyOptionDeleteEscapeSequence(keyCode: event.keyCode, modifierFlags: event.modifierFlags) {
+            sendSSHWordNavigation(deleteSequence)
             return true
         }
 
@@ -1091,7 +1084,6 @@ private final class LineyGhosttySurfaceView: NSView {
     }
 
     override func doCommand(by selector: Selector) {
-        logIMEDebug("doCommand selector=\(NSStringFromSelector(selector)) marked=\(hasMarkedText()) text=\(markedText.string.debugDescription)")
         if let lastPerformKeyEvent,
            let currentEvent = NSApp.currentEvent,
            lastPerformKeyEvent == currentEvent.timestamp {
@@ -1117,17 +1109,13 @@ private final class LineyGhosttySurfaceView: NSView {
             if hasMarkedText() {
                 unmarkText()
             }
-            if let surface {
-                sendOptionDelete(keyCode: UInt16(kVK_Delete), on: surface)
-            }
+            sendSSHWordNavigation("\u{1B}\u{7F}")
         case .deleteWordForward:
             handledTextInputCommand = true
             if hasMarkedText() {
                 unmarkText()
             }
-            if let surface {
-                sendOptionDelete(keyCode: UInt16(kVK_ForwardDelete), on: surface)
-            }
+            sendSSHWordNavigation("\u{1B}[3;3~")
         case .deleteBackwardInMarkedText:
             handledTextInputCommand = true
             deleteBackwardInMarkedText()
@@ -1677,42 +1665,6 @@ private final class LineyGhosttySurfaceView: NSView {
     }
 }
 
-@MainActor
-final class LineyGhosttyControllerRegistry {
-    static let shared = LineyGhosttyControllerRegistry()
-
-    private final class WeakBox {
-        weak var controller: LineyGhosttyController?
-
-        init(controller: LineyGhosttyController) {
-            self.controller = controller
-        }
-    }
-
-    private var controllers: [UInt: WeakBox] = [:]
-
-    func register(_ controller: LineyGhosttyController) -> UnsafeMutableRawPointer {
-        let token = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
-        controllers[UInt(bitPattern: token)] = WeakBox(controller: controller)
-        return token
-    }
-
-    func controller(for address: UInt?) -> LineyGhosttyController? {
-        guard let address else { return nil }
-        return controllers[address]?.controller
-    }
-
-    func liveControllers() -> [LineyGhosttyController] {
-        controllers = controllers.filter { $0.value.controller != nil }
-        return controllers.values.compactMap(\.controller)
-    }
-
-    func unregister(_ token: UnsafeMutableRawPointer) {
-        controllers.removeValue(forKey: UInt(bitPattern: token))
-        token.deallocate()
-    }
-}
-
 extension LineyGhosttySurfaceView: @preconcurrency NSServicesMenuRequestor {}
 
 extension LineyGhosttySurfaceView: NSMenuItemValidation {}
@@ -1753,9 +1705,6 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
         )
         markedText = NSMutableAttributedString(string: state.text)
         markedSelectionRange = state.selectedRange
-        logIMEDebug(
-            "setMarkedText replacement=\(replacementText.debugDescription) selected=\(NSStringFromRange(selectedRange)) replacementRange=\(NSStringFromRange(replacementRange)) result=\(state.text.debugDescription)"
-        )
 
         if keyTextAccumulator == nil {
             syncPreedit()
@@ -1764,7 +1713,6 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
 
     func unmarkText() {
         guard markedText.length > 0 else { return }
-        logIMEDebug("unmarkText old=\(markedText.string.debugDescription)")
         markedText.mutableString.setString("")
         markedSelectionRange = NSRange(location: NSNotFound, length: 0)
         syncPreedit()
@@ -1820,9 +1768,6 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
         default:
             return
         }
-        logIMEDebug(
-            "insertText text=\(characters.debugDescription) replacementRange=\(NSStringFromRange(replacementRange)) keyCode=\(String(describing: currentTextInputEventKeyCode)) hadMarked=\(currentTextInputHadMarkedText) accumulator=\(keyTextAccumulator != nil)"
-        )
 
         if LineyGhosttyTextInputRouting.shouldTreatInsertedTextAsMarkedTextDuringDeletion(
             insertedText: characters,
@@ -1846,19 +1791,8 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
         sendText(characters)
     }
 
-    private func logIMEDebug(_ message: String) {
-        imeDebugLogger.log(message)
-    }
-
     private func logArrowKeyDebug(_ event: NSEvent, phase: String) {
-        switch event.keyCode {
-        case UInt16(kVK_LeftArrow), UInt16(kVK_RightArrow), UInt16(kVK_UpArrow), UInt16(kVK_DownArrow):
-            logIMEDebug(
-                "\(phase) keyCode=\(event.keyCode) modifiers=\(event.modifierFlags.rawValue) chars=\(String(describing: event.characters)) charsIgnoring=\(String(describing: event.charactersIgnoringModifiers)) backend=\(backendConfiguration.kind)"
-            )
-        default:
-            break
-        }
+        // Keeping empty implementation to match original style
     }
 }
 
@@ -1909,7 +1843,7 @@ private extension NSScreen {
 }
 
 @MainActor
-private final class LineyGhosttyNotificationCenter {
+final class LineyGhosttyNotificationCenter {
     static let shared = LineyGhosttyNotificationCenter()
 
     private var hasRequestedAuthorization = false
@@ -1977,5 +1911,41 @@ private final class LineyGhosttySecureInputManager {
         let removed = activeControllers.remove(controllerID) != nil
         guard removed, activeControllers.isEmpty else { return }
         DisableSecureEventInput()
+    }
+}
+
+@MainActor
+final class LineyGhosttyControllerRegistry {
+    static let shared = LineyGhosttyControllerRegistry()
+
+    private final class WeakBox {
+        weak var controller: LineyGhosttyController?
+
+        init(controller: LineyGhosttyController) {
+            self.controller = controller
+        }
+    }
+
+    private var controllers: [UInt: WeakBox] = [:]
+
+    func register(_ controller: LineyGhosttyController) -> UnsafeMutableRawPointer {
+        let token = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
+        controllers[UInt(bitPattern: token)] = WeakBox(controller: controller)
+        return token
+    }
+
+    func controller(for address: UInt?) -> LineyGhosttyController? {
+        guard let address else { return nil }
+        return controllers[address]?.controller
+    }
+
+    func liveControllers() -> [LineyGhosttyController] {
+        controllers = controllers.filter { $0.value.controller != nil }
+        return controllers.values.compactMap(\.controller)
+    }
+
+    func unregister(_ token: UnsafeMutableRawPointer) {
+        controllers.removeValue(forKey: UInt(bitPattern: token))
+        token.deallocate()
     }
 }
