@@ -28,5 +28,7 @@
 	<string>https://raw.githubusercontent.com/everettjf/liney/stable/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>DJPIksMP6FvVtjZk9WN9lzZRcd9el01eqFzcafpehlQ=</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Liney needs microphone access for voice input in the terminal.</string>
 </dict>
 </plist>
