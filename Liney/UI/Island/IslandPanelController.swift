@@ -114,6 +114,8 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
     func show() {
         if panel == nil {
             createPanel()
+        } else {
+            installMouseTracking()
         }
         repositionPanel()
         panel?.orderFrontRegardless()
@@ -123,6 +125,7 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
         state.isExpanded = false
         state.currentGroupID = nil
         panel?.orderOut(nil)
+        removeMouseTracking()
     }
 
     func toggle() {
@@ -230,16 +233,31 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
         return NSRect(origin: NSPoint(x: x, y: y), size: size)
     }
 
+    private func removeMouseTracking() {
+        if let mouseEventMonitor {
+            NSEvent.removeMonitor(mouseEventMonitor)
+            self.mouseEventMonitor = nil
+        }
+        if let localMouseMonitor {
+            NSEvent.removeMonitor(localMouseMonitor)
+            self.localMouseMonitor = nil
+        }
+    }
+
     private func installMouseTracking() {
-        let handler: (NSEvent) -> Void = { [weak self] _ in
-            Task { @MainActor [weak self] in
+        // Avoid duplicate monitors
+        removeMouseTracking()
+        // NSEvent monitor handlers are invoked on the main thread, so we can
+        // synchronously throttle here BEFORE doing any per-event work. This
+        // avoids creating a Task for every mouse-moved event (which fires
+        // hundreds of times per second).
+        mouseEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
+            MainActor.assumeIsolated {
                 self?.throttledCheckMousePosition()
             }
         }
-        mouseEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: handler)
-        // Also track when our app is in foreground
         localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
-            Task { @MainActor [weak self] in
+            MainActor.assumeIsolated {
                 self?.throttledCheckMousePosition()
             }
             return event

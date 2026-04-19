@@ -191,7 +191,7 @@ struct GlobalCanvasView: View {
                 refreshCards()
                 restoreCanvasState()
             }
-            .onReceive(store.objectWillChange) { _ in
+            .onReceive(store.objectWillChange.throttle(for: .milliseconds(500), scheduler: RunLoop.main, latest: true)) { _ in
                 refreshCards()
             }
             .onChange(of: proxy.size) { _, newSize in
