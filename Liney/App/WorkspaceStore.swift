@@ -1275,18 +1275,28 @@ final class WorkspaceStore: ObservableObject {
         do {
             let previousWorktreePaths = Set(workspace.worktrees.map(\.path))
             let snapshot = try await gitRepositoryService.inspectRepository(at: workspace.activeWorktreePath, repositoryRoot: workspace.repositoryRoot)
-            workspace.apply(snapshot: snapshot)
+            var changed = workspace.apply(snapshot: snapshot)
             let statuses = try await gitRepositoryService.repositoryStatuses(for: workspace.worktrees.map(\.path))
-            workspace.mergeWorktreeStatuses(statuses)
-            if !workspace.gitHubStatuses.isEmpty { workspace.gitHubStatuses = [:] }
+            if workspace.mergeWorktreeStatuses(statuses) { changed = true }
+            if !workspace.gitHubStatuses.isEmpty {
+                workspace.gitHubStatuses = [:]
+                changed = true
+            }
             workspace.bootstrapIfNeeded()
             let newWorktreePaths = Set(workspace.worktrees.map(\.path))
             if newWorktreePaths != previousWorktreePaths {
                 configureMetadataWatchers()
+                changed = true
             }
-            objectWillChange.send()
-            if persistAfterRefresh {
-                persist()
+            // Skip objectWillChange and persist entirely when the refresh was
+            // a no-op. Without this, every 30s auto-refresh tick invalidates
+            // the whole store-bound view graph and re-walks SwiftUI's
+            // accessibility subtree — expensive work for zero state change.
+            if changed {
+                objectWillChange.send()
+                if persistAfterRefresh {
+                    persist()
+                }
             }
         } catch {
             presentError(title: localized("main.error.refreshRepository.title"), message: error.localizedDescription)
