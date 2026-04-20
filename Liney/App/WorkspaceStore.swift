@@ -1276,7 +1276,12 @@ final class WorkspaceStore: ObservableObject {
             let previousWorktreePaths = Set(workspace.worktrees.map(\.path))
             let snapshot = try await gitRepositoryService.inspectRepository(at: workspace.activeWorktreePath, repositoryRoot: workspace.repositoryRoot)
             var changed = workspace.apply(snapshot: snapshot)
-            let statuses = try await gitRepositoryService.repositoryStatuses(for: workspace.worktrees.map(\.path))
+            // Only refresh the active worktree's status. Background worktrees
+            // keep their last known status until the user switches to them or
+            // something external (file watcher) invalidates them. Running
+            // status for every worktree on every tick was a significant chunk
+            // of the refresh cost on workspaces with many worktrees.
+            let statuses = try await gitRepositoryService.repositoryStatuses(for: [workspace.activeWorktreePath])
             if workspace.mergeWorktreeStatuses(statuses) { changed = true }
             if !workspace.gitHubStatuses.isEmpty {
                 workspace.gitHubStatuses = [:]

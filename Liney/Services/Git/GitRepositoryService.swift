@@ -60,6 +60,26 @@ actor GitRepositoryService {
 
     private static let inspectTimeout: TimeInterval = 10
 
+    /// Cache for repositoryStatus keyed by worktree path. Invalidated when any
+    /// of the three tracked signature files change:
+    /// - `.git/index` captures staged/checkout/commit state
+    /// - `.git/HEAD` captures branch switches and new commits on the current ref
+    /// - `.git/packed-refs` captures `git fetch --prune` and similar remote changes
+    /// We also track a TTL so exotic cases (config reload, ref file outside
+    /// packed-refs, etc.) can't keep us stuck on stale data indefinitely.
+    private struct StatusCacheEntry {
+        let signature: StatusCacheSignature
+        let snapshot: RepositoryStatusSnapshot
+        let cachedAt: Date
+    }
+    private struct StatusCacheSignature: Equatable {
+        let indexMtime: Date?
+        let headMtime: Date?
+        let packedRefsMtime: Date?
+    }
+    private var statusCache: [String: StatusCacheEntry] = [:]
+    private static let statusCacheTTL: TimeInterval = 120
+
     func inspectRepository(at path: String, repositoryRoot: String? = nil) async throws -> RepositorySnapshot {
         let log = AppLogger.git
 
@@ -200,7 +220,18 @@ actor GitRepositoryService {
     }
 
     func repositoryStatus(for path: String, timeout: TimeInterval? = nil) async throws -> RepositoryStatusSnapshot {
-        async let dirtyResult = git(arguments: ["status", "--porcelain"], currentDirectory: path, timeout: timeout)
+        let signature = statusCacheSignature(for: path)
+        if let cached = statusCache[path],
+           cached.signature == signature,
+           Date().timeIntervalSince(cached.cachedAt) < Self.statusCacheTTL {
+            return cached.snapshot
+        }
+
+        // `--untracked-files=no` skips the worktree scan that dominates
+        // `git status` cost on large repositories. Dropping it trades a more
+        // precise changedFileCount for a 10-100x speedup on big monorepos;
+        // the sidebar indicator is driven by tracked changes anyway.
+        async let dirtyResult = git(arguments: ["status", "--porcelain", "--untracked-files=no"], currentDirectory: path, timeout: timeout)
         async let upstreamResult = git(arguments: ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], currentDirectory: path, timeout: timeout)
         async let localBranchesResult = git(arguments: ["for-each-ref", "--format=%(refname:short)", "refs/heads"], currentDirectory: path, timeout: timeout)
         async let remoteBranchesResult = git(arguments: ["for-each-ref", "--format=%(refname:short)", "refs/remotes"], currentDirectory: path, timeout: timeout)
@@ -213,7 +244,7 @@ actor GitRepositoryService {
         let changedFileCount = Self.parseChangedFileCount(dirty.stdout)
         let (behindCount, aheadCount) = upstream.exitCode == 0 ? Self.parseAheadBehind(upstream.stdout) : (0, 0)
 
-        return RepositoryStatusSnapshot(
+        let snapshot = RepositoryStatusSnapshot(
             hasUncommittedChanges: changedFileCount > 0,
             changedFileCount: changedFileCount,
             aheadCount: aheadCount,
@@ -221,6 +252,43 @@ actor GitRepositoryService {
             localBranches: Self.parseBranchList(locals.stdout),
             remoteBranches: Self.parseRemoteBranchList(remotes.stdout)
         )
+
+        statusCache[path] = StatusCacheEntry(signature: signature, snapshot: snapshot, cachedAt: Date())
+        return snapshot
+    }
+
+    nonisolated private func statusCacheSignature(for worktreePath: String) -> StatusCacheSignature {
+        guard let gitDir = Self.resolveGitDirectory(for: worktreePath) else {
+            return StatusCacheSignature(indexMtime: nil, headMtime: nil, packedRefsMtime: nil)
+        }
+        return StatusCacheSignature(
+            indexMtime: Self.mtime(atPath: gitDir + "/index"),
+            headMtime: Self.mtime(atPath: gitDir + "/HEAD"),
+            packedRefsMtime: Self.mtime(atPath: gitDir + "/packed-refs")
+        )
+    }
+
+    nonisolated private static func mtime(atPath path: String) -> Date? {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: path) else { return nil }
+        return attrs[.modificationDate] as? Date
+    }
+
+    nonisolated private static func resolveGitDirectory(for worktreePath: String) -> String? {
+        let dotGit = worktreePath + "/.git"
+        var isDirectory: ObjCBool = false
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: dotGit, isDirectory: &isDirectory) else { return nil }
+        if isDirectory.boolValue { return dotGit }
+        guard let contents = try? String(contentsOfFile: dotGit, encoding: .utf8) else { return nil }
+        for rawLine in contents.split(whereSeparator: \.isNewline) {
+            let line = String(rawLine).trimmingCharacters(in: .whitespaces)
+            guard line.lowercased().hasPrefix("gitdir:") else { continue }
+            let raw = String(line.dropFirst("gitdir:".count)).trimmingCharacters(in: .whitespaces)
+            if raw.hasPrefix("/") { return raw }
+            let resolved = URL(fileURLWithPath: raw, relativeTo: URL(fileURLWithPath: worktreePath))
+            return resolved.standardizedFileURL.path
+        }
+        return nil
     }
 
     func diffNameStatus(for path: String) async throws -> String {
