@@ -365,7 +365,7 @@ struct AppSettings: Codable, Hashable {
     init(
         appLanguage: AppLanguage = .automatic,
         autoRefreshEnabled: Bool = true,
-        autoRefreshIntervalSeconds: Int = 30,
+        autoRefreshIntervalSeconds: Int = 60,
         autoClosePaneOnProcessExit: Bool = true,
         confirmQuitWhenCommandsRunning: Bool = true,
         hotKeyWindowEnabled: Bool = false,
@@ -543,7 +543,7 @@ extension AppSettings {
         self.init(
             appLanguage: try container.decodeIfPresent(AppLanguage.self, forKey: .appLanguage) ?? .automatic,
             autoRefreshEnabled: try container.decodeIfPresent(Bool.self, forKey: .autoRefreshEnabled) ?? true,
-            autoRefreshIntervalSeconds: try container.decodeIfPresent(Int.self, forKey: .autoRefreshIntervalSeconds) ?? 30,
+            autoRefreshIntervalSeconds: try container.decodeIfPresent(Int.self, forKey: .autoRefreshIntervalSeconds) ?? 60,
             autoClosePaneOnProcessExit: try container.decodeIfPresent(Bool.self, forKey: .autoClosePaneOnProcessExit) ?? true,
             confirmQuitWhenCommandsRunning: try container.decodeIfPresent(Bool.self, forKey: .confirmQuitWhenCommandsRunning) ?? true,
             hotKeyWindowEnabled: try container.decodeIfPresent(Bool.self, forKey: .hotKeyWindowEnabled) ?? false,

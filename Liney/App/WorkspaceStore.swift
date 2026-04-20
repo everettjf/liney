@@ -3181,6 +3181,13 @@ final class WorkspaceStore: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: interval)
                 guard !Task.isCancelled else { return }
+                // Skip the tick when the app isn't active — running git
+                // status across every workspace serially (3-4s each on large
+                // monorepos) while the user is in another app is wasted work.
+                // Real changes are covered by the file-system watcher while
+                // we're backgrounded, and the didBecomeActive observer can
+                // trigger a catch-up refresh when the user returns.
+                guard NSApp.isActive else { continue }
                 self.receive(.autoRefreshTick)
             }
         }
