@@ -90,9 +90,12 @@ final class WorkspaceSessionController: ObservableObject {
             sessions.removeValue(forKey: removed)
         }
 
-        for paneID in paneIDs {
-            sessions[paneID]?.startIfNeeded()
-        }
+        // Sessions are started lazily by TerminalPaneView.onAppear when a pane
+        // actually becomes visible — starting every pane here eagerly creates
+        // one Ghostty surface (renderer thread + CVDisplayLink + Oniguruma
+        // regex compile) per pane at app launch, even for workspaces the user
+        // never opens. Explicit user actions like createPane/duplicatePane
+        // still start their session directly.
 
         if focusedPaneID == nil || focusedPaneID.map({ wanted.contains($0) }) == false {
             focusedPaneID = paneIDs.first
