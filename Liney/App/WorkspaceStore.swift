@@ -48,6 +48,7 @@ final class WorkspaceStore: ObservableObject {
     @Published private(set) var sleepPreventionQuickActionOption: SleepPreventionDurationOption = .oneHour
     @Published private(set) var sleepPreventionReferenceDate = Date()
     @Published private(set) var hapiIntegrationState: HAPIIntegrationState = .unavailable
+    @Published private(set) var availableExternalEditors: [ExternalEditorDescriptor] = []
 
     private let persistence = WorkspaceStatePersistence()
     private let appSettingsPersistence = AppSettingsPersistence()
@@ -139,15 +140,23 @@ final class WorkspaceStore: ObservableObject {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    var availableExternalEditors: [ExternalEditorDescriptor] {
-        ExternalEditorCatalog.availableEditors()
-    }
-
     var effectiveExternalEditor: ExternalEditorDescriptor? {
         ExternalEditorCatalog.effectiveEditor(
             preferred: appSettings.preferredExternalEditor,
             among: availableExternalEditors
         )
+    }
+
+    /// Scan installed editor apps off the main thread and publish the result.
+    /// `/Applications` enumeration is expensive, so this must not run from a
+    /// SwiftUI body or any other hot path.
+    func refreshAvailableExternalEditors() {
+        Task.detached(priority: .utility) { [weak self] in
+            let editors = ExternalEditorCatalog.availableEditors()
+            await MainActor.run { [weak self] in
+                self?.availableExternalEditors = editors
+            }
+        }
     }
 
     var availableHAPIInstallation: HAPIInstallationStatus? {
@@ -688,6 +697,7 @@ final class WorkspaceStore: ObservableObject {
         configureUpdater(checkInBackground: true)
         syncAutomationServices()
         startRemoteWorkspaceRefreshScheduler()
+        refreshAvailableExternalEditors()
         persist()
     }
 
