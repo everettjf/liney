@@ -351,16 +351,27 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         guard kind == .repository else { return }
         saveActiveWorktreeState()
         let previousActiveWorktreePath = activeWorktreePath
-        currentBranch = snapshot.currentBranch
-        head = snapshot.head
-        hasUncommittedChanges = snapshot.status.hasUncommittedChanges
-        changedFileCount = snapshot.status.changedFileCount
-        aheadCount = snapshot.status.aheadCount
-        behindCount = snapshot.status.behindCount
-        localBranches = snapshot.status.localBranches
-        remoteBranches = snapshot.status.remoteBranches
-        worktreeStatuses[activeWorktreePath] = snapshot.status
-        worktrees = snapshot.worktrees
+        // Guard every @Published write against its current value. The
+        // auto-refresh timer fires this path on every workspace serially, and
+        // unconditional writes trigger a SwiftUI invalidation cascade across
+        // every view bound to the workspace — even when nothing actually
+        // changed.
+        if currentBranch != snapshot.currentBranch { currentBranch = snapshot.currentBranch }
+        if head != snapshot.head { head = snapshot.head }
+        if hasUncommittedChanges != snapshot.status.hasUncommittedChanges {
+            hasUncommittedChanges = snapshot.status.hasUncommittedChanges
+        }
+        if changedFileCount != snapshot.status.changedFileCount {
+            changedFileCount = snapshot.status.changedFileCount
+        }
+        if aheadCount != snapshot.status.aheadCount { aheadCount = snapshot.status.aheadCount }
+        if behindCount != snapshot.status.behindCount { behindCount = snapshot.status.behindCount }
+        if localBranches != snapshot.status.localBranches { localBranches = snapshot.status.localBranches }
+        if remoteBranches != snapshot.status.remoteBranches { remoteBranches = snapshot.status.remoteBranches }
+        if worktreeStatuses[activeWorktreePath] != snapshot.status {
+            worktreeStatuses[activeWorktreePath] = snapshot.status
+        }
+        if worktrees != snapshot.worktrees { worktrees = snapshot.worktrees }
         if !worktrees.contains(where: { $0.path == activeWorktreePath }) {
             activeWorktreePath = snapshot.rootPath
         }

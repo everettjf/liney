@@ -1278,7 +1278,7 @@ final class WorkspaceStore: ObservableObject {
             workspace.apply(snapshot: snapshot)
             let statuses = try await gitRepositoryService.repositoryStatuses(for: workspace.worktrees.map(\.path))
             workspace.mergeWorktreeStatuses(statuses)
-            workspace.gitHubStatuses = [:]
+            if !workspace.gitHubStatuses.isEmpty { workspace.gitHubStatuses = [:] }
             workspace.bootstrapIfNeeded()
             let newWorktreePaths = Set(workspace.worktrees.map(\.path))
             if newWorktreePaths != previousWorktreePaths {
