@@ -1409,6 +1409,10 @@ private final class LineyGhosttySurfaceView: NSView {
             sendSSHMetaLetter("b", keyCode: UInt16(kVK_ANSI_B), on: surface)
         case "\u{1B}f":
             sendSSHMetaLetter("f", keyCode: UInt16(kVK_ANSI_F), on: surface)
+        case "\u{1B}\u{7F}":
+            sendOptionDelete(keyCode: UInt16(kVK_Delete), on: surface)
+        case "\u{1B}[3;3~":
+            sendOptionDelete(keyCode: UInt16(kVK_ForwardDelete), on: surface)
         default:
             sendText(sequence)
         }
