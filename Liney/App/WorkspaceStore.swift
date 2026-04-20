@@ -2789,24 +2789,30 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func persist() {
-        do {
-            let prunedGlobalCanvasState = globalCanvasState.pruned(to: validGlobalCanvasCardIDs())
-            if prunedGlobalCanvasState != globalCanvasState {
-                globalCanvasState = prunedGlobalCanvasState
-            }
-            if persistsWorkspaceState {
-                try persistence.save(
-                    PersistedWorkspaceState(
-                        selectedWorkspaceID: selectedWorkspaceID,
-                        workspaces: workspaces.map { $0.snapshot() },
-                        globalCanvasState: prunedGlobalCanvasState
-                    )
-                )
-            }
-            persistAppSettings()
-        } catch {
-            presentedError = PresentedError(title: localized("main.error.saveState.title"), message: error.localizedDescription)
+        let prunedGlobalCanvasState = globalCanvasState.pruned(to: validGlobalCanvasCardIDs())
+        if prunedGlobalCanvasState != globalCanvasState {
+            globalCanvasState = prunedGlobalCanvasState
         }
+        if persistsWorkspaceState {
+            let snapshot = PersistedWorkspaceState(
+                selectedWorkspaceID: selectedWorkspaceID,
+                workspaces: workspaces.map { $0.snapshot() },
+                globalCanvasState: prunedGlobalCanvasState
+            )
+            let errorTitle = localized("main.error.saveState.title")
+            persistence.save(snapshot) { error in
+                Task { @MainActor [weak self] in
+                    self?.presentedError = PresentedError(title: errorTitle, message: error.localizedDescription)
+                }
+            }
+        }
+        persistAppSettings()
+    }
+
+    /// Synchronously flushes any pending workspace-state write. Call from the
+    /// app-terminate handler before the process exits.
+    func flushPendingPersistence() {
+        persistence.flushPendingSync()
     }
 
     func currentStateSnapshot() -> PersistedWorkspaceState {

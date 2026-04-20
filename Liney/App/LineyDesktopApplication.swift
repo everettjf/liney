@@ -137,6 +137,7 @@ public final class LineyDesktopApplication: NSObject {
         LineyGlobalHotKeyMonitor.shared.unregister()
         for context in windowContexts {
             context.store.stopSleepPrevention()
+            context.store.flushPendingPersistence()
         }
     }
 
