@@ -1273,13 +1273,17 @@ final class WorkspaceStore: ObservableObject {
             return
         }
         do {
+            let previousWorktreePaths = Set(workspace.worktrees.map(\.path))
             let snapshot = try await gitRepositoryService.inspectRepository(at: workspace.activeWorktreePath, repositoryRoot: workspace.repositoryRoot)
             workspace.apply(snapshot: snapshot)
             let statuses = try await gitRepositoryService.repositoryStatuses(for: workspace.worktrees.map(\.path))
             workspace.mergeWorktreeStatuses(statuses)
             workspace.gitHubStatuses = [:]
             workspace.bootstrapIfNeeded()
-            configureMetadataWatchers()
+            let newWorktreePaths = Set(workspace.worktrees.map(\.path))
+            if newWorktreePaths != previousWorktreePaths {
+                configureMetadataWatchers()
+            }
             objectWillChange.send()
             if persistAfterRefresh {
                 persist()
@@ -2809,10 +2813,11 @@ final class WorkspaceStore: ObservableObject {
         persistAppSettings()
     }
 
-    /// Synchronously flushes any pending workspace-state write. Call from the
-    /// app-terminate handler before the process exits.
+    /// Synchronously flushes any pending workspace-state and app-settings
+    /// writes. Call from the app-terminate handler before the process exits.
     func flushPendingPersistence() {
         persistence.flushPendingSync()
+        appSettingsPersistence.flushPendingSync()
     }
 
     func currentStateSnapshot() -> PersistedWorkspaceState {
@@ -3042,13 +3047,14 @@ final class WorkspaceStore: ObservableObject {
     }
 
     private func persistAppSettings() {
-        do {
-            try appSettingsPersistence.save(appSettings)
-            AppLogger.updateLevel(appSettings.logLevel)
-            NotificationCenter.default.post(name: .lineyAppSettingsDidChange, object: appSettings)
-        } catch {
-            presentedError = PresentedError(title: localized("main.error.saveSettings.title"), message: error.localizedDescription)
+        let errorTitle = localized("main.error.saveSettings.title")
+        appSettingsPersistence.save(appSettings) { error in
+            Task { @MainActor [weak self] in
+                self?.presentedError = PresentedError(title: errorTitle, message: error.localizedDescription)
+            }
         }
+        AppLogger.updateLevel(appSettings.logLevel)
+        NotificationCenter.default.post(name: .lineyAppSettingsDidChange, object: appSettings)
     }
 
     private func workspace(for id: UUID) -> WorkspaceModel? {

@@ -26,8 +26,17 @@ func lineyStateDirectoryURL(fileManager: FileManager = .default) -> URL {
     )
 }
 
-struct AppSettingsPersistence {
+/// Coalesced, off-main persistence for AppSettings. Mirrors
+/// WorkspaceStatePersistence so hot paths that touch settings (e.g. every
+/// workspace refresh calls persistAppSettings) don't pay for a JSON encode
+/// and a synchronous disk write on the main thread.
+final class AppSettingsPersistence {
     private let fileManager = FileManager.default
+    private let saveQueue = DispatchQueue(label: "com.liney.app-settings.save", qos: .utility)
+    private let pendingLock = NSLock()
+    private var pendingSettings: AppSettings?
+    private var pendingWorkItem: DispatchWorkItem?
+    private let saveDebounce: DispatchTimeInterval = .milliseconds(500)
 
     func load() -> AppSettings {
         let url = resolvedSettingsFileURL()
@@ -37,7 +46,48 @@ struct AppSettingsPersistence {
         return (try? JSONDecoder().decode(AppSettings.self, from: data)) ?? AppSettings()
     }
 
-    func save(_ settings: AppSettings) throws {
+    func save(_ settings: AppSettings, onError: (@Sendable (Error) -> Void)? = nil) {
+        pendingLock.lock()
+        pendingSettings = settings
+        pendingWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            self?.drainPendingSave(onError: onError)
+        }
+        pendingWorkItem = item
+        pendingLock.unlock()
+        saveQueue.asyncAfter(deadline: .now() + saveDebounce, execute: item)
+    }
+
+    /// Synchronously flush any pending settings save. Called from the
+    /// app-terminate handler so the latest settings land on disk before exit.
+    func flushPendingSync() {
+        saveQueue.sync {
+            pendingLock.lock()
+            pendingWorkItem?.cancel()
+            pendingWorkItem = nil
+            let toSave = pendingSettings
+            pendingSettings = nil
+            pendingLock.unlock()
+            guard let toSave else { return }
+            try? writeSync(toSave)
+        }
+    }
+
+    private func drainPendingSave(onError: (@Sendable (Error) -> Void)?) {
+        pendingLock.lock()
+        let toSave = pendingSettings
+        pendingSettings = nil
+        pendingWorkItem = nil
+        pendingLock.unlock()
+        guard let toSave else { return }
+        do {
+            try writeSync(toSave)
+        } catch {
+            onError?(error)
+        }
+    }
+
+    private func writeSync(_ settings: AppSettings) throws {
         let directory = stateDirectoryURL()
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
