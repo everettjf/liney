@@ -19,17 +19,29 @@ struct ExternalEditorDescriptor: Hashable, Identifiable {
 
 enum ExternalEditorCatalog {
     nonisolated static func availableEditors() -> [ExternalEditorDescriptor] {
-        ExternalEditor.allCases.compactMap(descriptor(for:))
+        let bundleIndex = scanApplicationBundles()
+        return ExternalEditor.allCases.compactMap { editor in
+            descriptor(for: editor, bundleIndex: bundleIndex)
+        }
     }
 
     nonisolated static func descriptor(for editor: ExternalEditor) -> ExternalEditorDescriptor? {
+        descriptor(for: editor, bundleIndex: scanApplicationBundles())
+    }
+
+    nonisolated private static func descriptor(
+        for editor: ExternalEditor,
+        bundleIndex: [String: URL]
+    ) -> ExternalEditorDescriptor? {
         for applicationName in editor.applicationNames {
-            guard let applicationURL = applicationURL(named: applicationName) else { continue }
-            return ExternalEditorDescriptor(
-                editor: editor,
-                applicationName: applicationName,
-                applicationPath: applicationURL.path
-            )
+            let bundleName = applicationName.hasSuffix(".app") ? applicationName : "\(applicationName).app"
+            if let url = bundleIndex[bundleName] {
+                return ExternalEditorDescriptor(
+                    editor: editor,
+                    applicationName: applicationName,
+                    applicationPath: url.path
+                )
+            }
         }
         return nil
     }
@@ -98,48 +110,37 @@ enum ExternalEditorCatalog {
         return candidates.first { FileManager.default.fileExists(atPath: $0) }
     }
 
-    nonisolated private static func applicationURL(named applicationName: String) -> URL? {
+    /// Enumerate each search root once, indexing every `.app` bundle we find
+    /// by its last path component. Matching all editors against this dictionary
+    /// replaces the previous O(N_editors × full_walk) scan.
+    nonisolated private static func scanApplicationBundles() -> [String: URL] {
         let fileManager = FileManager.default
-        let bundleName = applicationName.hasSuffix(".app") ? applicationName : "\(applicationName).app"
-
+        var index: [String: URL] = [:]
         for root in applicationSearchRoots {
-            let directMatch = root.appendingPathComponent(bundleName, isDirectory: true)
-            if fileManager.fileExists(atPath: directMatch.path) {
-                return directMatch
-            }
-
-            if let nestedMatch = nestedApplicationURL(named: bundleName, under: root) {
-                return nestedMatch
-            }
-        }
-
-        return nil
-    }
-
-    nonisolated private static func nestedApplicationURL(named bundleName: String, under root: URL) -> URL? {
-        let fileManager = FileManager.default
-        guard let enumerator = fileManager.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        ) else {
-            return nil
-        }
-
-        let baseDepth = root.pathComponents.count
-        while let candidateURL = enumerator.nextObject() as? URL {
-            let depth = candidateURL.pathComponents.count - baseDepth
-            if depth > 3 {
-                enumerator.skipDescendants()
+            guard let enumerator = fileManager.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else {
                 continue
             }
-
-            if candidateURL.lastPathComponent == bundleName {
-                return candidateURL
+            let baseDepth = root.pathComponents.count
+            while let candidateURL = enumerator.nextObject() as? URL {
+                let lastComponent = candidateURL.lastPathComponent
+                if lastComponent.hasSuffix(".app") {
+                    if index[lastComponent] == nil {
+                        index[lastComponent] = candidateURL
+                    }
+                    // skipsPackageDescendants already prevents descent into the bundle.
+                    continue
+                }
+                let depth = candidateURL.pathComponents.count - baseDepth
+                if depth >= 3 {
+                    enumerator.skipDescendants()
+                }
             }
         }
-
-        return nil
+        return index
     }
 
     nonisolated private static var applicationSearchRoots: [URL] {

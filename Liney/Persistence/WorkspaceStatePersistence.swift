@@ -7,8 +7,17 @@
 
 import Foundation
 
-struct WorkspaceStatePersistence {
+/// Persists workspace state to disk. Writes are coalesced on a background
+/// queue so the main thread never spends time JSON-encoding or calling into
+/// the filesystem. `flushPendingSync` runs from the app-terminate handler to
+/// ensure the latest snapshot is persisted before we exit.
+final class WorkspaceStatePersistence {
     private let fileManager = FileManager.default
+    private let saveQueue = DispatchQueue(label: "com.liney.workspace-state.save", qos: .utility)
+    private let pendingLock = NSLock()
+    private var pendingState: PersistedWorkspaceState?
+    private var pendingWorkItem: DispatchWorkItem?
+    private let saveDebounce: DispatchTimeInterval = .milliseconds(500)
 
     func load() -> PersistedWorkspaceState {
         let url = resolvedStateFileURL()
@@ -22,7 +31,48 @@ struct WorkspaceStatePersistence {
         }
     }
 
-    func save(_ state: PersistedWorkspaceState) throws {
+    func save(_ state: PersistedWorkspaceState, onError: (@Sendable (Error) -> Void)? = nil) {
+        pendingLock.lock()
+        pendingState = state
+        pendingWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            self?.drainPendingSave(onError: onError)
+        }
+        pendingWorkItem = item
+        pendingLock.unlock()
+        saveQueue.asyncAfter(deadline: .now() + saveDebounce, execute: item)
+    }
+
+    /// Synchronously flush any pending save (app quit). Waits for any
+    /// in-flight save on the background queue to finish first.
+    func flushPendingSync() {
+        saveQueue.sync {
+            pendingLock.lock()
+            pendingWorkItem?.cancel()
+            pendingWorkItem = nil
+            let toSave = pendingState
+            pendingState = nil
+            pendingLock.unlock()
+            guard let toSave else { return }
+            try? writeSync(toSave)
+        }
+    }
+
+    private func drainPendingSave(onError: (@Sendable (Error) -> Void)?) {
+        pendingLock.lock()
+        let toSave = pendingState
+        pendingState = nil
+        pendingWorkItem = nil
+        pendingLock.unlock()
+        guard let toSave else { return }
+        do {
+            try writeSync(toSave)
+        } catch {
+            onError?(error)
+        }
+    }
+
+    private func writeSync(_ state: PersistedWorkspaceState) throws {
         let directory = stateDirectoryURL()
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         let data = try JSONEncoder.prettyPrinted.encode(state)

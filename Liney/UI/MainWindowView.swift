@@ -554,6 +554,7 @@ struct MainWindowView: View {
             Task { @MainActor in
                 await store.refreshHAPIIntegrationStatus()
             }
+            store.refreshAvailableExternalEditors()
         }
         .onChange(of: store.selectedWorkspaceID) { _, newValue in
             if newValue == nil {

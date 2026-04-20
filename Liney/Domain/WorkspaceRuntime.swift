@@ -347,28 +347,51 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         loadActiveWorktreeState()
     }
 
-    func apply(snapshot: RepositorySnapshot) {
-        guard kind == .repository else { return }
+    /// Returns true if any @Published value actually changed. Callers can use
+    /// this to skip downstream work (objectWillChange.send, persist, etc.)
+    /// when the refresh was a no-op — the auto-refresh timer fires this path
+    /// every 30s per workspace and most ticks have no real change.
+    @discardableResult
+    func apply(snapshot: RepositorySnapshot) -> Bool {
+        guard kind == .repository else { return false }
         saveActiveWorktreeState()
         let previousActiveWorktreePath = activeWorktreePath
-        currentBranch = snapshot.currentBranch
-        head = snapshot.head
-        hasUncommittedChanges = snapshot.status.hasUncommittedChanges
-        changedFileCount = snapshot.status.changedFileCount
-        aheadCount = snapshot.status.aheadCount
-        behindCount = snapshot.status.behindCount
-        localBranches = snapshot.status.localBranches
-        remoteBranches = snapshot.status.remoteBranches
-        worktreeStatuses[activeWorktreePath] = snapshot.status
-        worktrees = snapshot.worktrees
+        var changed = false
+        if currentBranch != snapshot.currentBranch { currentBranch = snapshot.currentBranch; changed = true }
+        if head != snapshot.head { head = snapshot.head; changed = true }
+        if hasUncommittedChanges != snapshot.status.hasUncommittedChanges {
+            hasUncommittedChanges = snapshot.status.hasUncommittedChanges
+            changed = true
+        }
+        if changedFileCount != snapshot.status.changedFileCount {
+            changedFileCount = snapshot.status.changedFileCount
+            changed = true
+        }
+        if aheadCount != snapshot.status.aheadCount { aheadCount = snapshot.status.aheadCount; changed = true }
+        if behindCount != snapshot.status.behindCount { behindCount = snapshot.status.behindCount; changed = true }
+        if localBranches != snapshot.status.localBranches {
+            localBranches = snapshot.status.localBranches
+            changed = true
+        }
+        if remoteBranches != snapshot.status.remoteBranches {
+            remoteBranches = snapshot.status.remoteBranches
+            changed = true
+        }
+        if worktreeStatuses[activeWorktreePath] != snapshot.status {
+            worktreeStatuses[activeWorktreePath] = snapshot.status
+            changed = true
+        }
+        if worktrees != snapshot.worktrees { worktrees = snapshot.worktrees; changed = true }
         if !worktrees.contains(where: { $0.path == activeWorktreePath }) {
             activeWorktreePath = snapshot.rootPath
+            changed = true
         }
         ensureKnownWorktreeStates()
         pruneWorktreeCustomizations()
         if previousActiveWorktreePath != activeWorktreePath || layout == nil {
             loadActiveWorktreeState()
         }
+        return changed
     }
 
     func applyRemoteWorktrees(_ remoteWorktrees: [WorktreeModel], remoteRoot: String) {
@@ -575,7 +598,8 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         return state
     }
 
-    func mergeWorktreeStatuses(_ statuses: [String: RepositoryStatusSnapshot]) {
+    @discardableResult
+    func mergeWorktreeStatuses(_ statuses: [String: RepositoryStatusSnapshot]) -> Bool {
         var changed = false
         for (path, status) in statuses {
             if worktreeStatuses[path] != status {
@@ -583,11 +607,12 @@ final class WorkspaceModel: ObservableObject, Identifiable {
                 changed = true
             }
         }
-        guard changed, let activeStatus = worktreeStatuses[activeWorktreePath] else { return }
+        guard changed, let activeStatus = worktreeStatuses[activeWorktreePath] else { return changed }
         if hasUncommittedChanges != activeStatus.hasUncommittedChanges { hasUncommittedChanges = activeStatus.hasUncommittedChanges }
         if changedFileCount != activeStatus.changedFileCount { changedFileCount = activeStatus.changedFileCount }
         if aheadCount != activeStatus.aheadCount { aheadCount = activeStatus.aheadCount }
         if behindCount != activeStatus.behindCount { behindCount = activeStatus.behindCount }
+        return changed
     }
 
     func status(for worktreePath: String) -> RepositoryStatusSnapshot? {

@@ -48,6 +48,7 @@ final class WorkspaceStore: ObservableObject {
     @Published private(set) var sleepPreventionQuickActionOption: SleepPreventionDurationOption = .oneHour
     @Published private(set) var sleepPreventionReferenceDate = Date()
     @Published private(set) var hapiIntegrationState: HAPIIntegrationState = .unavailable
+    @Published private(set) var availableExternalEditors: [ExternalEditorDescriptor] = []
 
     private let persistence = WorkspaceStatePersistence()
     private let appSettingsPersistence = AppSettingsPersistence()
@@ -69,6 +70,7 @@ final class WorkspaceStore: ObservableObject {
     private var remoteRefreshTimer: Timer?
     private var remoteWindowObserver: NSObjectProtocol?
     private var isRefreshingRemotes = false
+    private var lastRemoteRefreshTime: Date = .distantPast
     private var cachedWorkspaceIcons: [UUID: SidebarItemIcon] = [:]
     private var cachedWorktreeIcons: [UUID: [String: SidebarItemIcon]] = [:]
 
@@ -138,15 +140,23 @@ final class WorkspaceStore: ObservableObject {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    var availableExternalEditors: [ExternalEditorDescriptor] {
-        ExternalEditorCatalog.availableEditors()
-    }
-
     var effectiveExternalEditor: ExternalEditorDescriptor? {
         ExternalEditorCatalog.effectiveEditor(
             preferred: appSettings.preferredExternalEditor,
             among: availableExternalEditors
         )
+    }
+
+    /// Scan installed editor apps off the main thread and publish the result.
+    /// `/Applications` enumeration is expensive, so this must not run from a
+    /// SwiftUI body or any other hot path.
+    func refreshAvailableExternalEditors() {
+        Task.detached(priority: .utility) { [weak self] in
+            let editors = ExternalEditorCatalog.availableEditors()
+            await MainActor.run { [weak self] in
+                self?.availableExternalEditors = editors
+            }
+        }
     }
 
     var availableHAPIInstallation: HAPIInstallationStatus? {
@@ -687,6 +697,7 @@ final class WorkspaceStore: ObservableObject {
         configureUpdater(checkInBackground: true)
         syncAutomationServices()
         startRemoteWorkspaceRefreshScheduler()
+        refreshAvailableExternalEditors()
         persist()
     }
 
@@ -1262,16 +1273,35 @@ final class WorkspaceStore: ObservableObject {
             return
         }
         do {
+            let previousWorktreePaths = Set(workspace.worktrees.map(\.path))
             let snapshot = try await gitRepositoryService.inspectRepository(at: workspace.activeWorktreePath, repositoryRoot: workspace.repositoryRoot)
-            workspace.apply(snapshot: snapshot)
-            let statuses = try await gitRepositoryService.repositoryStatuses(for: workspace.worktrees.map(\.path))
-            workspace.mergeWorktreeStatuses(statuses)
-            workspace.gitHubStatuses = [:]
+            var changed = workspace.apply(snapshot: snapshot)
+            // Only refresh the active worktree's status. Background worktrees
+            // keep their last known status until the user switches to them or
+            // something external (file watcher) invalidates them. Running
+            // status for every worktree on every tick was a significant chunk
+            // of the refresh cost on workspaces with many worktrees.
+            let statuses = try await gitRepositoryService.repositoryStatuses(for: [workspace.activeWorktreePath])
+            if workspace.mergeWorktreeStatuses(statuses) { changed = true }
+            if !workspace.gitHubStatuses.isEmpty {
+                workspace.gitHubStatuses = [:]
+                changed = true
+            }
             workspace.bootstrapIfNeeded()
-            configureMetadataWatchers()
-            objectWillChange.send()
-            if persistAfterRefresh {
-                persist()
+            let newWorktreePaths = Set(workspace.worktrees.map(\.path))
+            if newWorktreePaths != previousWorktreePaths {
+                configureMetadataWatchers()
+                changed = true
+            }
+            // Skip objectWillChange and persist entirely when the refresh was
+            // a no-op. Without this, every 30s auto-refresh tick invalidates
+            // the whole store-bound view graph and re-walks SwiftUI's
+            // accessibility subtree — expensive work for zero state change.
+            if changed {
+                objectWillChange.send()
+                if persistAfterRefresh {
+                    persist()
+                }
             }
         } catch {
             presentError(title: localized("main.error.refreshRepository.title"), message: error.localizedDescription)
@@ -2778,24 +2808,31 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func persist() {
-        do {
-            let prunedGlobalCanvasState = globalCanvasState.pruned(to: validGlobalCanvasCardIDs())
-            if prunedGlobalCanvasState != globalCanvasState {
-                globalCanvasState = prunedGlobalCanvasState
-            }
-            if persistsWorkspaceState {
-                try persistence.save(
-                    PersistedWorkspaceState(
-                        selectedWorkspaceID: selectedWorkspaceID,
-                        workspaces: workspaces.map { $0.snapshot() },
-                        globalCanvasState: prunedGlobalCanvasState
-                    )
-                )
-            }
-            persistAppSettings()
-        } catch {
-            presentedError = PresentedError(title: localized("main.error.saveState.title"), message: error.localizedDescription)
+        let prunedGlobalCanvasState = globalCanvasState.pruned(to: validGlobalCanvasCardIDs())
+        if prunedGlobalCanvasState != globalCanvasState {
+            globalCanvasState = prunedGlobalCanvasState
         }
+        if persistsWorkspaceState {
+            let snapshot = PersistedWorkspaceState(
+                selectedWorkspaceID: selectedWorkspaceID,
+                workspaces: workspaces.map { $0.snapshot() },
+                globalCanvasState: prunedGlobalCanvasState
+            )
+            let errorTitle = localized("main.error.saveState.title")
+            persistence.save(snapshot) { error in
+                Task { @MainActor [weak self] in
+                    self?.presentedError = PresentedError(title: errorTitle, message: error.localizedDescription)
+                }
+            }
+        }
+        persistAppSettings()
+    }
+
+    /// Synchronously flushes any pending workspace-state and app-settings
+    /// writes. Call from the app-terminate handler before the process exits.
+    func flushPendingPersistence() {
+        persistence.flushPendingSync()
+        appSettingsPersistence.flushPendingSync()
     }
 
     func currentStateSnapshot() -> PersistedWorkspaceState {
@@ -2894,10 +2931,13 @@ final class WorkspaceStore: ObservableObject {
 
     private func startSleepPreventionTicker() {
         sleepPreventionTickerTask?.cancel()
-        sleepPreventionTickerTask = Task { @MainActor in
+        sleepPreventionTickerTask = Task.detached { [weak self] in
             while !Task.isCancelled {
-                sleepPreventionReferenceDate = Date()
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run { [weak self] in
+                    self?.sleepPreventionReferenceDate = Date()
+                }
             }
         }
     }
@@ -3022,13 +3062,14 @@ final class WorkspaceStore: ObservableObject {
     }
 
     private func persistAppSettings() {
-        do {
-            try appSettingsPersistence.save(appSettings)
-            AppLogger.updateLevel(appSettings.logLevel)
-            NotificationCenter.default.post(name: .lineyAppSettingsDidChange, object: appSettings)
-        } catch {
-            presentedError = PresentedError(title: localized("main.error.saveSettings.title"), message: error.localizedDescription)
+        let errorTitle = localized("main.error.saveSettings.title")
+        appSettingsPersistence.save(appSettings) { error in
+            Task { @MainActor [weak self] in
+                self?.presentedError = PresentedError(title: errorTitle, message: error.localizedDescription)
+            }
         }
+        AppLogger.updateLevel(appSettings.logLevel)
+        NotificationCenter.default.post(name: .lineyAppSettingsDidChange, object: appSettings)
     }
 
     private func workspace(for id: UUID) -> WorkspaceModel? {
@@ -3145,6 +3186,13 @@ final class WorkspaceStore: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: interval)
                 guard !Task.isCancelled else { return }
+                // Skip the tick when the app isn't active — running git
+                // status across every workspace serially (3-4s each on large
+                // monorepos) while the user is in another app is wasted work.
+                // Real changes are covered by the file-system watcher while
+                // we're backgrounded, and the didBecomeActive observer can
+                // trigger a catch-up refresh when the user returns.
+                guard NSApp.isActive else { continue }
                 self.receive(.autoRefreshTick)
             }
         }
@@ -3196,7 +3244,10 @@ final class WorkspaceStore: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                await self?.refreshAllRemoteWorkspaces()
+                guard let self else { return }
+                // Skip if last refresh was less than 10 seconds ago
+                guard Date().timeIntervalSince(self.lastRemoteRefreshTime) >= 10 else { return }
+                await self.refreshAllRemoteWorkspaces()
             }
         }
     }
@@ -3215,6 +3266,7 @@ final class WorkspaceStore: ObservableObject {
         let remotes = workspaces.filter { $0.isRemote && !$0.isArchived }
         guard !remotes.isEmpty else { return }
         isRefreshingRemotes = true
+        lastRemoteRefreshTime = Date()
         defer { isRefreshingRemotes = false }
         for workspace in remotes {
             await refreshRemoteWorkspace(workspace)

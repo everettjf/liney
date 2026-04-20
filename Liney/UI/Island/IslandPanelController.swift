@@ -30,6 +30,8 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
     private var screenObserver: NSObjectProtocol?
     private var collapseTask: Task<Void, Never>?
     private var expandTask: Task<Void, Never>?
+    private var lastMouseCheckTime: CFAbsoluteTime = 0
+    private let mouseThrottleInterval: CFAbsoluteTime = 0.05 // 50ms throttle
 
     /// The screen the island is pinned to. Defaults to the primary screen.
     private(set) var pinnedScreen: NSScreen?
@@ -112,6 +114,8 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
     func show() {
         if panel == nil {
             createPanel()
+        } else {
+            installMouseTracking()
         }
         repositionPanel()
         panel?.orderFrontRegardless()
@@ -121,6 +125,7 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
         state.isExpanded = false
         state.currentGroupID = nil
         panel?.orderOut(nil)
+        removeMouseTracking()
     }
 
     func toggle() {
@@ -228,20 +233,42 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
         return NSRect(origin: NSPoint(x: x, y: y), size: size)
     }
 
+    private func removeMouseTracking() {
+        if let mouseEventMonitor {
+            NSEvent.removeMonitor(mouseEventMonitor)
+            self.mouseEventMonitor = nil
+        }
+        if let localMouseMonitor {
+            NSEvent.removeMonitor(localMouseMonitor)
+            self.localMouseMonitor = nil
+        }
+    }
+
     private func installMouseTracking() {
-        let handler: (NSEvent) -> Void = { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.checkMousePosition()
+        // Avoid duplicate monitors
+        removeMouseTracking()
+        // NSEvent monitor handlers are invoked on the main thread, so we can
+        // synchronously throttle here BEFORE doing any per-event work. This
+        // avoids creating a Task for every mouse-moved event (which fires
+        // hundreds of times per second).
+        mouseEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.throttledCheckMousePosition()
             }
         }
-        mouseEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: handler)
-        // Also track when our app is in foreground
         localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
-            Task { @MainActor [weak self] in
-                self?.checkMousePosition()
+            MainActor.assumeIsolated {
+                self?.throttledCheckMousePosition()
             }
             return event
         }
+    }
+
+    private func throttledCheckMousePosition() {
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now - lastMouseCheckTime >= mouseThrottleInterval else { return }
+        lastMouseCheckTime = now
+        checkMousePosition()
     }
 
     private func checkMousePosition() {
