@@ -36,6 +36,19 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     @Published var zoomedPaneID: UUID?
     @Published var sshTarget: SSHSessionConfiguration?
 
+    /// Flipped to true by WorkspaceStore when this workspace becomes the
+    /// selected one. Sessions are started lazily: at launch every workspace's
+    /// sessionController is bootstrapped with idle panes, and only the active
+    /// workspace spins up Ghostty surfaces. Once true, this stays true — a
+    /// workspace the user has visited keeps its panes running in the
+    /// background so switching back is instant.
+    var isActive: Bool = false {
+        didSet {
+            guard isActive, !oldValue else { return }
+            sessionController.startAllIfNeeded()
+        }
+    }
+
     var isRemote: Bool { sshTarget != nil }
 
     private var worktreeStates: [String: WorktreeSessionStateRecord]
@@ -950,6 +963,9 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         }
         if !isArchived {
             controller.sync(with: paneOrder, defaultWorkingDirectory: activeWorktreePath)
+        }
+        if isActive {
+            controller.startAllIfNeeded()
         }
         wireWorkspaceActions()
         saveActiveWorktreeState()

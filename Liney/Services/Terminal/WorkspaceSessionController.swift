@@ -90,10 +90,6 @@ final class WorkspaceSessionController: ObservableObject {
             sessions.removeValue(forKey: removed)
         }
 
-        for paneID in paneIDs {
-            sessions[paneID]?.startIfNeeded()
-        }
-
         if focusedPaneID == nil || focusedPaneID.map({ wanted.contains($0) }) == false {
             focusedPaneID = paneIDs.first
         }
@@ -166,6 +162,12 @@ final class WorkspaceSessionController: ObservableObject {
     func restartAll() {
         for session in sessions.values {
             session.restart()
+        }
+    }
+
+    func startAllIfNeeded() {
+        for session in sessions.values {
+            session.startIfNeeded()
         }
     }
 

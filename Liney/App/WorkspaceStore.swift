@@ -19,7 +19,11 @@ final class WorkspaceStore: ObservableObject {
     private let activityLogLimit = 120
 
     @Published var workspaces: [WorkspaceModel] = []
-    @Published var selectedWorkspaceID: UUID?
+    @Published var selectedWorkspaceID: UUID? {
+        didSet {
+            markSelectedWorkspaceActive()
+        }
+    }
     @Published var appSettings = AppSettings()
     @Published var gitHubIntegrationState: GitHubIntegrationState = .disabled
     @Published var statusMessage: WorkspaceStatusMessage?
@@ -782,6 +786,17 @@ final class WorkspaceStore: ObservableObject {
         selectedWorkspaceID = workspace.id
         workspace.bootstrapIfNeeded()
         persist()
+    }
+
+    /// Flip the selected workspace's isActive flag. That triggers its
+    /// WorkspaceSessionController to start any idle Ghostty surfaces —
+    /// workspaces the user has never selected stay dormant so launch cost
+    /// doesn't scale with (workspace count) × (pane count).
+    private func markSelectedWorkspaceActive() {
+        guard let selectedWorkspaceID,
+              let workspace = workspaces.first(where: { $0.id == selectedWorkspaceID })
+        else { return }
+        workspace.isActive = true
     }
 
     func selectGlobalCanvasCard(_ cardID: GlobalCanvasCardID) {
