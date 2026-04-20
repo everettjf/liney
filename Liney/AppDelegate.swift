@@ -191,7 +191,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         guard Thread.isMainThread else { return false }
         return MainActor.assumeIsolated {
-            guard lineyShouldReopenMainWindow(hasVisibleWindows: flag) else { return false }
+            guard lineyShouldReopenMainWindow(hasVisibleWindows: flag) else {
+                // macOS counts a minimized window as "visible" here, so
+                // hasVisibleWindows is true whenever the window is docked.
+                // AppKit's default reopen then does nothing and the user is
+                // stuck clicking the Dock icon with no effect — explicitly
+                // deminiaturize so Dock-click restores the window reliably.
+                var restored = false
+                for window in NSApp.windows where window.isMiniaturized {
+                    window.deminiaturize(nil)
+                    restored = true
+                }
+                if restored {
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                return restored
+            }
             desktopApplication?.reopenMainWindow()
             return true
         }
