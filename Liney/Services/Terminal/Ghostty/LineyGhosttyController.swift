@@ -1443,25 +1443,29 @@ private final class LineyGhosttySurfaceView: NSView {
     private func sendSSHMetaLetter(_ character: Character, keyCode: UInt16, on surface: ghostty_surface_t) {
         guard let scalar = character.unicodeScalars.first else { return }
 
-        var press = ghostty_input_key_s()
-        press.action = GHOSTTY_ACTION_PRESS
-        press.mods = GHOSTTY_MODS_ALT
-        press.consumed_mods = GHOSTTY_MODS_NONE
-        press.keycode = UInt32(keyCode)
-        press.text = nil
-        press.unshifted_codepoint = scalar.value
-        press.composing = false
-        _ = ghostty_surface_key(surface, press)
+        // Ghostty's default `macos-option-as-alt=false` silently drops ALT+
+        // printable key events (it expects to compose a diacritic glyph and
+        // has no bytes to emit). Supply the ESC+letter via the `text` field
+        // and mark ALT consumed so ghostty writes them verbatim. Without this
+        // Option+Left/Right word-nav is a no-op under the native ABC / U.S.
+        // input source, where the event reaches us as a plain keyDown rather
+        // than via an IME's moveWordBackward: selector.
+        let text = "\u{1B}\(character)"
+        text.withCString { textPointer in
+            var press = ghostty_input_key_s()
+            press.action = GHOSTTY_ACTION_PRESS
+            press.mods = GHOSTTY_MODS_ALT
+            press.consumed_mods = GHOSTTY_MODS_ALT
+            press.keycode = UInt32(keyCode)
+            press.text = textPointer
+            press.unshifted_codepoint = scalar.value
+            press.composing = false
+            _ = ghostty_surface_key(surface, press)
 
-        var release = ghostty_input_key_s()
-        release.action = GHOSTTY_ACTION_RELEASE
-        release.mods = GHOSTTY_MODS_ALT
-        release.consumed_mods = GHOSTTY_MODS_NONE
-        release.keycode = UInt32(keyCode)
-        release.text = nil
-        release.unshifted_codepoint = scalar.value
-        release.composing = false
-        _ = ghostty_surface_key(surface, release)
+            var release = press
+            release.action = GHOSTTY_ACTION_RELEASE
+            _ = ghostty_surface_key(surface, release)
+        }
     }
 
     private func shouldPreferRawKeyEvent(for event: NSEvent) -> Bool {
