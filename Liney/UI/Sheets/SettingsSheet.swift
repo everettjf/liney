@@ -402,6 +402,7 @@ struct SettingsSheet: View {
     @State private var workspaceSettings = WorkspaceSettings()
     @State private var localizationVersion = 0
     @State private var originalAppLanguage: AppLanguage = .automatic
+    @State private var urlSchemeToken: String = LineyURLScheme.storedToken() ?? ""
 
     private var availableExternalEditors: [ExternalEditorDescriptor] {
         store.availableExternalEditors
@@ -675,6 +676,43 @@ struct SettingsSheet: View {
                     Text(localized("settings.general.diagnostics.logLevelHint"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
+            }
+
+            GroupBox(localized("settings.general.urlScheme.title")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(localized("settings.general.urlScheme.hint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 8) {
+                        Text(localized("settings.general.urlScheme.token"))
+                        TextField(
+                            localized("settings.general.urlScheme.tokenPlaceholder"),
+                            text: $urlSchemeToken
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: urlSchemeToken) { _, newValue in
+                            LineyURLScheme.setStoredToken(newValue)
+                        }
+                        Button(localized("settings.general.urlScheme.generate")) {
+                            let generated = LineyURLScheme.generateToken()
+                            urlSchemeToken = generated
+                            LineyURLScheme.setStoredToken(generated)
+                        }
+                        Button(localized("settings.general.urlScheme.copy")) {
+                            let pasteboard = NSPasteboard.general
+                            pasteboard.clearContents()
+                            pasteboard.setString(urlSchemeToken, forType: .string)
+                        }
+                        .disabled(urlSchemeToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button(localized("settings.general.urlScheme.clear")) {
+                            urlSchemeToken = ""
+                            LineyURLScheme.setStoredToken(nil)
+                        }
+                        .disabled(urlSchemeToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
                 }
                 .padding(.top, 8)
             }

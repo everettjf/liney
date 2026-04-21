@@ -28,6 +28,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var localizationObserver: NSObjectProtocol?
     private var isPresentingQuitConfirmation = false
     private var suppressQuitConfirmationUntil: Date?
+    @MainActor private var pendingIncomingURLs: [URL] = []
+    @MainActor private var isReadyToHandleURLs = false
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         if lineyIsRunningTests() {
@@ -117,8 +119,101 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                         IslandPanelController.shared.show()
                     }
                 }
+                self.drainPendingIncomingURLs()
             }
         }
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        Task { @MainActor in
+            if self.isReadyToHandleURLs {
+                for url in urls {
+                    self.handleIncomingURL(url)
+                }
+            } else {
+                self.pendingIncomingURLs.append(contentsOf: urls)
+            }
+        }
+    }
+
+    @MainActor
+    private func drainPendingIncomingURLs() {
+        isReadyToHandleURLs = true
+        let pending = pendingIncomingURLs
+        pendingIncomingURLs.removeAll()
+        for url in pending {
+            handleIncomingURL(url)
+        }
+    }
+
+    @MainActor
+    private func handleIncomingURL(_ url: URL) {
+        guard let request = LineyURLScheme.parseRunURL(url) else {
+            NSLog("[Liney URL] Ignoring unsupported URL: %@", url.absoluteString)
+            return
+        }
+
+        if let storedToken = LineyURLScheme.storedToken() {
+            guard request.token == storedToken else {
+                NSLog("[Liney URL] Token mismatch, rejecting request")
+                presentURLSchemeAlert(
+                    title: lineyLocalizedAppString("urlScheme.rejected.title"),
+                    message: lineyLocalizedAppString("urlScheme.rejected.tokenMismatch")
+                )
+                return
+            }
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = lineyLocalizedAppString("urlScheme.confirm.title")
+        alert.informativeText = lineyLocalizedAppFormat("urlScheme.confirm.bodyFormat", request.cmd, request.cwd)
+        alert.addButton(withTitle: lineyLocalizedAppString("urlScheme.confirm.run"))
+        alert.addButton(withTitle: lineyLocalizedAppString("urlScheme.confirm.cancel"))
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        executeLineyRunRequest(request)
+    }
+
+    @MainActor
+    private func executeLineyRunRequest(_ request: LineyURLScheme.RunRequest) {
+        desktopApplication?.reopenMainWindow()
+
+        guard let store = desktopApplication?.activeWorkspaceStore,
+              let workspace = store.selectedWorkspace else {
+            presentURLSchemeAlert(
+                title: lineyLocalizedAppString("urlScheme.error.title"),
+                message: lineyLocalizedAppString("urlScheme.error.noWorkspace")
+            )
+            return
+        }
+
+        let configuration = AgentSessionConfiguration(
+            name: "Liney Run",
+            launchPath: "/bin/sh",
+            arguments: ["-c", request.cmd],
+            environment: [:],
+            workingDirectory: request.cwd
+        )
+
+        store.createSession(
+            in: workspace,
+            backendConfiguration: .agent(configuration),
+            workingDirectory: request.cwd,
+            splitAxis: .vertical
+        )
+    }
+
+    @MainActor
+    private func presentURLSchemeAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: lineyLocalizedAppString("urlScheme.alert.ok"))
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
