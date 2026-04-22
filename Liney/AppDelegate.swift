@@ -190,22 +190,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return
         }
 
-        // Auto-create a workspace at cwd if none is selected — saves the user
-        // from having to open a folder manually before launching a command.
-        let workspace: WorkspaceModel
-        if let existing = store.selectedWorkspace {
-            workspace = existing
-        } else {
-            await store.addWorkspace(at: URL(fileURLWithPath: request.cwd))
-            guard let created = store.selectedWorkspace else {
-                presentURLSchemeAlert(
-                    title: lineyLocalizedAppString("urlScheme.error.title"),
-                    message: lineyLocalizedAppString("urlScheme.error.noWorkspace")
-                )
-                return
-            }
-            workspace = created
-        }
+        // Always route URL-scheme commands into the default "Terminal" local
+        // workspace at $HOME. Normally that workspace is hidden once the user
+        // opens other folders; we re-create and select it here so the pane is
+        // visible. The pane itself still runs in the requested cwd.
+        let workspace = store.ensureAndSelectDefaultLocalWorkspace()
 
         let configuration = AgentSessionConfiguration(
             name: "Liney Run",

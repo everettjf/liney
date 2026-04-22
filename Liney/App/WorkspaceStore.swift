@@ -705,6 +705,29 @@ final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    /// Ensures the default "Terminal" local workspace at the user's home
+    /// directory exists, selects it, and returns it. If it was removed by
+    /// `removeDefaultLocalWorkspaceIfNeeded`, this re-creates it.
+    @discardableResult
+    func ensureAndSelectDefaultLocalWorkspace() -> WorkspaceModel {
+        let homePath = FileManager.default.homeDirectoryForCurrentUser.path
+        let workspace: WorkspaceModel
+        if let existing = workspaces.first(where: {
+            !$0.supportsRepositoryFeatures
+                && $0.repositoryRoot == homePath
+                && $0.name == "Terminal"
+        }) {
+            workspace = existing
+        } else {
+            workspace = WorkspaceModel(localDirectoryPath: homePath)
+            workspaces.append(workspace)
+        }
+        selectedWorkspaceID = workspace.id
+        workspace.bootstrapIfNeeded()
+        persist()
+        return workspace
+    }
+
     func addWorkspaceFromOpenPanel() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
