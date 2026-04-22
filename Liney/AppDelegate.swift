@@ -128,7 +128,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         Task { @MainActor in
             if self.isReadyToHandleURLs {
                 for url in urls {
-                    self.handleIncomingURL(url)
+                    await self.handleIncomingURL(url)
                 }
             } else {
                 self.pendingIncomingURLs.append(contentsOf: urls)
@@ -141,13 +141,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         isReadyToHandleURLs = true
         let pending = pendingIncomingURLs
         pendingIncomingURLs.removeAll()
-        for url in pending {
-            handleIncomingURL(url)
+        Task { @MainActor in
+            for url in pending {
+                await handleIncomingURL(url)
+            }
         }
     }
 
     @MainActor
-    private func handleIncomingURL(_ url: URL) {
+    private func handleIncomingURL(_ url: URL) async {
         guard let request = LineyURLScheme.parseRunURL(url) else {
             NSLog("[Liney URL] Ignoring unsupported URL: %@", url.absoluteString)
             return
@@ -173,20 +175,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
-        executeLineyRunRequest(request)
+        await executeLineyRunRequest(request)
     }
 
     @MainActor
-    private func executeLineyRunRequest(_ request: LineyURLScheme.RunRequest) {
+    private func executeLineyRunRequest(_ request: LineyURLScheme.RunRequest) async {
         desktopApplication?.reopenMainWindow()
 
-        guard let store = desktopApplication?.activeWorkspaceStore,
-              let workspace = store.selectedWorkspace else {
+        guard let store = desktopApplication?.activeWorkspaceStore else {
             presentURLSchemeAlert(
                 title: lineyLocalizedAppString("urlScheme.error.title"),
                 message: lineyLocalizedAppString("urlScheme.error.noWorkspace")
             )
             return
+        }
+
+        // Auto-create a workspace at cwd if none is selected — saves the user
+        // from having to open a folder manually before launching a command.
+        let workspace: WorkspaceModel
+        if let existing = store.selectedWorkspace {
+            workspace = existing
+        } else {
+            await store.addWorkspace(at: URL(fileURLWithPath: request.cwd))
+            guard let created = store.selectedWorkspace else {
+                presentURLSchemeAlert(
+                    title: lineyLocalizedAppString("urlScheme.error.title"),
+                    message: lineyLocalizedAppString("urlScheme.error.noWorkspace")
+                )
+                return
+            }
+            workspace = created
         }
 
         let configuration = AgentSessionConfiguration(
