@@ -411,6 +411,7 @@ struct SettingsSheet: View {
     @State private var originalAppLanguage: AppLanguage = .automatic
     @State private var urlSchemeToken: String = LineyURLScheme.storedToken() ?? ""
     @State private var urlSchemeEnabled: Bool = LineyURLScheme.isEnabled()
+    @State private var urlSchemeConfirmEach: Bool = LineyURLScheme.confirmEachRequest()
 
     private var availableExternalEditors: [ExternalEditorDescriptor] {
         store.availableExternalEditors
@@ -705,6 +706,15 @@ struct SettingsSheet: View {
                         .onChange(of: urlSchemeEnabled) { _, newValue in
                             LineyURLScheme.setEnabled(newValue)
                         }
+
+                    Toggle(localized("settings.urlScheme.confirmEach"), isOn: $urlSchemeConfirmEach)
+                        .disabled(!urlSchemeEnabled)
+                        .onChange(of: urlSchemeConfirmEach) { _, newValue in
+                            LineyURLScheme.setConfirmEachRequest(newValue)
+                        }
+                    Text(localized("settings.urlScheme.confirmEachHint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
 
                     HStack(spacing: 8) {
                         Text(localized("settings.urlScheme.token"))

@@ -12,6 +12,7 @@ enum LineyURLScheme {
     static let scheme = "liney"
     static let tokenDefaultsKey = "com.everettjf.liney.urlScheme.token"
     static let enabledDefaultsKey = "com.everettjf.liney.urlScheme.enabled"
+    static let confirmEachRequestDefaultsKey = "com.everettjf.liney.urlScheme.confirmEachRequest"
 
     struct RunRequest {
         let cmd: String
@@ -25,6 +26,20 @@ enum LineyURLScheme {
 
     static func setEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: enabledDefaultsKey)
+    }
+
+    /// Whether a confirmation dialog is shown for every incoming URL.
+    /// Defaults to `true` when no preference has been written yet, so
+    /// first-run behavior stays safe.
+    static func confirmEachRequest() -> Bool {
+        if UserDefaults.standard.object(forKey: confirmEachRequestDefaultsKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: confirmEachRequestDefaultsKey)
+    }
+
+    static func setConfirmEachRequest(_ value: Bool) {
+        UserDefaults.standard.set(value, forKey: confirmEachRequestDefaultsKey)
     }
 
     static func storedToken() -> String? {

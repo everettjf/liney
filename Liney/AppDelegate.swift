@@ -182,14 +182,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return
         }
 
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = lineyLocalizedAppString("urlScheme.confirm.title")
-        alert.informativeText = lineyLocalizedAppFormat("urlScheme.confirm.bodyFormat", request.cmd, request.cwd)
-        alert.addButton(withTitle: lineyLocalizedAppString("urlScheme.confirm.run"))
-        alert.addButton(withTitle: lineyLocalizedAppString("urlScheme.confirm.cancel"))
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        if LineyURLScheme.confirmEachRequest() {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = lineyLocalizedAppString("urlScheme.confirm.title")
+            alert.informativeText = lineyLocalizedAppFormat("urlScheme.confirm.bodyFormat", request.cmd, request.cwd)
+            alert.addButton(withTitle: lineyLocalizedAppString("urlScheme.confirm.run"))
+            alert.addButton(withTitle: lineyLocalizedAppString("urlScheme.confirm.cancel"))
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
 
         await executeLineyRunRequest(request)
     }
