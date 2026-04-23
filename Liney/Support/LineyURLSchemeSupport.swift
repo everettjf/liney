@@ -12,7 +12,7 @@ enum LineyURLScheme {
     static let scheme = "liney"
     static let tokenDefaultsKey = "com.everettjf.liney.urlScheme.token"
     static let enabledDefaultsKey = "com.everettjf.liney.urlScheme.enabled"
-    static let confirmEachRequestDefaultsKey = "com.everettjf.liney.urlScheme.confirmEachRequest"
+    static let skipConfirmationDefaultsKey = "com.everettjf.liney.urlScheme.skipConfirmation"
 
     struct RunRequest {
         let cmd: String
@@ -28,18 +28,15 @@ enum LineyURLScheme {
         UserDefaults.standard.set(enabled, forKey: enabledDefaultsKey)
     }
 
-    /// Whether a confirmation dialog is shown for every incoming URL.
-    /// Defaults to `true` when no preference has been written yet, so
-    /// first-run behavior stays safe.
-    static func confirmEachRequest() -> Bool {
-        if UserDefaults.standard.object(forKey: confirmEachRequestDefaultsKey) == nil {
-            return true
-        }
-        return UserDefaults.standard.bool(forKey: confirmEachRequestDefaultsKey)
+    /// When true, incoming URLs whose token already matches are executed
+    /// without a confirmation dialog. Defaults to `false` so first-run
+    /// behavior still prompts the user.
+    static func skipConfirmation() -> Bool {
+        UserDefaults.standard.bool(forKey: skipConfirmationDefaultsKey)
     }
 
-    static func setConfirmEachRequest(_ value: Bool) {
-        UserDefaults.standard.set(value, forKey: confirmEachRequestDefaultsKey)
+    static func setSkipConfirmation(_ value: Bool) {
+        UserDefaults.standard.set(value, forKey: skipConfirmationDefaultsKey)
     }
 
     static func storedToken() -> String? {

@@ -411,7 +411,7 @@ struct SettingsSheet: View {
     @State private var originalAppLanguage: AppLanguage = .automatic
     @State private var urlSchemeToken: String = LineyURLScheme.storedToken() ?? ""
     @State private var urlSchemeEnabled: Bool = LineyURLScheme.isEnabled()
-    @State private var urlSchemeConfirmEach: Bool = LineyURLScheme.confirmEachRequest()
+    @State private var urlSchemeSkipConfirm: Bool = LineyURLScheme.skipConfirmation()
 
     private var availableExternalEditors: [ExternalEditorDescriptor] {
         store.availableExternalEditors
@@ -707,12 +707,12 @@ struct SettingsSheet: View {
                             LineyURLScheme.setEnabled(newValue)
                         }
 
-                    Toggle(localized("settings.urlScheme.confirmEach"), isOn: $urlSchemeConfirmEach)
+                    Toggle(localized("settings.urlScheme.skipConfirm"), isOn: $urlSchemeSkipConfirm)
                         .disabled(!urlSchemeEnabled)
-                        .onChange(of: urlSchemeConfirmEach) { _, newValue in
-                            LineyURLScheme.setConfirmEachRequest(newValue)
+                        .onChange(of: urlSchemeSkipConfirm) { _, newValue in
+                            LineyURLScheme.setSkipConfirmation(newValue)
                         }
-                    Text(localized("settings.urlScheme.confirmEachHint"))
+                    Text(localized("settings.urlScheme.skipConfirmHint"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
 

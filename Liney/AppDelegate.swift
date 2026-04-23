@@ -182,7 +182,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return
         }
 
-        if LineyURLScheme.confirmEachRequest() {
+        if !LineyURLScheme.skipConfirmation() {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = lineyLocalizedAppString("urlScheme.confirm.title")
