@@ -304,6 +304,10 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.toggleReadOnly()
     }
 
+    func scrollByLines(_ delta: Int) {
+        surfaceController.scrollByLines(delta)
+    }
+
     func insertText(_ text: String) {
         surfaceController.sendText(text)
     }
