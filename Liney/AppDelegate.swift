@@ -155,15 +155,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return
         }
 
-        if let storedToken = LineyURLScheme.storedToken() {
-            guard request.token == storedToken else {
-                NSLog("[Liney URL] Token mismatch, rejecting request")
-                presentURLSchemeAlert(
-                    title: lineyLocalizedAppString("urlScheme.rejected.title"),
-                    message: lineyLocalizedAppString("urlScheme.rejected.tokenMismatch")
-                )
-                return
-            }
+        guard LineyURLScheme.isEnabled() else {
+            NSLog("[Liney URL] URL scheme is disabled in Settings, rejecting request")
+            presentURLSchemeAlert(
+                title: lineyLocalizedAppString("urlScheme.rejected.title"),
+                message: lineyLocalizedAppString("urlScheme.rejected.disabled")
+            )
+            return
+        }
+
+        guard let storedToken = LineyURLScheme.storedToken() else {
+            NSLog("[Liney URL] URL scheme is enabled but no token is configured, rejecting request")
+            presentURLSchemeAlert(
+                title: lineyLocalizedAppString("urlScheme.rejected.title"),
+                message: lineyLocalizedAppString("urlScheme.rejected.noToken")
+            )
+            return
+        }
+
+        guard request.token == storedToken else {
+            NSLog("[Liney URL] Token mismatch, rejecting request")
+            presentURLSchemeAlert(
+                title: lineyLocalizedAppString("urlScheme.rejected.title"),
+                message: lineyLocalizedAppString("urlScheme.rejected.tokenMismatch")
+            )
+            return
         }
 
         let alert = NSAlert()

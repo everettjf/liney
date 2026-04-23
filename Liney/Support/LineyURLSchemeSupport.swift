@@ -11,11 +11,20 @@ import Foundation
 enum LineyURLScheme {
     static let scheme = "liney"
     static let tokenDefaultsKey = "com.everettjf.liney.urlScheme.token"
+    static let enabledDefaultsKey = "com.everettjf.liney.urlScheme.enabled"
 
     struct RunRequest {
         let cmd: String
         let cwd: String
         let token: String?
+    }
+
+    static func isEnabled() -> Bool {
+        UserDefaults.standard.bool(forKey: enabledDefaultsKey)
+    }
+
+    static func setEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: enabledDefaultsKey)
     }
 
     static func storedToken() -> String? {

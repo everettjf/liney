@@ -403,6 +403,7 @@ struct SettingsSheet: View {
     @State private var localizationVersion = 0
     @State private var originalAppLanguage: AppLanguage = .automatic
     @State private var urlSchemeToken: String = LineyURLScheme.storedToken() ?? ""
+    @State private var urlSchemeEnabled: Bool = LineyURLScheme.isEnabled()
 
     private var availableExternalEditors: [ExternalEditorDescriptor] {
         store.availableExternalEditors
@@ -686,6 +687,11 @@ struct SettingsSheet: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
 
+                    Toggle(localized("settings.general.urlScheme.enable"), isOn: $urlSchemeEnabled)
+                        .onChange(of: urlSchemeEnabled) { _, newValue in
+                            LineyURLScheme.setEnabled(newValue)
+                        }
+
                     HStack(spacing: 8) {
                         Text(localized("settings.general.urlScheme.token"))
                         TextField(
@@ -712,6 +718,14 @@ struct SettingsSheet: View {
                             LineyURLScheme.setStoredToken(nil)
                         }
                         .disabled(urlSchemeToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .disabled(!urlSchemeEnabled)
+
+                    if urlSchemeEnabled
+                        && urlSchemeToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(localized("settings.general.urlScheme.tokenRequired"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.orange)
                     }
                 }
                 .padding(.top, 8)
