@@ -107,6 +107,11 @@ struct TerminalPaneView: View {
                 .onTapGesture {
                     workspace.focusPane(paneID)
                 }
+                .overlay(alignment: .trailing) {
+                    TerminalScrollbarOverlay(session: session)
+                        .padding(.trailing, 2)
+                        .padding(.vertical, 2)
+                }
 
             PaneStatusStrip(
                 backendLabel: session.backendLabel,

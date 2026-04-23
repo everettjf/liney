@@ -89,6 +89,21 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         _ = terminalView.performBindingAction("toggle_readonly")
     }
 
+    func scrollByLines(_ delta: Int) {
+        guard delta != 0 else { return }
+        // Prefer ghostty's `scroll_page_lines` binding which scrolls an exact
+        // line count. Positive values scroll down (toward newer content).
+        let clamped = max(min(delta, Int(Int16.max)), Int(Int16.min))
+        if terminalView.performBindingAction("scroll_page_lines:\(clamped)") {
+            return
+        }
+        // Fallback: feed a non-precise mouse-scroll delta if the binding
+        // action isn't registered. Positive `scrollingDeltaY` scrolls into
+        // the scrollback, so invert the sign.
+        guard let surface = terminalView.surface else { return }
+        ghostty_surface_mouse_scroll(surface, 0, Double(-clamped), ghostty_input_scroll_mods_t(0))
+    }
+
     func focus() {
         terminalView.window?.makeFirstResponder(terminalView)
     }

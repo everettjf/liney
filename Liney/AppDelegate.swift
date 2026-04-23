@@ -28,6 +28,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var localizationObserver: NSObjectProtocol?
     private var isPresentingQuitConfirmation = false
     private var suppressQuitConfirmationUntil: Date?
+    @MainActor private var pendingIncomingURLs: [URL] = []
+    @MainActor private var isReadyToHandleURLs = false
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         if lineyIsRunningTests() {
@@ -117,8 +119,126 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                         IslandPanelController.shared.show()
                     }
                 }
+                self.drainPendingIncomingURLs()
             }
         }
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        Task { @MainActor in
+            if self.isReadyToHandleURLs {
+                for url in urls {
+                    await self.handleIncomingURL(url)
+                }
+            } else {
+                self.pendingIncomingURLs.append(contentsOf: urls)
+            }
+        }
+    }
+
+    @MainActor
+    private func drainPendingIncomingURLs() {
+        isReadyToHandleURLs = true
+        let pending = pendingIncomingURLs
+        pendingIncomingURLs.removeAll()
+        Task { @MainActor in
+            for url in pending {
+                await handleIncomingURL(url)
+            }
+        }
+    }
+
+    @MainActor
+    private func handleIncomingURL(_ url: URL) async {
+        guard let request = LineyURLScheme.parseRunURL(url) else {
+            NSLog("[Liney URL] Ignoring unsupported URL: %@", url.absoluteString)
+            return
+        }
+
+        guard LineyURLScheme.isEnabled() else {
+            NSLog("[Liney URL] URL scheme is disabled in Settings, rejecting request")
+            presentURLSchemeAlert(
+                title: lineyLocalizedAppString("urlScheme.rejected.title"),
+                message: lineyLocalizedAppString("urlScheme.rejected.disabled")
+            )
+            return
+        }
+
+        guard let storedToken = LineyURLScheme.storedToken() else {
+            NSLog("[Liney URL] URL scheme is enabled but no token is configured, rejecting request")
+            presentURLSchemeAlert(
+                title: lineyLocalizedAppString("urlScheme.rejected.title"),
+                message: lineyLocalizedAppString("urlScheme.rejected.noToken")
+            )
+            return
+        }
+
+        guard request.token == storedToken else {
+            NSLog("[Liney URL] Token mismatch, rejecting request")
+            presentURLSchemeAlert(
+                title: lineyLocalizedAppString("urlScheme.rejected.title"),
+                message: lineyLocalizedAppString("urlScheme.rejected.tokenMismatch")
+            )
+            return
+        }
+
+        if !LineyURLScheme.skipConfirmation() {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = lineyLocalizedAppString("urlScheme.confirm.title")
+            alert.informativeText = lineyLocalizedAppFormat("urlScheme.confirm.bodyFormat", request.cmd, request.cwd)
+            alert.addButton(withTitle: lineyLocalizedAppString("urlScheme.confirm.run"))
+            alert.addButton(withTitle: lineyLocalizedAppString("urlScheme.confirm.cancel"))
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+
+        await executeLineyRunRequest(request)
+    }
+
+    @MainActor
+    private func executeLineyRunRequest(_ request: LineyURLScheme.RunRequest) async {
+        desktopApplication?.reopenMainWindow()
+
+        guard let store = desktopApplication?.activeWorkspaceStore else {
+            presentURLSchemeAlert(
+                title: lineyLocalizedAppString("urlScheme.error.title"),
+                message: lineyLocalizedAppString("urlScheme.error.noWorkspace")
+            )
+            return
+        }
+
+        // Always route URL-scheme commands into the default "Terminal" local
+        // workspace at $HOME. Normally that workspace is hidden once the user
+        // opens other folders; we re-create and select it here so the pane is
+        // visible. The pane itself still runs in the requested cwd.
+        let workspace = store.ensureAndSelectDefaultLocalWorkspace()
+
+        let configuration = AgentSessionConfiguration(
+            name: "Liney Run",
+            launchPath: "/bin/sh",
+            arguments: ["-c", request.cmd],
+            environment: [:],
+            workingDirectory: request.cwd
+        )
+
+        store.createSession(
+            in: workspace,
+            backendConfiguration: .agent(configuration),
+            workingDirectory: request.cwd,
+            splitAxis: .vertical
+        )
+    }
+
+    @MainActor
+    private func presentURLSchemeAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: lineyLocalizedAppString("urlScheme.alert.ok"))
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {

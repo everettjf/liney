@@ -17,6 +17,7 @@ struct SplitNodeView: View {
             if let zoomedPaneID = workspace.zoomedPaneID {
                 if let session = sessionController.session(for: zoomedPaneID) {
                     TerminalPaneView(workspace: workspace, sessionController: sessionController, session: session, paneID: zoomedPaneID)
+                        .id(zoomedPaneID)
                 } else {
                     Color.clear
                 }
@@ -25,6 +26,7 @@ struct SplitNodeView: View {
                 case .pane(let leaf):
                     if let session = sessionController.session(for: leaf.paneID) {
                         TerminalPaneView(workspace: workspace, sessionController: sessionController, session: session, paneID: leaf.paneID)
+                            .id(leaf.paneID)
                     } else {
                         Color.clear
                     }

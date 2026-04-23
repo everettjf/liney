@@ -33,6 +33,7 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
     case externalEditor
     case terminal
     case theme
+    case urlScheme
     case sidebar
     case dynamicIsland
     case shortcuts
@@ -45,7 +46,7 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
 
     var group: SettingsSidebarGroup {
         switch self {
-        case .general, .hotKeyWindow, .externalEditor, .terminal, .theme, .updates:
+        case .general, .hotKeyWindow, .externalEditor, .terminal, .theme, .urlScheme, .updates:
             return .app
         case .sidebar, .dynamicIsland, .shortcuts:
             return .customize
@@ -66,6 +67,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "settings.section.terminal.title"
         case .theme:
             return "settings.section.theme.title"
+        case .urlScheme:
+            return "settings.section.urlScheme.title"
         case .sidebar:
             return "settings.section.sidebar.title"
         case .dynamicIsland:
@@ -95,6 +98,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "settings.section.terminal.subtitle"
         case .theme:
             return "settings.section.theme.subtitle"
+        case .urlScheme:
+            return "settings.section.urlScheme.subtitle"
         case .sidebar:
             return "settings.section.sidebar.subtitle"
         case .dynamicIsland:
@@ -124,6 +129,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "terminal"
         case .theme:
             return "paintpalette"
+        case .urlScheme:
+            return "link"
         case .sidebar:
             return "sidebar.leading"
         case .dynamicIsland:
@@ -402,6 +409,9 @@ struct SettingsSheet: View {
     @State private var workspaceSettings = WorkspaceSettings()
     @State private var localizationVersion = 0
     @State private var originalAppLanguage: AppLanguage = .automatic
+    @State private var urlSchemeToken: String = LineyURLScheme.storedToken() ?? ""
+    @State private var urlSchemeEnabled: Bool = LineyURLScheme.isEnabled()
+    @State private var urlSchemeSkipConfirm: Bool = LineyURLScheme.skipConfirmation()
 
     private var availableExternalEditors: [ExternalEditorDescriptor] {
         store.availableExternalEditors
@@ -581,6 +591,8 @@ struct SettingsSheet: View {
             terminalSettingsView
         case .theme:
             themeSettingsView
+        case .urlScheme:
+            urlSchemeSettingsView
         case .sidebar:
             sidebarSettingsView
         case .dynamicIsland:
@@ -675,6 +687,70 @@ struct SettingsSheet: View {
                     Text(localized("settings.general.diagnostics.logLevelHint"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
+            }
+
+        }
+    }
+
+    private var urlSchemeSettingsView: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            GroupBox(localized("settings.urlScheme.group")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(localized("settings.urlScheme.hint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Toggle(localized("settings.urlScheme.enable"), isOn: $urlSchemeEnabled)
+                        .onChange(of: urlSchemeEnabled) { _, newValue in
+                            LineyURLScheme.setEnabled(newValue)
+                        }
+
+                    Toggle(localized("settings.urlScheme.skipConfirm"), isOn: $urlSchemeSkipConfirm)
+                        .disabled(!urlSchemeEnabled)
+                        .onChange(of: urlSchemeSkipConfirm) { _, newValue in
+                            LineyURLScheme.setSkipConfirmation(newValue)
+                        }
+                    Text(localized("settings.urlScheme.skipConfirmHint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 8) {
+                        Text(localized("settings.urlScheme.token"))
+                        TextField(
+                            localized("settings.urlScheme.tokenPlaceholder"),
+                            text: $urlSchemeToken
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: urlSchemeToken) { _, newValue in
+                            LineyURLScheme.setStoredToken(newValue)
+                        }
+                        Button(localized("settings.urlScheme.generate")) {
+                            let generated = LineyURLScheme.generateToken()
+                            urlSchemeToken = generated
+                            LineyURLScheme.setStoredToken(generated)
+                        }
+                        Button(localized("settings.urlScheme.copy")) {
+                            let pasteboard = NSPasteboard.general
+                            pasteboard.clearContents()
+                            pasteboard.setString(urlSchemeToken, forType: .string)
+                        }
+                        .disabled(urlSchemeToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button(localized("settings.urlScheme.clear")) {
+                            urlSchemeToken = ""
+                            LineyURLScheme.setStoredToken(nil)
+                        }
+                        .disabled(urlSchemeToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .disabled(!urlSchemeEnabled)
+
+                    if urlSchemeEnabled
+                        && urlSchemeToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(localized("settings.urlScheme.tokenRequired"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.orange)
+                    }
                 }
                 .padding(.top, 8)
             }
