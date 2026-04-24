@@ -231,7 +231,7 @@ final class ApplicationMenuController: NSObject {
     }
 
     @objc private func newRemoteWorkspace(_ sender: Any?) {
-        activeWorkspaceStoreProvider?()?.presentCreateRemoteWorkspace()
+        activeWorkspaceStoreProvider?()?.presentConnectSSH()
     }
 
     @discardableResult

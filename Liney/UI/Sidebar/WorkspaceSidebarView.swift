@@ -52,7 +52,7 @@ struct WorkspaceSidebarView: View {
                     .frame(height: 1)
             }
 
-            WorkspaceOutlineSidebar(query: query, onOpenRepository: store.addWorkspaceFromOpenPanel, onConnectSSH: store.presentCreateSSHWorkspace)
+            WorkspaceOutlineSidebar(query: query, onOpenRepository: store.addWorkspaceFromOpenPanel, onConnectSSH: { store.presentConnectSSH() })
                 .environmentObject(store)
         }
         .background(LineyTheme.sidebarBackground)
@@ -80,7 +80,6 @@ private struct WorkspaceOutlineSidebar: NSViewRepresentable {
         context.coordinator.store = store
         nsView.setFooterActions(
             openRepository: onOpenRepository,
-            addRemoteWorkspace: { [weak store] in store?.presentCreateRemoteWorkspace() },
             connectSSH: onConnectSSH
         )
         context.coordinator.apply(
@@ -95,7 +94,6 @@ private struct SidebarFooterView: View {
     @ObservedObject private var localization = LocalizationManager.shared
     @EnvironmentObject private var store: WorkspaceStore
     let openRepositoryAction: () -> Void
-    let addRemoteWorkspaceAction: () -> Void
     let connectSSHAction: () -> Void
 
     private func localized(_ key: String) -> String {
@@ -143,23 +141,6 @@ private struct SidebarFooterView: View {
             )
             .foregroundStyle(LineyTheme.secondaryText)
             .help(localized("main.sidebar.connectSSH"))
-
-            if LineyFeatureFlags.showsRemoteSessionCreationUI {
-                Button(action: addRemoteWorkspaceAction) {
-                    Image(systemName: "server.rack")
-                        .font(.system(size: 12 * uiScale, weight: .semibold))
-                        .frame(width: 30 * uiScale, height: 30 * uiScale)
-                        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                        .foregroundStyle(LineyTheme.border)
-                )
-                .foregroundStyle(LineyTheme.secondaryText)
-                .help(localized("sidebar.action.addRemoteWorkspace"))
-            }
         }
     }
 }
@@ -1489,10 +1470,9 @@ private final class SidebarOutlineContainerView: NSView {
         updateContentLayout()
     }
 
-    func setFooterActions(openRepository: @escaping () -> Void, addRemoteWorkspace: @escaping () -> Void, connectSSH: @escaping () -> Void) {
+    func setFooterActions(openRepository: @escaping () -> Void, connectSSH: @escaping () -> Void) {
         footerHostingView.rootView = AnyView(SidebarFooterView(
             openRepositoryAction: openRepository,
-            addRemoteWorkspaceAction: addRemoteWorkspace,
             connectSSHAction: connectSSH
         ))
     }
