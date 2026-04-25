@@ -97,7 +97,7 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertEqual(store.appSettings.preferredSSHPresetID, customPreset.id)
     }
 
-    func testCommandPaletteItemsLocalizeForSimplifiedChinese() {
+    func testCommandPaletteItemsLocalizeForSimplifiedChinese() async throws {
         LocalizationManager.shared.updateSelectedLanguage(.simplifiedChinese)
         let store = WorkspaceStore(persistsWorkspaceState: false)
 
@@ -108,7 +108,7 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertTrue(items.contains(where: { $0.id == "check-updates" && $0.title == "检查 Liney 更新" }))
     }
 
-    func testSleepPreventionStringsLocalizeForSimplifiedChinese() {
+    func testSleepPreventionStringsLocalizeForSimplifiedChinese() async throws {
         LocalizationManager.shared.updateSelectedLanguage(.simplifiedChinese)
         let store = WorkspaceStore(persistsWorkspaceState: false)
 

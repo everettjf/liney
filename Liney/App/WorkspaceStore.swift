@@ -43,9 +43,8 @@ final class WorkspaceStore: ObservableObject {
     @Published var createWorktreeRequest: CreateWorktreeSheetRequest?
     @Published var editWorktreeNoteRequest: EditWorktreeNoteRequest?
     @Published var createSSHSessionRequest: CreateSSHSessionRequest?
-    @Published var createSSHWorkspaceRequest: CreateSSHWorkspaceRequest?
     @Published var createAgentSessionRequest: CreateAgentSessionRequest?
-    @Published var createRemoteWorkspaceRequest: CreateRemoteWorkspaceRequest?
+    @Published var connectSSHRequest: ConnectSSHRequest?
     @Published var pendingWorktreeSwitch: PendingWorktreeSwitch?
     @Published var pendingWorktreeRemoval: PendingWorktreeRemoval?
     @Published var sleepPreventionSession: SleepPreventionSession?
@@ -1896,23 +1895,6 @@ final class WorkspaceStore: ObservableObject {
         )
     }
 
-    func presentCreateSSHWorkspace() {
-        createSSHWorkspaceRequest = CreateSSHWorkspaceRequest()
-    }
-
-    func addSSHWorkspace(draft: CreateSSHSessionDraft) {
-        guard let configuration = draft.configuration else { return }
-        let workspace = WorkspaceModel(sshConfiguration: configuration)
-        workspaces.append(workspace)
-        selectedWorkspaceID = workspace.id
-        persist()
-        
-        // Refresh to fetch remote worktree list
-        Task { @MainActor in
-            await refreshSSHWorkspace(workspace, persistAfterRefresh: true)
-        }
-    }
-
     func presentCreateAgentSession(for workspace: WorkspaceModel) {
         createAgentSessionRequest = CreateAgentSessionRequest(
             workspaceID: workspace.id,
@@ -1923,8 +1905,8 @@ final class WorkspaceStore: ObservableObject {
         )
     }
 
-    func presentCreateRemoteWorkspace() {
-        createRemoteWorkspaceRequest = CreateRemoteWorkspaceRequest()
+    func presentConnectSSH(preferredMode: ConnectSSHMode = .remoteWorkspace) {
+        connectSSHRequest = ConnectSSHRequest(preferredMode: preferredMode)
     }
 
     func addRemoteWorkspace(sshConfig: SSHSessionConfiguration, name: String) {
@@ -1945,6 +1927,21 @@ final class WorkspaceStore: ObservableObject {
 
         Task {
             await refreshRemoteWorkspace(model)
+        }
+    }
+
+    func addSSHTerminalWorkspace(sshConfig: SSHSessionConfiguration, name: String?) {
+        let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let workspace = WorkspaceModel(
+            sshConfiguration: sshConfig,
+            name: trimmedName?.nilIfEmpty
+        )
+        workspaces.append(workspace)
+        selectedWorkspaceID = workspace.id
+        persist()
+
+        Task { @MainActor in
+            await refreshSSHWorkspace(workspace, persistAfterRefresh: true)
         }
     }
 
@@ -2640,7 +2637,7 @@ final class WorkspaceStore: ObservableObject {
 
         case .createRemoteWorkspace:
             dismissCommandPalette()
-            presentCreateRemoteWorkspace()
+            presentConnectSSH()
 
         case .runWorkspaceScript(let id):
             dismissCommandPalette()

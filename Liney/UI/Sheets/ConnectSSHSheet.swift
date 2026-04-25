@@ -1,5 +1,5 @@
 //
-//  CreateRemoteWorkspaceSheet.swift
+//  ConnectSSHSheet.swift
 //  Liney
 //
 //  Author: everettjf
@@ -7,12 +7,14 @@
 
 import SwiftUI
 
-struct CreateRemoteWorkspaceSheet: View {
-    let onCreate: (SSHSessionConfiguration, String) -> Void
+struct ConnectSSHSheet: View {
+    let request: ConnectSSHRequest
+    let onCreate: (SSHSessionConfiguration, String, ConnectSSHMode) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var localization = LocalizationManager.shared
 
+    @State private var mode: ConnectSSHMode
     @State private var sshEntries: [SSHConfigEntry] = []
     @State private var selectedEntryIndex: Int?
     @State private var host = ""
@@ -25,12 +27,27 @@ struct CreateRemoteWorkspaceSheet: View {
     @State private var isTesting = false
     @State private var showDirectoryBrowser = false
 
+    init(
+        request: ConnectSSHRequest,
+        onCreate: @escaping (SSHSessionConfiguration, String, ConnectSSHMode) -> Void
+    ) {
+        self.request = request
+        self.onCreate = onCreate
+        _mode = State(initialValue: request.preferredMode)
+    }
+
     private func localized(_ key: String) -> String {
         LocalizationManager.shared.string(key)
     }
 
     private var canCreate: Bool {
-        !host.isEmpty && !workspaceName.isEmpty
+        guard !host.isEmpty else { return false }
+        switch mode {
+        case .remoteWorkspace:
+            return !workspaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .terminalOnly:
+            return true
+        }
     }
 
     private var currentConfiguration: SSHSessionConfiguration {
@@ -100,14 +117,26 @@ struct CreateRemoteWorkspaceSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(localized("sheet.remote.title"))
+            Text(localized("sheet.connectSSH.title"))
                 .font(.system(size: 18, weight: .semibold))
 
-            Text(localized("sheet.remote.description"))
+            Text(localized("sheet.connectSSH.description"))
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
 
-            // SSH Config picker
+            Picker("", selection: $mode) {
+                Text(localized("sheet.connectSSH.mode.remoteWorkspace"))
+                    .tag(ConnectSSHMode.remoteWorkspace)
+                Text(localized("sheet.connectSSH.mode.terminalOnly"))
+                    .tag(ConnectSSHMode.terminalOnly)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            Text(modeHint)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+
             if !sshEntries.isEmpty {
                 GroupBox(localized("sheet.remote.sshConfig")) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -127,7 +156,6 @@ struct CreateRemoteWorkspaceSheet: View {
                 }
             }
 
-            // Connection fields
             GroupBox(localized("sheet.remote.connection")) {
                 VStack(alignment: .leading, spacing: 12) {
                     TextField(localized("sheet.ssh.host"), text: $host)
@@ -157,16 +185,16 @@ struct CreateRemoteWorkspaceSheet: View {
                 .padding(.top, 8)
             }
 
-            // Workspace name
-            GroupBox(localized("sheet.remote.name")) {
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField(localized("sheet.remote.namePlaceholder"), text: $workspaceName)
+            if mode == .remoteWorkspace {
+                GroupBox(localized("sheet.remote.name")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        TextField(localized("sheet.remote.namePlaceholder"), text: $workspaceName)
+                    }
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.top, 8)
                 }
-                .textFieldStyle(.roundedBorder)
-                .padding(.top, 8)
             }
 
-            // Buttons
             HStack {
                 Spacer()
                 Button {
@@ -175,10 +203,10 @@ struct CreateRemoteWorkspaceSheet: View {
                     Label(localized("common.cancel"), systemImage: "xmark")
                 }
                 Button {
-                    onCreate(currentConfiguration, workspaceName)
+                    onCreate(currentConfiguration, workspaceName, mode)
                     dismiss()
                 } label: {
-                    Label(localized("sheet.remote.create"), systemImage: "plus")
+                    Label(createButtonLabel, systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canCreate)
@@ -202,5 +230,23 @@ struct CreateRemoteWorkspaceSheet: View {
         }
         .padding(20)
         .frame(width: 520)
+    }
+
+    private var modeHint: String {
+        switch mode {
+        case .remoteWorkspace:
+            return localized("sheet.connectSSH.mode.remoteWorkspace.hint")
+        case .terminalOnly:
+            return localized("sheet.connectSSH.mode.terminalOnly.hint")
+        }
+    }
+
+    private var createButtonLabel: String {
+        switch mode {
+        case .remoteWorkspace:
+            return localized("sheet.remote.create")
+        case .terminalOnly:
+            return localized("sheet.ssh.create")
+        }
     }
 }
