@@ -6,6 +6,16 @@
         <description>Signed Sparkle updates for Liney.</description>
         <language>en</language>
         <item>
+            <title>1.0.60</title>
+            <pubDate>Fri, 24 Apr 2026 23:39:30 -0700</pubDate>
+            <link>https://github.com/everettjf/liney</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/everettjf/liney/releases/tag/v1.0.60</sparkle:fullReleaseNotesLink>
+            <sparkle:version>127</sparkle:version>
+            <sparkle:shortVersionString>1.0.60</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/everettjf/liney/releases/download/v1.0.60/Liney-1.0.60.app.zip" length="28688894" type="application/octet-stream" sparkle:edSignature="tCIjoiuQ0u/AZnJ4hDrAKOA5PuAL/OfzRLaW/10XtKSyWMJGjObLEuQmYRveorrSndLieHxU/vP0QZn/zF02Cg=="/>
+        </item>
+        <item>
             <title>1.0.59</title>
             <pubDate>Thu, 23 Apr 2026 08:58:48 -0700</pubDate>
             <link>https://github.com/everettjf/liney</link>
@@ -94,16 +104,6 @@
             <sparkle:shortVersionString>1.0.50</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/everettjf/liney/releases/download/v1.0.50/Liney-1.0.50.app.zip" length="27541666" type="application/octet-stream" sparkle:edSignature="t9eHmAeRD4xYaSZGOxE9LvPoGCSTahzKHSNWuxLm3Ja6MdM/sMktiDr0fCeqE+Rtta/zxoVvuVa9IMZX8y2PCw=="/>
-        </item>
-        <item>
-            <title>1.0.39</title>
-            <pubDate>Fri, 10 Apr 2026 09:30:10 -0700</pubDate>
-            <link>https://github.com/everettjf/liney</link>
-            <sparkle:fullReleaseNotesLink>https://github.com/everettjf/liney/releases/tag/v1.0.39</sparkle:fullReleaseNotesLink>
-            <sparkle:version>116</sparkle:version>
-            <sparkle:shortVersionString>1.0.39</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/everettjf/liney/releases/download/v1.0.39/Liney-1.0.39.app.zip" length="27542046" type="application/octet-stream" sparkle:edSignature="k7yx/cmK7vX98UDGhF/rK/2g79/NrUm+c9oQYrOiL6n8SeaygZ6j1erlqUGMbGzUtoRDCqgC5EhTFR7x/bikBg=="/>
         </item>
         <item>
             <title>1.0.17</title>
