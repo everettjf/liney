@@ -6,6 +6,16 @@
         <description>Signed Sparkle updates for Liney.</description>
         <language>en</language>
         <item>
+            <title>1.0.61</title>
+            <pubDate>Fri, 24 Apr 2026 23:52:52 -0700</pubDate>
+            <link>https://github.com/everettjf/liney</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/everettjf/liney/releases/tag/v1.0.61</sparkle:fullReleaseNotesLink>
+            <sparkle:version>128</sparkle:version>
+            <sparkle:shortVersionString>1.0.61</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/everettjf/liney/releases/download/v1.0.61/Liney-1.0.61.app.zip" length="28689786" type="application/octet-stream" sparkle:edSignature="KWV4It70bqjTFvfnPxa4ZyNe7NWIT/PWpLVL3H0IJg0bXU8ZHlZ3WlYWzzuAzOCvOf+9mq0en9kkxy3uZeTZDQ=="/>
+        </item>
+        <item>
             <title>1.0.60</title>
             <pubDate>Fri, 24 Apr 2026 23:39:30 -0700</pubDate>
             <link>https://github.com/everettjf/liney</link>
@@ -94,16 +104,6 @@
             <sparkle:shortVersionString>1.0.51</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/everettjf/liney/releases/download/v1.0.51/Liney-1.0.51.app.zip" length="27959609" type="application/octet-stream"/>
-        </item>
-        <item>
-            <title>1.0.50</title>
-            <pubDate>Fri, 10 Apr 2026 09:46:33 -0700</pubDate>
-            <link>https://github.com/everettjf/liney</link>
-            <sparkle:fullReleaseNotesLink>https://github.com/everettjf/liney/releases/tag/v1.0.50</sparkle:fullReleaseNotesLink>
-            <sparkle:version>117</sparkle:version>
-            <sparkle:shortVersionString>1.0.50</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/everettjf/liney/releases/download/v1.0.50/Liney-1.0.50.app.zip" length="27541666" type="application/octet-stream" sparkle:edSignature="t9eHmAeRD4xYaSZGOxE9LvPoGCSTahzKHSNWuxLm3Ja6MdM/sMktiDr0fCeqE+Rtta/zxoVvuVa9IMZX8y2PCw=="/>
         </item>
         <item>
             <title>1.0.17</title>
