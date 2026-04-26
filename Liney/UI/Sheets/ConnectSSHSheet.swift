@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ConnectSSHSheet: View {
     let request: ConnectSSHRequest
-    let onCreate: (SSHSessionConfiguration, String, ConnectSSHMode) -> Void
+    let onCreate: (SSHSessionConfiguration, String, ConnectSSHMode, UUID?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var localization = LocalizationManager.shared
@@ -17,6 +17,8 @@ struct ConnectSSHSheet: View {
     @State private var mode: ConnectSSHMode
     @State private var sshEntries: [SSHConfigEntry] = []
     @State private var selectedEntryIndex: Int?
+    @State private var selectedPresetID: UUID?
+    @State private var presetCommand = ""
     @State private var host = ""
     @State private var user = ""
     @State private var port = "22"
@@ -29,11 +31,12 @@ struct ConnectSSHSheet: View {
 
     init(
         request: ConnectSSHRequest,
-        onCreate: @escaping (SSHSessionConfiguration, String, ConnectSSHMode) -> Void
+        onCreate: @escaping (SSHSessionConfiguration, String, ConnectSSHMode, UUID?) -> Void
     ) {
         self.request = request
         self.onCreate = onCreate
         _mode = State(initialValue: request.preferredMode)
+        _selectedPresetID = State(initialValue: request.preferredPresetID)
     }
 
     private func localized(_ key: String) -> String {
@@ -51,12 +54,14 @@ struct ConnectSSHSheet: View {
     }
 
     private var currentConfiguration: SSHSessionConfiguration {
-        SSHSessionConfiguration(
+        let trimmedCommand = presetCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+        return SSHSessionConfiguration(
             host: host,
             user: user.isEmpty ? nil : user,
             port: Int(port) ?? 22,
             identityFilePath: identityFile.isEmpty ? nil : identityFile,
-            remoteWorkingDirectory: remotePath.isEmpty ? nil : remotePath
+            remoteWorkingDirectory: remotePath.isEmpty ? nil : remotePath,
+            remoteCommand: trimmedCommand.isEmpty ? nil : trimmedCommand
         )
     }
 
@@ -77,6 +82,31 @@ struct ConnectSSHSheet: View {
         user = entry.user ?? ""
         port = String(entry.port)
         identityFile = entry.identityFile ?? ""
+        connectionStatus = nil
+    }
+
+    private func applyPreset(_ presetID: UUID?) {
+        guard let presetID,
+              let preset = request.presets.first(where: { $0.id == presetID }) else {
+            presetCommand = ""
+            return
+        }
+        if let presetHost = preset.host, !presetHost.isEmpty {
+            host = presetHost
+        }
+        if let presetUser = preset.user, !presetUser.isEmpty {
+            user = presetUser
+        }
+        if let presetPort = preset.port {
+            port = String(presetPort)
+        }
+        if let presetIdentity = preset.identityFilePath, !presetIdentity.isEmpty {
+            identityFile = presetIdentity
+        }
+        if let presetWorkingDir = preset.remoteWorkingDirectory, !presetWorkingDir.isEmpty {
+            remotePath = presetWorkingDir
+        }
+        presetCommand = preset.remoteCommand
         connectionStatus = nil
     }
 
@@ -136,6 +166,25 @@ struct ConnectSSHSheet: View {
             Text(modeHint)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
+
+            if !request.presets.isEmpty {
+                GroupBox(localized("sheet.ssh.preset")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker(localized("sheet.ssh.preset"), selection: $selectedPresetID) {
+                            Text(localized("sheet.ssh.noPreset"))
+                                .tag(Optional<UUID>.none)
+                            ForEach(request.presets) { preset in
+                                Text(preset.name).tag(Optional(preset.id))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    .padding(.top, 8)
+                }
+                .onChange(of: selectedPresetID) { _, newValue in
+                    applyPreset(newValue)
+                }
+            }
 
             if !sshEntries.isEmpty {
                 GroupBox(localized("sheet.remote.sshConfig")) {
@@ -203,7 +252,7 @@ struct ConnectSSHSheet: View {
                     Label(localized("common.cancel"), systemImage: "xmark")
                 }
                 Button {
-                    onCreate(currentConfiguration, workspaceName, mode)
+                    onCreate(currentConfiguration, workspaceName, mode, selectedPresetID)
                     dismiss()
                 } label: {
                     Label(createButtonLabel, systemImage: "plus")
@@ -216,6 +265,11 @@ struct ConnectSSHSheet: View {
         .task {
             let service = SSHConfigService()
             sshEntries = await service.loadSSHConfig()
+        }
+        .onAppear {
+            if let presetID = selectedPresetID {
+                applyPreset(presetID)
+            }
         }
         .sheet(isPresented: $showDirectoryBrowser) {
             RemoteDirectoryBrowser(sshConfig: currentConfiguration) { selectedPath in

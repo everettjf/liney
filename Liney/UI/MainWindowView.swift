@@ -595,7 +595,10 @@ struct MainWindowView: View {
             }
         }
         .sheet(item: $store.connectSSHRequest) { request in
-            ConnectSSHSheet(request: request) { sshConfig, name, mode in
+            ConnectSSHSheet(request: request) { sshConfig, name, mode, presetID in
+                if presetID != nil {
+                    store.rememberSSHPresetSelection(selectedPresetID: presetID)
+                }
                 switch mode {
                 case .remoteWorkspace:
                     store.addRemoteWorkspace(sshConfig: sshConfig, name: name)

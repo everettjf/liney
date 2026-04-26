@@ -1906,7 +1906,11 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func presentConnectSSH(preferredMode: ConnectSSHMode = .remoteWorkspace) {
-        connectSSHRequest = ConnectSSHRequest(preferredMode: preferredMode)
+        connectSSHRequest = ConnectSSHRequest(
+            preferredMode: preferredMode,
+            presets: appSettings.sshPresets,
+            preferredPresetID: appSettings.preferredSSHPresetID
+        )
     }
 
     func addRemoteWorkspace(sshConfig: SSHSessionConfiguration, name: String) {

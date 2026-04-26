@@ -112,6 +112,8 @@ enum ConnectSSHMode: String, CaseIterable, Identifiable {
 struct ConnectSSHRequest: Identifiable {
     let id = UUID()
     var preferredMode: ConnectSSHMode = .remoteWorkspace
+    var presets: [SSHPreset] = []
+    var preferredPresetID: UUID?
 }
 
 struct PendingWorktreeSwitch: Identifiable {
