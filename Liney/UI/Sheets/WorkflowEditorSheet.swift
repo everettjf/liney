@@ -9,19 +9,25 @@ import SwiftUI
 
 struct WorkflowEditorSheet: View {
     @EnvironmentObject private var store: WorkspaceStore
-    @ObservedObject private var localization = LocalizationManager.shared
 
     let workspaceID: UUID
 
+    var body: some View {
+        if let workspace = store.workspaces.first(where: { $0.id == workspaceID }) {
+            WorkflowEditorContent(workspace: workspace)
+        }
+    }
+}
+
+private struct WorkflowEditorContent: View {
+    @ObservedObject var workspace: WorkspaceModel
+    @EnvironmentObject private var store: WorkspaceStore
+    @ObservedObject private var localization = LocalizationManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var selectedWorkflowID: UUID?
 
     private func localized(_ key: String) -> String {
         LocalizationManager.shared.string(key)
-    }
-
-    private var workspace: WorkspaceModel? {
-        store.workspaces.first(where: { $0.id == workspaceID })
     }
 
     var body: some View {
@@ -33,11 +39,9 @@ struct WorkflowEditorSheet: View {
                 HStack(alignment: .center) {
                     Text(localized("sheet.workflowEditor.title"))
                         .font(.system(size: 19, weight: .semibold))
-                    if let workspace {
-                        Text("— \(workspace.name)")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("— \(workspace.name)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -85,7 +89,7 @@ struct WorkflowEditorSheet: View {
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
         .task {
-            selectedWorkflowID = workspace?.workflows.first?.id
+            selectedWorkflowID = workspace.workflows.first?.id
         }
     }
 
@@ -113,7 +117,6 @@ struct WorkflowEditorSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Button {
-                    guard let workspace else { return }
                     let newWorkflow = WorkspaceWorkflow(name: localized("defaults.workflow.name"))
                     workspace.settings.workflows.append(newWorkflow)
                     selectedWorkflowID = newWorkflow.id
@@ -125,7 +128,6 @@ struct WorkflowEditorSheet: View {
                 Menu {
                     ForEach(Self.presetWorkflows, id: \.name) { preset in
                         Button(preset.name) {
-                            guard let workspace else { return }
                             let commands = preset.commands.map {
                                 WorkspaceWorkflowBatchCommand(name: $0.name, command: $0.command)
                             }
@@ -140,22 +142,20 @@ struct WorkflowEditorSheet: View {
                 }
             }
 
-            if let workspace {
-                if workspace.workflows.isEmpty {
-                    Text(localized("settings.workspace.workflowsHint"))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 4) {
-                            ForEach(workspace.workflows) { workflow in
-                                workflowListItem(workflow: workflow)
-                            }
+            if workspace.workflows.isEmpty {
+                Text(localized("settings.workspace.workflowsHint"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(maxHeight: .infinity, alignment: .top)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 4) {
+                        ForEach(workspace.workflows) { workflow in
+                            workflowListItem(workflow: workflow)
                         }
                     }
-                    .frame(maxHeight: .infinity, alignment: .top)
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
         }
         .padding(16)
@@ -204,8 +204,7 @@ struct WorkflowEditorSheet: View {
 
     private var detailPane: some View {
         Group {
-            if let workspace,
-               let workflowID = selectedWorkflowID,
+            if let workflowID = selectedWorkflowID,
                let wi = workspace.workflows.firstIndex(where: { $0.id == workflowID }) {
                 workflowDetail(workspace: workspace, workflowIndex: wi, workflowID: workflowID)
             } else {
