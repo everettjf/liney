@@ -1905,7 +1905,7 @@ final class WorkspaceStore: ObservableObject {
         )
     }
 
-    func presentConnectSSH(preferredMode: ConnectSSHMode = .remoteWorkspace) {
+    func presentConnectSSH(preferredMode: ConnectSSHMode = .terminalOnly) {
         connectSSHRequest = ConnectSSHRequest(
             preferredMode: preferredMode,
             presets: appSettings.sshPresets,
@@ -1914,13 +1914,27 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func addRemoteWorkspace(sshConfig: SSHSessionConfiguration, name: String) {
+        let activeWorktreePath = sshConfig.remoteWorkingDirectory ?? "/"
+        let initialPane = PaneSnapshot(
+            id: UUID(),
+            preferredWorkingDirectory: activeWorktreePath,
+            preferredEngine: .libghosttyPreferred,
+            backendConfiguration: .ssh(sshConfig)
+        )
         let record = WorkspaceRecord(
             id: UUID(),
             kind: .remoteServer,
             name: name,
-            repositoryRoot: sshConfig.remoteWorkingDirectory ?? "/",
-            activeWorktreePath: sshConfig.remoteWorkingDirectory ?? "/",
-            worktreeStates: [],
+            repositoryRoot: activeWorktreePath,
+            activeWorktreePath: activeWorktreePath,
+            worktreeStates: [
+                WorktreeSessionStateRecord(
+                    worktreePath: activeWorktreePath,
+                    layout: .pane(PaneLeaf(paneID: initialPane.id)),
+                    panes: [initialPane],
+                    focusedPaneID: initialPane.id
+                )
+            ],
             isSidebarExpanded: false,
             sshTarget: sshConfig
         )
