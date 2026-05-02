@@ -155,6 +155,85 @@ final class HookRunnerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel), "async side effect did not land within 3s")
     }
 
+    func testFireRunsExternalScriptFile() throws {
+        let scriptDir = tempDir.appendingPathComponent("scripts", isDirectory: true)
+        try FileManager.default.createDirectory(at: scriptDir, withIntermediateDirectories: true)
+        let scriptURL = scriptDir.appendingPathComponent("hello.sh", isDirectory: false)
+        let sentinelFile = tempDir.appendingPathComponent("script-sentinel.txt").path
+        let scriptBody = """
+        #!/bin/sh
+        echo "$LINEY_HOOK from script" > "\(sentinelFile)"
+        """
+        try scriptBody.write(to: scriptURL, atomically: true, encoding: .utf8)
+
+        let settings = HookSettings(hooks: [
+            .sessionOnStart: [HookCommand(enabled: true, sync: true, script: scriptURL.path, timeoutSeconds: 5)]
+        ])
+
+        let persistence = HookSettingsPersistence()
+        let originalContents = try? Data(contentsOf: persistence.fileURL)
+        defer {
+            if let originalContents {
+                try? originalContents.write(to: persistence.fileURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: persistence.fileURL)
+            }
+            HookRunner.shared.invalidateCache()
+        }
+        try persistence.write(settings)
+        HookRunner.shared.invalidateCache()
+        HookRunner.shared.updateMasterSwitch(true)
+
+        HookRunner.shared.fire(.sessionOnStart, context: HookContext.app(appVersion: "1.0"))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinelFile), "script file did not run")
+        let written = try String(contentsOfFile: sentinelFile, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(written, "session.on_start from script")
+    }
+
+    func testFireLogsScriptNotFoundError() throws {
+        let missingPath = tempDir.appendingPathComponent("does-not-exist.sh").path
+        let settings = HookSettings(hooks: [
+            .sessionOnStart: [HookCommand(enabled: true, sync: true, script: missingPath, timeoutSeconds: 5)]
+        ])
+
+        let persistence = HookSettingsPersistence()
+        let originalContents = try? Data(contentsOf: persistence.fileURL)
+        let originalLog = try? Data(contentsOf: persistence.logFileURL)
+        defer {
+            if let originalContents {
+                try? originalContents.write(to: persistence.fileURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: persistence.fileURL)
+            }
+            if let originalLog {
+                try? originalLog.write(to: persistence.logFileURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: persistence.logFileURL)
+            }
+            HookRunner.shared.invalidateCache()
+        }
+        try persistence.write(settings)
+        HookRunner.shared.invalidateCache()
+        HookRunner.shared.updateMasterSwitch(true)
+
+        HookRunner.shared.fire(.sessionOnStart, context: HookContext.app(appVersion: "1.0"))
+
+        // Logger writes async, so wait briefly for the line to land.
+        var attempts = 0
+        var logContents = ""
+        while attempts < 50 {
+            if let data = try? Data(contentsOf: persistence.logFileURL) {
+                logContents = String(decoding: data, as: UTF8.self)
+                if logContents.contains("script not found") { break }
+            }
+            Thread.sleep(forTimeInterval: 0.05)
+            attempts += 1
+        }
+        XCTAssertTrue(logContents.contains("script not found"), "expected script-not-found error in log; got: \(logContents)")
+    }
+
     func testFireBlockingTimeoutTerminatesLongRunningHook() throws {
         let sentinel = tempDir.appendingPathComponent("late.txt").path
         // Sleep longer than timeout, then write the file. Timeout should fire

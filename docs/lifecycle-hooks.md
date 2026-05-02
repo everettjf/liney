@@ -25,7 +25,8 @@ Lives at `~/.liney/hooks.json` (or `~/.liney-debug/hooks.json` for the debug bui
     "app.on_quit": [],
     "session.on_start": [
       { "enabled": true, "sync": false, "command": "claude --resume" },
-      { "enabled": true, "sync": true, "command": "load-project-env", "timeoutSeconds": 5 }
+      { "enabled": true, "sync": true, "command": "load-project-env", "timeoutSeconds": 5 },
+      { "enabled": true, "sync": false, "script": "hooks/on-session-start.sh" }
     ],
     "session.on_exit": []
   }
@@ -34,15 +35,46 @@ Lives at `~/.liney/hooks.json` (or `~/.liney-debug/hooks.json` for the debug bui
 
 Per-command fields:
 
-| Field            | Type     | Default                       | Description                                                    |
-| ---------------- | -------- | ----------------------------- | -------------------------------------------------------------- |
-| `enabled`        | bool     | `true`                        | Skip the command without removing it.                          |
-| `sync`           | bool     | `false`                       | If `true`, the caller blocks until the command completes.      |
-| `command`        | string   | (required)                    | Passed to `/bin/sh -c`.                                        |
-| `timeoutSeconds` | number   | `5` (sync), `30` (async)      | Per-command kill switch. Override when you know what you need. |
+| Field            | Type     | Default                  | Description                                                                                              |
+| ---------------- | -------- | ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `enabled`        | bool     | `true`                   | Skip the command without removing it.                                                                    |
+| `sync`           | bool     | `false`                  | If `true`, the caller blocks until the command completes.                                                |
+| `command`        | string   | —                        | Inline shell, passed to `/bin/sh -c`. Mutually exclusive with `script`.                                  |
+| `script`         | string   | —                        | Path to a script file to execute. Wins over `command` if both are set.                                   |
+| `timeoutSeconds` | number   | `5` (sync), `30` (async) | Per-command kill switch. Override when you know what you need.                                           |
 
-- Each hook point holds an array, so you can chain multiple commands. They run in declaration order; sync ones inline, async ones on a background queue.
-- The fastest way to create the file is **Settings → Hooks → Open hooks.json** — Liney will scaffold it with disabled examples.
+- Each hook point holds an array — you can chain multiple commands. They run in declaration order; sync ones inline, async ones on a background queue.
+- The fastest way to create the file is **Settings → Hooks → Open hooks.json** — Liney scaffolds it with disabled examples.
+
+### `command` vs `script`
+
+Use `command` for one-liners. Use `script` when the work is multi-line or you want the niceties of a real file (proper editor, syntax highlighting, version control, shebang lines).
+
+`script` path resolution:
+
+| Form                         | Resolved as                                                |
+| ---------------------------- | ---------------------------------------------------------- |
+| `/abs/path/to/foo.sh`        | Used as-is                                                 |
+| `~/scripts/foo.sh`           | Tilde expanded against `$HOME`                             |
+| `hooks/foo.sh` (any relative) | Resolved under `~/.liney/`                                |
+
+How the script is launched:
+
+- **If the file is executable (`chmod +x`)**, Liney runs it directly. The shebang line picks the interpreter — `#!/usr/bin/env bash`, `#!/usr/bin/env python3`, etc.
+- **Otherwise**, Liney falls back to `/bin/sh <path>` so users don't have to chmod for plain shell scripts.
+
+Default scripts directory: `~/.liney/hooks/`. **Settings → Hooks → Reveal in Finder** opens it (creating it on demand).
+
+Example `~/.liney/hooks/on-session-start.sh`:
+
+```sh
+#!/bin/sh
+set -e
+
+if [ "$LINEY_SESSION_BACKEND" = "localShell" ]; then
+  echo "started at $(date) in $LINEY_SESSION_CWD" >> ~/liney-sessions.log
+fi
+```
 
 ### Sync vs async
 
@@ -55,11 +87,11 @@ Sync hooks block the caller's thread. For `session.on_start` that means a slow s
 
 ## How commands run
 
-Each command is invoked as `/bin/sh -c <command>`. Use the shell as you would in `~/.zshrc`:
+For inline `command`, the string is invoked as `/bin/sh -c <command>`. Use shell features (`&&`, `||`, pipes, redirects) as you would in `~/.zshrc`. Use absolute paths or rely on the inherited `PATH`.
 
-- `&&`, `||`, pipes, redirects all work.
-- Use absolute paths (`/usr/local/bin/foo`) or rely on the inherited `PATH`.
-- Hooks run as your user. They are not sandboxed.
+For `script`, see "command vs script" above for path resolution and interpreter selection.
+
+In both cases the hook process runs as your user, inherits Liney's environment plus the `LINEY_*` variables, and is not sandboxed.
 
 ### Execution model
 
@@ -97,7 +129,7 @@ Every hook invocation is appended to `~/.liney/hook.log` along with timing break
 ```
 2026-05-01T20:42:17.345Z hook config: loaded 3 commands in 1ms
 2026-05-01T20:42:17.346Z hook session.on_start [async]: spawn=2ms total=14ms exit=0 cmd="echo hi"
-2026-05-01T20:42:18.001Z hook session.on_start [sync]: spawn=3ms total=42ms exit=0 cmd="load-project-env"
+2026-05-01T20:42:18.001Z hook session.on_start [sync]: spawn=3ms total=42ms exit=0 script="/Users/me/.liney/hooks/on-session-start.sh"
 2026-05-01T20:42:30.500Z hook app.on_quit [blocking]: spawn=2ms total=512ms exit=0 cmd="rsync ..."
 ```
 

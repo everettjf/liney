@@ -125,4 +125,41 @@ final class HookSettingsTests: XCTestCase {
         XCTAssertNil(env["LINEY_SESSION_CWD"])
         XCTAssertNil(env["LINEY_SESSION_EXIT_CODE"])
     }
+
+    func testResolveScriptPathHandlesAbsoluteTildeAndRelative() {
+        let stateDir = URL(fileURLWithPath: "/Users/foo/.liney", isDirectory: true)
+        XCTAssertEqual(
+            HookCommand.resolveScriptPath("/abs/path.sh", stateDirectory: stateDir).path,
+            "/abs/path.sh"
+        )
+        XCTAssertEqual(
+            HookCommand.resolveScriptPath("hooks/start.sh", stateDirectory: stateDir).path,
+            "/Users/foo/.liney/hooks/start.sh"
+        )
+        let expanded = HookCommand.resolveScriptPath("~/scripts/x.sh", stateDirectory: stateDir).path
+        XCTAssertFalse(expanded.contains("~"))
+        XCTAssertTrue(expanded.hasSuffix("/scripts/x.sh"))
+    }
+
+    func testResolvedSourcePrefersScriptOverCommand() {
+        let stateDir = URL(fileURLWithPath: "/Users/foo/.liney", isDirectory: true)
+        let cmd = HookCommand(command: "echo command", script: "hooks/x.sh")
+        guard case .script(let url) = cmd.resolvedSource(stateDirectory: stateDir) else {
+            return XCTFail("expected script source")
+        }
+        XCTAssertEqual(url.path, "/Users/foo/.liney/hooks/x.sh")
+    }
+
+    func testResolvedSourceReturnsNilWhenBothEmpty() {
+        let stateDir = URL(fileURLWithPath: "/x", isDirectory: true)
+        XCTAssertNil(HookCommand(command: nil, script: nil).resolvedSource(stateDirectory: stateDir))
+        XCTAssertNil(HookCommand(command: "  ", script: "").resolvedSource(stateDirectory: stateDir))
+    }
+
+    func testHasContentTrueForCommandOrScript() {
+        XCTAssertTrue(HookCommand(command: "echo").hasContent)
+        XCTAssertTrue(HookCommand(script: "x.sh").hasContent)
+        XCTAssertFalse(HookCommand().hasContent)
+        XCTAssertFalse(HookCommand(command: " ", script: "  ").hasContent)
+    }
 }

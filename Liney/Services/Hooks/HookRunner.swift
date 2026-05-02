@@ -74,6 +74,7 @@ nonisolated final class HookRunner: @unchecked Sendable {
 
         let env = context.environmentVariables(for: kind)
         let name = kind.rawValue
+        let stateDirectory = persistence.stateDirectoryURL
 
         let syncCommands = commands.filter { $0.sync }
         let asyncCommands = commands.filter { !$0.sync }
@@ -81,14 +82,7 @@ nonisolated final class HookRunner: @unchecked Sendable {
         // Sync commands run inline so the caller waits for completion. The
         // caller chose to block by setting "sync": true.
         for command in syncCommands {
-            let result = Self.runCommand(
-                command: command.command,
-                hookName: name,
-                mode: "sync",
-                environment: env,
-                timeout: command.effectiveTimeout
-            )
-            Self.logResult(result, hookName: name, command: command.command, mode: "sync", logger: logger)
+            runOne(command, kind: name, mode: "sync", environment: env, stateDirectory: stateDirectory)
         }
 
         // Async commands run on the runner's serial queue.
@@ -96,14 +90,14 @@ nonisolated final class HookRunner: @unchecked Sendable {
         let logger = self.logger
         queue.async {
             for command in asyncCommands {
-                let result = Self.runCommand(
-                    command: command.command,
-                    hookName: name,
+                Self.runOne(
+                    command,
+                    kind: name,
                     mode: "async",
                     environment: env,
-                    timeout: command.effectiveTimeout
+                    stateDirectory: stateDirectory,
+                    logger: logger
                 )
-                Self.logResult(result, hookName: name, command: command.command, mode: "async", logger: logger)
             }
         }
     }
@@ -118,23 +112,67 @@ nonisolated final class HookRunner: @unchecked Sendable {
 
         let env = context.environmentVariables(for: kind)
         let name = kind.rawValue
+        let stateDirectory = persistence.stateDirectoryURL
         let deadline = Date().addingTimeInterval(timeout)
         for command in commands {
             let remaining = max(0.05, deadline.timeIntervalSinceNow)
             let perCommandTimeout = min(remaining, command.effectiveTimeout)
-            let result = Self.runCommand(
-                command: command.command,
-                hookName: name,
+            runOne(
+                command,
+                kind: name,
                 mode: "blocking",
                 environment: env,
-                timeout: perCommandTimeout
+                stateDirectory: stateDirectory,
+                timeoutOverride: perCommandTimeout
             )
-            Self.logResult(result, hookName: name, command: command.command, mode: "blocking", logger: logger)
             if Date() >= deadline {
                 logger.log("hook \(name): aborted remaining commands (total budget exceeded)")
                 break
             }
         }
+    }
+
+    private func runOne(
+        _ command: HookCommand,
+        kind: String,
+        mode: String,
+        environment: [String: String],
+        stateDirectory: URL,
+        timeoutOverride: TimeInterval? = nil
+    ) {
+        Self.runOne(
+            command,
+            kind: kind,
+            mode: mode,
+            environment: environment,
+            stateDirectory: stateDirectory,
+            logger: logger,
+            timeoutOverride: timeoutOverride
+        )
+    }
+
+    private static func runOne(
+        _ command: HookCommand,
+        kind: String,
+        mode: String,
+        environment: [String: String],
+        stateDirectory: URL,
+        logger: HookLogger,
+        timeoutOverride: TimeInterval? = nil
+    ) {
+        guard let source = command.resolvedSource(stateDirectory: stateDirectory) else {
+            logger.log("hook \(kind) [\(mode)]: skipped — no command or script set")
+            return
+        }
+        let timeout = timeoutOverride ?? command.effectiveTimeout
+        let result = Self.runProcess(
+            source: source,
+            hookName: kind,
+            mode: mode,
+            environment: environment,
+            timeout: timeout
+        )
+        Self.logResult(result, hookName: kind, source: source, mode: mode, logger: logger)
     }
 
     // MARK: - Private
@@ -182,8 +220,8 @@ nonisolated final class HookRunner: @unchecked Sendable {
         var stdoutSnippet: String?
     }
 
-    private static func runCommand(
-        command: String,
+    private static func runProcess(
+        source: HookCommand.Source,
         hookName: String,
         mode: String,
         environment: [String: String],
@@ -193,8 +231,28 @@ nonisolated final class HookRunner: @unchecked Sendable {
         let runStarted = Date()
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", command]
+        switch source {
+        case .command(let command):
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.arguments = ["-c", command]
+        case .script(let scriptURL):
+            let path = scriptURL.path
+            guard FileManager.default.fileExists(atPath: path) else {
+                result.spawnFailure = "script not found: \(path)"
+                result.totalDuration = Date().timeIntervalSince(runStarted)
+                return result
+            }
+            // If the file is executable, run it directly so its shebang line
+            // picks the interpreter (lets users use python/ruby/etc.). Otherwise
+            // fall back to /bin/sh <path> so users don't have to chmod +x.
+            if FileManager.default.isExecutableFile(atPath: path) {
+                process.executableURL = scriptURL
+                process.arguments = []
+            } else {
+                process.executableURL = URL(fileURLWithPath: "/bin/sh")
+                process.arguments = [path]
+            }
+        }
 
         var fullEnvironment = ProcessInfo.processInfo.environment
         for (key, value) in environment {
@@ -255,12 +313,20 @@ nonisolated final class HookRunner: @unchecked Sendable {
     private static func logResult(
         _ result: RunResult,
         hookName: String,
-        command: String,
+        source: HookCommand.Source,
         mode: String,
         logger: HookLogger
     ) {
+        let sourceLabel: String
+        switch source {
+        case .command(let command):
+            sourceLabel = "cmd=\"\(command)\""
+        case .script(let url):
+            sourceLabel = "script=\"\(url.path)\""
+        }
+
         if let spawnFailure = result.spawnFailure {
-            logger.log("hook \(hookName) [\(mode)]: failed to launch in \(formatMs(result.totalDuration)): \(spawnFailure) cmd=\"\(command)\"")
+            logger.log("hook \(hookName) [\(mode)]: failed to launch in \(formatMs(result.totalDuration)): \(spawnFailure) \(sourceLabel)")
             return
         }
 
@@ -268,7 +334,7 @@ nonisolated final class HookRunner: @unchecked Sendable {
         if result.timedOut {
             line += " timeout"
         }
-        line += " cmd=\"\(command)\""
+        line += " \(sourceLabel)"
         if let stderrSnippet = result.stderrSnippet {
             line += " stderr=\(stderrSnippet)"
         } else if let stdoutSnippet = result.stdoutSnippet {

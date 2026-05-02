@@ -1185,7 +1185,11 @@ enum L10nTable {
         "settings.hooks.log.group": "Activity log",
         "settings.hooks.log.openButton": "Open hook.log",
         "settings.hooks.log.clearButton": "Clear log",
-        "settings.hooks.log.hint": "Failures (non-zero exit, timeouts, parse errors) are appended to ~/.liney/hook.log.",
+        "settings.hooks.log.hint": "Every hook invocation (and config reload) is appended to ~/.liney/hook.log with timing and exit code.",
+        "settings.hooks.scripts.group": "Scripts folder",
+        "settings.hooks.scripts.path": "Default location",
+        "settings.hooks.scripts.revealButton": "Reveal in Finder",
+        "settings.hooks.scripts.hint": "Drop .sh files into this folder and reference them from hooks.json with \"script\": \"hooks/your-script.sh\" (relative paths resolve under ~/.liney/, ~ is expanded, absolute paths are used as-is).",
         "settings.hooks.docs.hint": "See the docs for the supported hook names, environment variables, and examples.",
     ]
     static let simplifiedChinese: [String: String] = [
@@ -2358,7 +2362,11 @@ enum L10nTable {
         "settings.hooks.log.group": "运行日志",
         "settings.hooks.log.openButton": "打开 hook.log",
         "settings.hooks.log.clearButton": "清空日志",
-        "settings.hooks.log.hint": "执行失败（非零退出、超时、解析错误）会追加到 ~/.liney/hook.log。",
+        "settings.hooks.log.hint": "每次钩子执行（含配置重载）都会写入 ~/.liney/hook.log，包含耗时和退出码。",
+        "settings.hooks.scripts.group": "脚本目录",
+        "settings.hooks.scripts.path": "默认位置",
+        "settings.hooks.scripts.revealButton": "在 Finder 中显示",
+        "settings.hooks.scripts.hint": "把 .sh 脚本放进这个目录，然后在 hooks.json 里用 \"script\": \"hooks/your-script.sh\" 引用（相对路径基于 ~/.liney/，支持 ~ 展开和绝对路径）。",
         "settings.hooks.docs.hint": "支持的钩子名、环境变量与示例参见文档。",
     ]
 

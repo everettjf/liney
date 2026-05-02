@@ -13,6 +13,7 @@ struct HooksSettingsView: View {
     @State private var fileExists: Bool = false
     @State private var fileURL: URL = HookSettingsPersistence().fileURL
     @State private var logURL: URL = HookSettingsPersistence().logFileURL
+    @State private var scriptsURL: URL = HookSettingsPersistence().stateDirectoryURL.appendingPathComponent("hooks", isDirectory: true)
 
     private let persistence = HookSettingsPersistence()
 
@@ -63,6 +64,31 @@ struct HooksSettingsView: View {
                             revealHooksFile()
                         }
                         .disabled(!fileExists)
+                    }
+                }
+                .padding(.top, 8)
+            }
+
+            GroupBox(localized("settings.hooks.scripts.group")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Text(localized("settings.hooks.scripts.path"))
+                            .foregroundStyle(.secondary)
+                        Text(scriptsURL.path)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+
+                    Text(localized("settings.hooks.scripts.hint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 8) {
+                        Button(localized("settings.hooks.scripts.revealButton")) {
+                            revealScriptsFolder()
+                        }
                     }
                 }
                 .padding(.top, 8)
@@ -128,5 +154,10 @@ struct HooksSettingsView: View {
     private func openLogFile() {
         guard FileManager.default.fileExists(atPath: logURL.path) else { return }
         NSWorkspace.shared.open(logURL)
+    }
+
+    private func revealScriptsFolder() {
+        try? FileManager.default.createDirectory(at: scriptsURL, withIntermediateDirectories: true)
+        NSWorkspace.shared.activateFileViewerSelecting([scriptsURL])
     }
 }
