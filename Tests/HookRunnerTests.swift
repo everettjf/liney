@@ -87,6 +87,74 @@ final class HookRunnerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: sentinel))
     }
 
+    func testFireWithSyncCommandBlocksUntilDone() throws {
+        let sentinel = tempDir.appendingPathComponent("sync-sentinel.txt").path
+        let command = "echo \"$LINEY_HOOK\" > \"\(sentinel)\""
+        let settings = HookSettings(hooks: [
+            .sessionOnStart: [HookCommand(enabled: true, sync: true, command: command, timeoutSeconds: 5)]
+        ])
+
+        let persistence = HookSettingsPersistence()
+        let originalContents = try? Data(contentsOf: persistence.fileURL)
+        defer {
+            if let originalContents {
+                try? originalContents.write(to: persistence.fileURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: persistence.fileURL)
+            }
+            HookRunner.shared.invalidateCache()
+        }
+        try persistence.write(settings)
+        HookRunner.shared.invalidateCache()
+        HookRunner.shared.updateMasterSwitch(true)
+
+        // Sync semantic: by the time fire() returns, the side effect must be
+        // visible — no sleep / polling required.
+        HookRunner.shared.fire(.sessionOnStart, context: HookContext.app(appVersion: "1.0"))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel))
+        let written = try String(contentsOfFile: sentinel, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(written, "session.on_start")
+    }
+
+    func testFireWithAsyncCommandReturnsBeforeSideEffect() throws {
+        let sentinel = tempDir.appendingPathComponent("async-sentinel.txt").path
+        // Sleep enough that we can observe "fire returned without the file".
+        let command = "sleep 0.5; touch \"\(sentinel)\""
+        let settings = HookSettings(hooks: [
+            .sessionOnStart: [HookCommand(enabled: true, sync: false, command: command)]
+        ])
+
+        let persistence = HookSettingsPersistence()
+        let originalContents = try? Data(contentsOf: persistence.fileURL)
+        defer {
+            if let originalContents {
+                try? originalContents.write(to: persistence.fileURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: persistence.fileURL)
+            }
+            HookRunner.shared.invalidateCache()
+        }
+        try persistence.write(settings)
+        HookRunner.shared.invalidateCache()
+        HookRunner.shared.updateMasterSwitch(true)
+
+        let started = Date()
+        HookRunner.shared.fire(.sessionOnStart, context: HookContext.app(appVersion: "1.0"))
+        let returnElapsed = Date().timeIntervalSince(started)
+        XCTAssertLessThan(returnElapsed, 0.3, "fire() with async command should not block")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sentinel))
+
+        // Wait for the async work to complete and check the side effect lands.
+        var attempts = 0
+        while attempts < 60, !FileManager.default.fileExists(atPath: sentinel) {
+            Thread.sleep(forTimeInterval: 0.05)
+            attempts += 1
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel), "async side effect did not land within 3s")
+    }
+
     func testFireBlockingTimeoutTerminatesLongRunningHook() throws {
         let sentinel = tempDir.appendingPathComponent("late.txt").path
         // Sleep longer than timeout, then write the file. Timeout should fire

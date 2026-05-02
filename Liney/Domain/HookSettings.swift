@@ -16,13 +16,58 @@ enum HookKind: String, Codable, CaseIterable, Hashable {
 }
 
 /// A single command attached to a hook point. `command` is passed to `/bin/sh -c`.
+///
+/// `sync` controls whether the caller waits for the command to finish before
+/// returning (true), or whether the command is dispatched and the caller
+/// continues immediately (false, default). Sync mode is useful when a hook's
+/// side effect must complete before downstream work begins (e.g. inject env
+/// before a session takes over the terminal); async mode is appropriate when
+/// the command's outcome doesn't gate anything else.
+///
+/// `timeoutSeconds` overrides the per-mode default. nil → 5s for sync, 30s
+/// for async. The hook process is force-terminated after the timeout.
 struct HookCommand: Codable, Hashable {
-    var enabled: Bool
-    var command: String
+    static let defaultAsyncTimeout: TimeInterval = 30
+    static let defaultSyncTimeout: TimeInterval = 5
 
-    init(enabled: Bool = true, command: String) {
+    var enabled: Bool
+    var sync: Bool
+    var command: String
+    var timeoutSeconds: Double?
+
+    init(
+        enabled: Bool = true,
+        sync: Bool = false,
+        command: String,
+        timeoutSeconds: Double? = nil
+    ) {
         self.enabled = enabled
+        self.sync = sync
         self.command = command
+        self.timeoutSeconds = timeoutSeconds
+    }
+
+    var effectiveTimeout: TimeInterval {
+        if let timeoutSeconds, timeoutSeconds > 0 {
+            return TimeInterval(timeoutSeconds)
+        }
+        return sync ? Self.defaultSyncTimeout : Self.defaultAsyncTimeout
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled
+        case sync
+        case command
+        case timeoutSeconds
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        let sync = try container.decodeIfPresent(Bool.self, forKey: .sync) ?? false
+        let command = try container.decodeIfPresent(String.self, forKey: .command) ?? ""
+        let timeout = try container.decodeIfPresent(Double.self, forKey: .timeoutSeconds)
+        self.init(enabled: enabled, sync: sync, command: command, timeoutSeconds: timeout)
     }
 }
 
@@ -50,11 +95,12 @@ struct HookSettings: Codable, Hashable {
         HookSettings(
             hooks: [
                 .appOnLaunch: [
-                    HookCommand(enabled: false, command: "echo \"liney launched at $(date)\" >> ~/.liney/hook.log")
+                    HookCommand(enabled: false, sync: false, command: "echo \"liney launched at $(date)\" >> ~/.liney/hook.log")
                 ],
                 .appOnQuit: [],
                 .sessionOnStart: [
-                    HookCommand(enabled: false, command: "echo \"session $LINEY_SESSION_ID started in $LINEY_SESSION_CWD\" >> ~/.liney/hook.log")
+                    HookCommand(enabled: false, sync: false, command: "echo \"async: session $LINEY_SESSION_ID started in $LINEY_SESSION_CWD\" >> ~/.liney/hook.log"),
+                    HookCommand(enabled: false, sync: true, command: "echo \"sync: blocks the caller; should be fast\" >> ~/.liney/hook.log", timeoutSeconds: 5)
                 ],
                 .sessionOnExit: []
             ]

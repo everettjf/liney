@@ -8,10 +8,14 @@
 import Foundation
 
 /// Fires user-defined lifecycle hooks. Spawns each command via `/bin/sh -c`,
-/// passes context as environment variables, and logs failures to
-/// `~/.liney/hook.log`. Hooks are gated on `AppSettings.hooksEnabled` (off by
-/// default) — when disabled, `fire(_:context:)` is a no-op even if the file
-/// exists.
+/// passes context as environment variables, and logs every invocation
+/// (timing, exit code, errors) to `~/.liney/hook.log`. Hooks are gated on
+/// `AppSettings.hooksEnabled` (off by default) — when disabled,
+/// `fire(_:context:)` is a no-op even if the file exists.
+///
+/// Per-command `sync` flag in hooks.json controls whether the caller blocks
+/// until the command completes (true) or returns immediately and the command
+/// runs on a background queue (false, default).
 ///
 /// nonisolated for the same reason as HookSettingsPersistence — accessed
 /// from background queues; default MainActor isolation would corrupt deinit.
@@ -29,10 +33,6 @@ nonisolated final class HookRunner: @unchecked Sendable {
     /// Maximum total wall-clock time allowed when running app.on_quit hooks
     /// synchronously, so user mistakes don't hang quit.
     static let appQuitTimeout: TimeInterval = 2.0
-
-    /// Per-command soft timeout for async hooks. We still fire-and-forget but
-    /// kill the child after this so a sleep loop doesn't pile up zombies.
-    static let asyncCommandTimeout: TimeInterval = 30.0
 
     init(
         persistence: HookSettingsPersistence = HookSettingsPersistence(),
@@ -65,31 +65,53 @@ nonisolated final class HookRunner: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// Fire a hook asynchronously. Returns immediately; commands run in the
-    /// background. Use this for everything except `app.on_quit`.
+    /// Fire a hook. Sync commands block the caller; async commands are
+    /// dispatched and run in the background. Use this for everything except
+    /// `app.on_quit`, which has a special bounded-blocking path.
     func fire(_ kind: HookKind, context: HookContext) {
         guard let commands = preparedCommands(for: kind) else { return }
         guard !commands.isEmpty else { return }
 
         let env = context.environmentVariables(for: kind)
         let name = kind.rawValue
+
+        let syncCommands = commands.filter { $0.sync }
+        let asyncCommands = commands.filter { !$0.sync }
+
+        // Sync commands run inline so the caller waits for completion. The
+        // caller chose to block by setting "sync": true.
+        for command in syncCommands {
+            let result = Self.runCommand(
+                command: command.command,
+                hookName: name,
+                mode: "sync",
+                environment: env,
+                timeout: command.effectiveTimeout
+            )
+            Self.logResult(result, hookName: name, command: command.command, mode: "sync", logger: logger)
+        }
+
+        // Async commands run on the runner's serial queue.
+        guard !asyncCommands.isEmpty else { return }
         let logger = self.logger
         queue.async {
-            for command in commands {
-                Self.runCommand(
+            for command in asyncCommands {
+                let result = Self.runCommand(
                     command: command.command,
                     hookName: name,
+                    mode: "async",
                     environment: env,
-                    timeout: Self.asyncCommandTimeout,
-                    logger: logger
+                    timeout: command.effectiveTimeout
                 )
+                Self.logResult(result, hookName: name, command: command.command, mode: "async", logger: logger)
             }
         }
     }
 
     /// Fire a hook and block (with `timeout` total) for completion. Used for
-    /// `app.on_quit` so user cleanup gets a chance to run before exit. If the
-    /// timeout elapses, lingering child processes are terminated.
+    /// `app.on_quit` so user cleanup gets a chance to run before exit. All
+    /// commands run synchronously regardless of their `sync` flag — async
+    /// commands started here would orphan when the app exits anyway.
     func fireBlocking(_ kind: HookKind, context: HookContext, timeout: TimeInterval) {
         guard let commands = preparedCommands(for: kind) else { return }
         guard !commands.isEmpty else { return }
@@ -99,15 +121,17 @@ nonisolated final class HookRunner: @unchecked Sendable {
         let deadline = Date().addingTimeInterval(timeout)
         for command in commands {
             let remaining = max(0.05, deadline.timeIntervalSinceNow)
-            Self.runCommand(
+            let perCommandTimeout = min(remaining, command.effectiveTimeout)
+            let result = Self.runCommand(
                 command: command.command,
                 hookName: name,
+                mode: "blocking",
                 environment: env,
-                timeout: remaining,
-                logger: logger
+                timeout: perCommandTimeout
             )
+            Self.logResult(result, hookName: name, command: command.command, mode: "blocking", logger: logger)
             if Date() >= deadline {
-                logger.log("hook \(name): aborted remaining commands (timeout)")
+                logger.log("hook \(name): aborted remaining commands (total budget exceeded)")
                 break
             }
         }
@@ -130,21 +154,44 @@ nonisolated final class HookRunner: @unchecked Sendable {
         }
         lock.unlock()
 
+        let started = Date()
         let loaded = persistence.load()
+        let elapsedMs = Int((Date().timeIntervalSince(started) * 1000).rounded())
+
         lock.lock()
         cachedSettings = loaded
         cachedModificationDate = mtime
         lock.unlock()
+
+        if let loaded {
+            let total = HookKind.allCases.reduce(0) { $0 + (loaded.hooks[$1]?.count ?? 0) }
+            logger.log("hook config: loaded \(total) commands in \(elapsedMs)ms")
+        } else {
+            logger.log("hook config: no hooks.json (or empty), load took \(elapsedMs)ms")
+        }
         return loaded
+    }
+
+    private struct RunResult {
+        var spawnFailure: String?
+        var exitCode: Int32 = 0
+        var timedOut: Bool = false
+        var spawnDuration: TimeInterval = 0
+        var totalDuration: TimeInterval = 0
+        var stderrSnippet: String?
+        var stdoutSnippet: String?
     }
 
     private static func runCommand(
         command: String,
         hookName: String,
+        mode: String,
         environment: [String: String],
-        timeout: TimeInterval,
-        logger: HookLogger
-    ) {
+        timeout: TimeInterval
+    ) -> RunResult {
+        var result = RunResult()
+        let runStarted = Date()
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = ["-c", command]
@@ -161,12 +208,15 @@ nonisolated final class HookRunner: @unchecked Sendable {
         process.standardError = stderrPipe
         process.standardInput = FileHandle.nullDevice
 
+        let spawnStarted = Date()
         do {
             try process.run()
         } catch {
-            logger.log("hook \(hookName): failed to launch \"\(command)\": \(error.localizedDescription)")
-            return
+            result.spawnFailure = error.localizedDescription
+            result.totalDuration = Date().timeIntervalSince(runStarted)
+            return result
         }
+        result.spawnDuration = Date().timeIntervalSince(spawnStarted)
 
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning {
@@ -176,7 +226,7 @@ nonisolated final class HookRunner: @unchecked Sendable {
                 if process.isRunning {
                     kill(process.processIdentifier, SIGKILL)
                 }
-                logger.log("hook \(hookName): timed out after \(Int(timeout))s, terminated: \"\(command)\"")
+                result.timedOut = true
                 break
             }
             Thread.sleep(forTimeInterval: 0.02)
@@ -187,19 +237,47 @@ nonisolated final class HookRunner: @unchecked Sendable {
         try? stdoutPipe.fileHandleForReading.close()
         try? stderrPipe.fileHandleForReading.close()
 
-        let exitCode = process.terminationStatus
-        if exitCode != 0 {
+        result.exitCode = process.terminationStatus
+        result.totalDuration = Date().timeIntervalSince(runStarted)
+
+        if result.exitCode != 0 || result.timedOut {
             let stderr = String(decoding: stderrData, as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let stdout = String(decoding: stdoutData, as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            var summary = "hook \(hookName): exit \(exitCode) for \"\(command)\""
-            if !stderr.isEmpty {
-                summary += " | stderr: \(stderr.prefix(400))"
-            } else if !stdout.isEmpty {
-                summary += " | stdout: \(stdout.prefix(400))"
-            }
-            logger.log(summary)
+            if !stderr.isEmpty { result.stderrSnippet = String(stderr.prefix(400)) }
+            else if !stdout.isEmpty { result.stdoutSnippet = String(stdout.prefix(400)) }
         }
+
+        return result
+    }
+
+    private static func logResult(
+        _ result: RunResult,
+        hookName: String,
+        command: String,
+        mode: String,
+        logger: HookLogger
+    ) {
+        if let spawnFailure = result.spawnFailure {
+            logger.log("hook \(hookName) [\(mode)]: failed to launch in \(formatMs(result.totalDuration)): \(spawnFailure) cmd=\"\(command)\"")
+            return
+        }
+
+        var line = "hook \(hookName) [\(mode)]: spawn=\(formatMs(result.spawnDuration)) total=\(formatMs(result.totalDuration)) exit=\(result.exitCode)"
+        if result.timedOut {
+            line += " timeout"
+        }
+        line += " cmd=\"\(command)\""
+        if let stderrSnippet = result.stderrSnippet {
+            line += " stderr=\(stderrSnippet)"
+        } else if let stdoutSnippet = result.stdoutSnippet {
+            line += " stdout=\(stdoutSnippet)"
+        }
+        logger.log(line)
+    }
+
+    private static func formatMs(_ duration: TimeInterval) -> String {
+        "\(Int((duration * 1000).rounded()))ms"
     }
 }

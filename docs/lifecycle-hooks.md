@@ -20,20 +20,38 @@ Lives at `~/.liney/hooks.json` (or `~/.liney-debug/hooks.json` for the debug bui
   "version": 1,
   "hooks": {
     "app.on_launch": [
-      { "enabled": true, "command": "echo \"liney up at $(date)\" >> ~/.liney/hook.log" }
+      { "enabled": true, "sync": false, "command": "echo \"liney up at $(date)\" >> ~/.liney/hook.log" }
     ],
     "app.on_quit": [],
     "session.on_start": [
-      { "enabled": true, "command": "claude --resume" }
+      { "enabled": true, "sync": false, "command": "claude --resume" },
+      { "enabled": true, "sync": true, "command": "load-project-env", "timeoutSeconds": 5 }
     ],
     "session.on_exit": []
   }
 }
 ```
 
-- The `enabled` flag lets you keep a command on file but temporarily skip it.
-- Each hook point holds an array, so you can chain multiple commands. They run in order.
+Per-command fields:
+
+| Field            | Type     | Default                       | Description                                                    |
+| ---------------- | -------- | ----------------------------- | -------------------------------------------------------------- |
+| `enabled`        | bool     | `true`                        | Skip the command without removing it.                          |
+| `sync`           | bool     | `false`                       | If `true`, the caller blocks until the command completes.      |
+| `command`        | string   | (required)                    | Passed to `/bin/sh -c`.                                        |
+| `timeoutSeconds` | number   | `5` (sync), `30` (async)      | Per-command kill switch. Override when you know what you need. |
+
+- Each hook point holds an array, so you can chain multiple commands. They run in declaration order; sync ones inline, async ones on a background queue.
 - The fastest way to create the file is **Settings → Hooks → Open hooks.json** — Liney will scaffold it with disabled examples.
+
+### Sync vs async
+
+| Mode    | When to use                                                                            |
+| ------- | -------------------------------------------------------------------------------------- |
+| `false` (async, default) | Side effect doesn't gate anything (notifications, logging, kicking off background work). The hook returns immediately and the command runs in the background. |
+| `true` (sync)            | The hook's outcome must be visible before downstream work proceeds (env injection, resource locks, schema migrations). The caller blocks for up to `timeoutSeconds`. |
+
+Sync hooks block the caller's thread. For `session.on_start` that means a slow sync hook delays the terminal becoming ready; for `app.on_launch` it delays the UI. Use it when you want that ordering, not as a default.
 
 ## How commands run
 
@@ -45,16 +63,16 @@ Each command is invoked as `/bin/sh -c <command>`. Use the shell as you would in
 
 ### Execution model
 
-| Hook                | Mode                                       |
-| ------------------- | ------------------------------------------ |
-| `app.on_launch`     | Async, fire-and-forget                     |
-| `session.on_start`  | Async, fire-and-forget                     |
-| `session.on_exit`   | Async, fire-and-forget                     |
-| `app.on_quit`       | Synchronous, total budget **2 seconds**    |
+| Hook               | Sync command           | Async command           |
+| ------------------ | ---------------------- | ----------------------- |
+| `app.on_launch`    | Blocks the launch flow | Runs in the background  |
+| `session.on_start` | Blocks until done      | Runs in the background  |
+| `session.on_exit` | Blocks until done      | Runs in the background  |
+| `app.on_quit`     | Blocks until done       | Forced sync (see below) |
 
-Quit hooks are bounded so a slow command does not stall the app's shutdown. If the budget elapses, lingering child processes are terminated and a line is appended to `hook.log`.
+`app.on_quit` is special: every command runs synchronously regardless of its `sync` flag, against a shared **2 second total budget**. Async commands started during quit would be orphaned by the exiting process anyway, so they are forced sync to give them a real chance to finish before exit.
 
-For async hooks, each individual command is killed if it has not exited within 30 seconds.
+Each command also has its own timeout (5s sync default, 30s async default, or the value of `timeoutSeconds`). Whichever fires first wins.
 
 ## Context environment variables
 
@@ -74,7 +92,25 @@ The full process environment of Liney itself is also inherited, so `$HOME`, `$PA
 
 ## Logging
 
-Failures (non-zero exit, timeout, or a parse error in `hooks.json`) are appended to `~/.liney/hook.log`. The file is capped at 256 KB; older lines are trimmed when the cap is reached.
+Every hook invocation is appended to `~/.liney/hook.log` along with timing breakdown:
+
+```
+2026-05-01T20:42:17.345Z hook config: loaded 3 commands in 1ms
+2026-05-01T20:42:17.346Z hook session.on_start [async]: spawn=2ms total=14ms exit=0 cmd="echo hi"
+2026-05-01T20:42:18.001Z hook session.on_start [sync]: spawn=3ms total=42ms exit=0 cmd="load-project-env"
+2026-05-01T20:42:30.500Z hook app.on_quit [blocking]: spawn=2ms total=512ms exit=0 cmd="rsync ..."
+```
+
+Fields:
+
+- **mode** — `sync`, `async`, or `blocking` (`app.on_quit` only).
+- **spawn** — time from `Process.run()` until the child began running. Useful for spotting fork-related slowness.
+- **total** — total wall-clock time from invocation to completion.
+- **exit** — process exit code. Anything non-zero or a `timeout` marker also writes the first 400 bytes of stderr / stdout for debugging.
+
+The `hook config: loaded N commands in Mms` line fires only when the runner actually re-reads `hooks.json` — i.e., on first use and whenever the file's mtime changes. Cache hits are silent.
+
+The log is capped at 256 KB; older lines are trimmed when the cap is reached.
 
 Open it from **Settings → Hooks → Open hook.log**, or `tail -f ~/.liney/hook.log` from any terminal.
 

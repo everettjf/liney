@@ -34,9 +34,9 @@ final class HookSettingsTests: XCTestCase {
 
     func testRoundTripEncodingPreservesKindsAndCommands() throws {
         let original = HookSettings(hooks: [
-            .appOnLaunch: [HookCommand(enabled: true, command: "echo launch")],
+            .appOnLaunch: [HookCommand(enabled: true, sync: true, command: "echo launch", timeoutSeconds: 3)],
             .appOnQuit: [],
-            .sessionOnStart: [HookCommand(enabled: false, command: "echo start")],
+            .sessionOnStart: [HookCommand(enabled: false, sync: false, command: "echo start")],
             .sessionOnExit: []
         ])
 
@@ -50,6 +50,35 @@ final class HookSettingsTests: XCTestCase {
         XCTAssertEqual(decoded.hooks[.appOnQuit], original.hooks[.appOnQuit])
         XCTAssertEqual(decoded.hooks[.sessionOnStart], original.hooks[.sessionOnStart])
         XCTAssertEqual(decoded.hooks[.sessionOnExit], original.hooks[.sessionOnExit])
+        XCTAssertEqual(decoded.hooks[.appOnLaunch]?.first?.sync, true)
+        XCTAssertEqual(decoded.hooks[.appOnLaunch]?.first?.timeoutSeconds, 3)
+    }
+
+    func testCommandDecodingDefaultsSyncToFalseAndTimeoutToNil() throws {
+        let json = """
+        {
+          "version": 1,
+          "hooks": {
+            "app.on_launch": [{ "enabled": true, "command": "echo legacy" }]
+          }
+        }
+        """
+        let decoded = try JSONDecoder().decode(HookSettings.self, from: Data(json.utf8))
+        let cmd = decoded.hooks[.appOnLaunch]?.first
+        XCTAssertEqual(cmd?.command, "echo legacy")
+        XCTAssertEqual(cmd?.sync, false)
+        XCTAssertNil(cmd?.timeoutSeconds)
+        XCTAssertEqual(cmd?.effectiveTimeout, HookCommand.defaultAsyncTimeout)
+    }
+
+    func testEffectiveTimeoutUsesPerModeDefaults() {
+        let async = HookCommand(sync: false, command: "echo")
+        let sync = HookCommand(sync: true, command: "echo")
+        let overridden = HookCommand(sync: true, command: "echo", timeoutSeconds: 1.5)
+
+        XCTAssertEqual(async.effectiveTimeout, HookCommand.defaultAsyncTimeout)
+        XCTAssertEqual(sync.effectiveTimeout, HookCommand.defaultSyncTimeout)
+        XCTAssertEqual(overridden.effectiveTimeout, 1.5)
     }
 
     func testDecodingIgnoresUnknownHookKinds() throws {
