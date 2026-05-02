@@ -34,6 +34,7 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
     case terminal
     case theme
     case urlScheme
+    case hooks
     case sidebar
     case dynamicIsland
     case shortcuts
@@ -46,7 +47,7 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
 
     var group: SettingsSidebarGroup {
         switch self {
-        case .general, .hotKeyWindow, .externalEditor, .terminal, .theme, .urlScheme, .updates:
+        case .general, .hotKeyWindow, .externalEditor, .terminal, .theme, .urlScheme, .hooks, .updates:
             return .app
         case .sidebar, .dynamicIsland, .shortcuts:
             return .customize
@@ -69,6 +70,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "settings.section.theme.title"
         case .urlScheme:
             return "settings.section.urlScheme.title"
+        case .hooks:
+            return "settings.section.hooks.title"
         case .sidebar:
             return "settings.section.sidebar.title"
         case .dynamicIsland:
@@ -100,6 +103,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "settings.section.theme.subtitle"
         case .urlScheme:
             return "settings.section.urlScheme.subtitle"
+        case .hooks:
+            return "settings.section.hooks.subtitle"
         case .sidebar:
             return "settings.section.sidebar.subtitle"
         case .dynamicIsland:
@@ -131,6 +136,8 @@ private enum SettingsSheetSection: String, CaseIterable, Identifiable {
             return "paintpalette"
         case .urlScheme:
             return "link"
+        case .hooks:
+            return "bolt.horizontal"
         case .sidebar:
             return "sidebar.leading"
         case .dynamicIsland:
@@ -593,6 +600,8 @@ struct SettingsSheet: View {
             themeSettingsView
         case .urlScheme:
             urlSchemeSettingsView
+        case .hooks:
+            HooksSettingsView(appSettings: $appSettings)
         case .sidebar:
             sidebarSettingsView
         case .dynamicIsland:

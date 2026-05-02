@@ -92,6 +92,7 @@ public final class LineyDesktopApplication: NSObject {
     private var windowContexts: [WindowContext] = []
     private var hotKeyWindowSettings = AppSettings()
     private var lastPrimaryWindowState: PersistedWorkspaceState?
+    private var hasFiredAppLaunchHook = false
 
     public override init() {
         super.init()
@@ -113,6 +114,7 @@ public final class LineyDesktopApplication: NSObject {
 
         Task { @MainActor in
             await loadWindowContextIfNeeded(context, updateHotKeySettings: true)
+            self.fireAppLaunchHookIfNeeded()
         }
     }
 
@@ -139,6 +141,32 @@ public final class LineyDesktopApplication: NSObject {
             context.store.stopSleepPrevention()
             context.store.flushPendingPersistence()
         }
+        HookRunner.shared.fireBlocking(
+            .appOnQuit,
+            context: HookContext.app(appVersion: Self.applicationVersion()),
+            timeout: HookRunner.appQuitTimeout
+        )
+    }
+
+    private func fireAppLaunchHookIfNeeded() {
+        guard !hasFiredAppLaunchHook else { return }
+        hasFiredAppLaunchHook = true
+        // Sync the master switch from the loaded settings before the first
+        // notification has a chance to fire — otherwise the on_launch hook
+        // would never see the toggle as enabled on cold start.
+        let enabled = activeStore?.appSettings.hooksEnabled
+            ?? primaryWindowContext?.store.appSettings.hooksEnabled
+            ?? hotKeyWindowSettings.hooksEnabled
+        HookRunner.shared.updateMasterSwitch(enabled)
+        HookRunner.shared.fire(
+            .appOnLaunch,
+            context: HookContext.app(appVersion: Self.applicationVersion())
+        )
+    }
+
+    static func applicationVersion() -> String {
+        let info = Bundle.main.infoDictionary
+        return (info?["CFBundleShortVersionString"] as? String) ?? "0.0.0"
     }
 
     public func navigateToWorkspace(id workspaceID: UUID, worktreePath: String? = nil) {

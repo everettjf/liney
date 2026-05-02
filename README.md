@@ -49,9 +49,14 @@ Download the latest signed `.dmg` from GitHub Releases:
 ## Links
 
 - Website: <https://liney.dev>
+- Docs: <https://liney.dev/docs/intro>
 - Releases: <https://github.com/everettjf/liney/releases>
 - Issues: <https://github.com/everettjf/liney/issues>
 - Discord: <https://discord.com/invite/eGzEaP6TzR>
+
+Power features:
+
+- [Lifecycle hooks](https://liney.dev/docs/guides/lifecycle-hooks) — run a command when the app or a session starts/exits
 
 ## Branches
 
