@@ -80,6 +80,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 Task { @MainActor in
                     self.applicationMenuController.applySettings(settings)
                     self.desktopApplication?.updateHotKeyWindowSettings(settings)
+                    HookRunner.shared.updateMasterSwitch(settings.hooksEnabled)
                     if settings.dynamicIslandEnabled {
                         IslandPanelController.shared.workspaceStore = self.desktopApplication?.activeWorkspaceStore
                         IslandPanelController.shared.show()

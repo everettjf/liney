@@ -49,9 +49,14 @@ brew update && brew install --cask everettjf/tap/liney
 ## 相关链接
 
 - Website: <https://liney.dev>
+- 文档: <https://liney.dev/docs/intro>
 - Releases: <https://github.com/everettjf/liney/releases>
 - Issues: <https://github.com/everettjf/liney/issues>
 - Discord: <https://discord.com/invite/eGzEaP6TzR>
+
+进阶功能：
+
+- [生命周期钩子](https://liney.dev/docs/guides/lifecycle-hooks) — 在应用或会话启动/退出时执行自定义命令
 
 ## 分支说明
 

@@ -222,6 +222,7 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.startManagedSessionIfNeeded()
         surfaceController.setFocused(isFocusedInWorkspace)
         syncManagedProcessStateAfterLaunch()
+        HookRunner.shared.fire(.sessionOnStart, context: makeHookContext())
     }
 
     func restart(in workingDirectory: String? = nil) {
@@ -396,6 +397,25 @@ final class ShellSession: ObservableObject, Identifiable {
         self.exitCode = exitCode
         lifecycle = .exited
         pid = nil
+        HookRunner.shared.fire(.sessionOnExit, context: makeHookContext(exitCode: exitCode))
+    }
+
+    private func makeHookContext(exitCode: Int32? = nil) -> HookContext {
+        let backend: String
+        switch backendConfiguration.kind {
+        case .localShell: backend = "localShell"
+        case .ssh: backend = "ssh"
+        case .agent: backend = "agent"
+        case .tmuxAttach: backend = "tmuxAttach"
+        }
+        return HookContext(
+            appVersion: LineyDesktopApplication.applicationVersion(),
+            sessionID: id.uuidString.lowercased(),
+            sessionCWD: effectiveWorkingDirectory,
+            sessionShell: launchConfiguration.command.executablePath,
+            sessionBackend: backend,
+            sessionExitCode: exitCode
+        )
     }
 
     private func restorableBackendConfiguration() -> SessionBackendConfiguration {

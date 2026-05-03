@@ -361,6 +361,7 @@ struct AppSettings: Codable, Hashable {
     var sidebarRootOrder: [SidebarRootItem]
     var keyboardShortcutOverrides: [String: KeyboardShortcutOverride]
     var logLevel: AppLogLevel
+    var hooksEnabled: Bool
 
     init(
         appLanguage: AppLanguage = .automatic,
@@ -407,7 +408,8 @@ struct AppSettings: Codable, Hashable {
         workspaceGroups: [WorkspaceGroup] = [],
         sidebarRootOrder: [SidebarRootItem] = [],
         keyboardShortcutOverrides: [String: KeyboardShortcutOverride] = [:],
-        logLevel: AppLogLevel = .off
+        logLevel: AppLogLevel = .off,
+        hooksEnabled: Bool = false
     ) {
         let normalizedKeyboardShortcutOverrides = LineyKeyboardShortcuts.normalizedOverrides(keyboardShortcutOverrides)
         let normalizedAgentPresets = lineyNormalizedAgentPresets(agentPresets)
@@ -479,6 +481,7 @@ struct AppSettings: Codable, Hashable {
         self.workspaceGroups = workspaceGroups
         self.sidebarRootOrder = sidebarRootOrder
         self.logLevel = logLevel
+        self.hooksEnabled = hooksEnabled
     }
 }
 
@@ -529,6 +532,7 @@ extension AppSettings {
         case sidebarRootOrder
         case keyboardShortcutOverrides
         case logLevel
+        case hooksEnabled
     }
 
     init(from decoder: any Decoder) throws {
@@ -586,7 +590,8 @@ extension AppSettings {
             workspaceGroups: try container.decodeIfPresent([WorkspaceGroup].self, forKey: .workspaceGroups) ?? [],
             sidebarRootOrder: try container.decodeIfPresent([SidebarRootItem].self, forKey: .sidebarRootOrder) ?? [],
             keyboardShortcutOverrides: try container.decodeIfPresent([String: KeyboardShortcutOverride].self, forKey: .keyboardShortcutOverrides) ?? [:],
-            logLevel: try container.decodeIfPresent(AppLogLevel.self, forKey: .logLevel) ?? .off
+            logLevel: try container.decodeIfPresent(AppLogLevel.self, forKey: .logLevel) ?? .off,
+            hooksEnabled: try container.decodeIfPresent(Bool.self, forKey: .hooksEnabled) ?? false
         )
     }
 }
