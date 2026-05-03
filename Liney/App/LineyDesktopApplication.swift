@@ -183,6 +183,56 @@ public final class LineyDesktopApplication: NSObject {
         }
     }
 
+    /// Routes a notification delivered through the `liney notify` CLI to the
+    /// most relevant workspace. Pane and workspace IDs in the request narrow
+    /// the target; otherwise the active workspace receives the notification.
+    func routeAgentNotification(_ request: AgentNotifyRequest) {
+        let paneID = request.paneID.flatMap { UUID(uuidString: $0) }
+        let workspaceID = request.workspaceID.flatMap { UUID(uuidString: $0) }
+
+        // 1. Explicit workspace ID wins.
+        if let workspaceID {
+            for context in windowContexts {
+                if let workspace = context.store.workspaces.first(where: { $0.id == workspaceID }) {
+                    workspace.postAgentNotification(
+                        title: request.title,
+                        body: request.body,
+                        paneID: paneID,
+                        agentName: request.agentName
+                    )
+                    return
+                }
+            }
+        }
+
+        // 2. Pane lookup: find the workspace whose currently-active session
+        //    controller owns the pane (the `LINEY_PANE_ID` env var path).
+        if let paneID {
+            for context in windowContexts {
+                for workspace in context.store.workspaces
+                where workspace.sessionController.session(for: paneID) != nil {
+                    workspace.postAgentNotification(
+                        title: request.title,
+                        body: request.body,
+                        paneID: paneID,
+                        agentName: request.agentName
+                    )
+                    return
+                }
+            }
+        }
+
+        // 3. Fallback: active workspace.
+        if let workspace = activeWorkspaceStore?.selectedWorkspace {
+            workspace.postAgentNotification(
+                title: request.title,
+                body: request.body,
+                paneID: paneID,
+                agentName: request.agentName
+            )
+        }
+    }
+
     public func createNewWindow() {
         let context = makeWindowContext(
             persistsWorkspaceState: windowContexts.isEmpty,

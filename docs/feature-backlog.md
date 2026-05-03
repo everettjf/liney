@@ -2,6 +2,8 @@
 
 This document turns the current product discussion into tracked, scoped GitHub issues that fit the existing Liney architecture.
 
+The "agent host" track is captured separately in [agent-host-roadmap.md](./agent-host-roadmap.md).
+
 ## Priorities
 
 ### P0

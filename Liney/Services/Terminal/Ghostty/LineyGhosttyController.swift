@@ -207,7 +207,7 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
             let body = action.action.desktop_notification.body.map(String.init(cString:))
             let islandEnabled = IslandPanelController.shared.workspaceStore?.appSettings.dynamicIslandEnabled == true
             if islandEnabled {
-                onWorkspaceAction?(.desktopNotification(title: body ?? title))
+                onWorkspaceAction?(.desktopNotification(title: title, body: body))
             } else {
                 LineyGhosttyNotificationCenter.shared.deliver(title: title, body: body)
             }

@@ -1108,21 +1108,47 @@ final class WorkspaceModel: ObservableObject, Identifiable {
             toggleZoom(on: paneID)
         case .closePane:
             closePane(paneID)
-        case .desktopNotification(let title):
-            let item = IslandNotificationItem(
-                id: UUID(),
-                workspaceID: id,
-                worktreePath: activeWorktreePath,
+        case .desktopNotification(let title, let body):
+            postAgentNotification(
                 title: title,
-                agentName: nil,
-                terminalTag: nil,
-                status: .running,
-                startedAt: Date(),
-                body: nil,
-                prompt: nil
+                body: body,
+                paneID: paneID,
+                agentName: nil
             )
-            IslandNotificationState.shared.post(item: item)
-            IslandPanelController.shared.show()
         }
+    }
+
+    func postAgentNotification(
+        title: String,
+        body: String?,
+        paneID: UUID?,
+        agentName: String?
+    ) {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBody = body?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle: String
+        let resolvedBody: String?
+        if trimmedTitle.isEmpty, let trimmedBody, !trimmedBody.isEmpty {
+            resolvedTitle = trimmedBody
+            resolvedBody = nil
+        } else {
+            resolvedTitle = trimmedTitle.isEmpty ? "Liney" : trimmedTitle
+            resolvedBody = (trimmedBody?.isEmpty == false) ? trimmedBody : nil
+        }
+        let terminalTag = paneID?.uuidString.lowercased()
+        let item = IslandNotificationItem(
+            id: UUID(),
+            workspaceID: id,
+            worktreePath: activeWorktreePath,
+            title: resolvedTitle,
+            agentName: agentName,
+            terminalTag: terminalTag,
+            status: .running,
+            startedAt: Date(),
+            body: resolvedBody,
+            prompt: nil
+        )
+        IslandNotificationState.shared.post(item: item)
+        IslandPanelController.shared.show()
     }
 }
