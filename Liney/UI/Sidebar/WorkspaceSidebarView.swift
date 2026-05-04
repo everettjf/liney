@@ -1879,6 +1879,13 @@ private struct WorkspaceRowContent: View {
                     if !workspace.workflows.isEmpty {
                         SidebarInfoBadge(text: localized("sidebar.badge.flow"), tone: .accent)
                     }
+
+                    if !workspace.listeningPorts.isEmpty {
+                        SidebarInfoBadge(
+                            text: lineySidebarListeningPortsBadgeText(workspace.listeningPorts),
+                            tone: .success
+                        )
+                    }
                 }
             }
         }

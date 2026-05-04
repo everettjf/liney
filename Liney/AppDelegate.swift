@@ -264,8 +264,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @MainActor
     private func startAgentNotifyServer() {
         guard agentNotifyServer == nil else { return }
-        let server = AgentNotifyServer { [weak self] request in
-            self?.desktopApplication?.routeAgentNotification(request)
+        let dispatcher = LineyControlDispatcher(host: desktopApplication)
+        let server = AgentNotifyServer { [weak dispatcher] frame -> Data? in
+            guard let dispatcher else { return nil }
+            return AgentNotifyMainActorBridge.dispatchOnMain(frame, dispatcher: dispatcher)
         }
         do {
             try server.start()

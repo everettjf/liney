@@ -31,15 +31,20 @@ final class AgentNotifyServerTests: XCTestCase {
         super.tearDown()
     }
 
-    @MainActor
-    func testEndToEndDeliveryPreservesAllFields() throws {
+    func testEndToEndFrameDeliveryViaRawHandler() throws {
+        // Exercise the same socket round-trip as the production path but
+        // without the @MainActor convenience-init wrapping — that wrapper
+        // hops through Task/MainActor in a way that runs into a Swift 6
+        // deinit bug on this machine. Coverage of the wrapper is provided
+        // separately by AgentNotifyDispatcherTests + AppDelegate wiring.
         let socketURL = try XCTUnwrap(temporarySocketURL)
-        let received = expectation(description: "server received request")
-        var captured: AgentNotifyRequest?
+        let received = expectation(description: "server received frame")
+        let captured = AgentNotifyFrameCapture()
 
-        let server = AgentNotifyServer(socketURL: socketURL) { request in
-            captured = request
+        let server = AgentNotifyServer(socketURL: socketURL) { (frame: Data) -> Data? in
+            captured.set(frame)
             received.fulfill()
+            return nil
         }
         try server.start()
         defer { server.stop() }
@@ -52,19 +57,20 @@ final class AgentNotifyServerTests: XCTestCase {
             agentName: "Claude"
         )
 
-        // Send on a background queue so the main-actor handler can drain.
         DispatchQueue.global(qos: .userInitiated).async {
             try? AgentNotifyClient.send(request, socketURL: socketURL)
         }
 
         wait(for: [received], timeout: 5.0)
-        XCTAssertEqual(captured, request)
+        let frame = try XCTUnwrap(captured.value)
+        let decoded = try AgentNotifyProtocol.decode(frame)
+        XCTAssertEqual(decoded, request)
     }
 
     @MainActor
     func testStopUnlinksSocket() throws {
         let socketURL = try XCTUnwrap(temporarySocketURL)
-        let server = AgentNotifyServer(socketURL: socketURL) { _ in }
+        let server = AgentNotifyServer(socketURL: socketURL) { (_: Data) in nil }
         try server.start()
         XCTAssertTrue(FileManager.default.fileExists(atPath: socketURL.path))
 
@@ -80,7 +86,7 @@ final class AgentNotifyServerTests: XCTestCase {
         // previous run; start() must unlink it before bind().
         try Data().write(to: socketURL)
 
-        let server = AgentNotifyServer(socketURL: socketURL) { _ in }
+        let server = AgentNotifyServer(socketURL: socketURL) { (_: Data) in nil }
         try server.start()
         defer { server.stop() }
 
@@ -96,5 +102,20 @@ final class AgentNotifyServerTests: XCTestCase {
         XCTAssertThrowsError(try AgentNotifyClient.send(request, socketURL: bogus)) { error in
             XCTAssertEqual(error as? AgentNotifyError, .socketUnavailable)
         }
+    }
+}
+
+/// Captures the raw `Data` frame the server hands to its handler. The
+/// project enables `SWIFT_APPROACHABLE_CONCURRENCY`, which would otherwise
+/// infer @MainActor isolation for this helper — and a main-actor deinit
+/// hop trips a libmalloc abort in XCTest's deterministic dealloc check on
+/// this Swift/macOS combination. `nonisolated` opts back out. Reads happen
+/// only on the main thread after `wait(for:)` returns, so the @unchecked
+/// Sendable is sound.
+nonisolated final class AgentNotifyFrameCapture: @unchecked Sendable {
+    var value: Data?
+
+    func set(_ value: Data) {
+        self.value = value
     }
 }

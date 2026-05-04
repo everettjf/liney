@@ -513,6 +513,13 @@ public final class LineyDesktopApplication: NSObject {
         activeWindowContext?.store ?? primaryWindowContext?.store
     }
 
+    /// All open workspace stores across windows. Exposed for the IPC
+    /// control host so it can iterate workspaces without reaching into
+    /// the private `WindowContext` struct.
+    var allWorkspaceStores: [WorkspaceStore] {
+        windowContexts.map(\.store)
+    }
+
     private var activeStore: WorkspaceStore? {
         activeWindowContext?.store
     }
