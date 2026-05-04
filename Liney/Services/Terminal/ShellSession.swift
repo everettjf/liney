@@ -99,7 +99,8 @@ final class ShellSession: ObservableObject, Identifiable {
     init(snapshot: PaneSnapshot) {
         let launchConfiguration = Self.makeLaunchConfiguration(
             backendConfiguration: snapshot.backendConfiguration,
-            preferredWorkingDirectory: snapshot.preferredWorkingDirectory
+            preferredWorkingDirectory: snapshot.preferredWorkingDirectory,
+            paneID: snapshot.id
         )
 
         let surface = TerminalSurfaceFactory.make(
@@ -130,7 +131,8 @@ final class ShellSession: ObservableObject, Identifiable {
         self.preferredWorkingDirectory = snapshot.preferredWorkingDirectory
         self.launchConfiguration = Self.makeLaunchConfiguration(
             backendConfiguration: snapshot.backendConfiguration,
-            preferredWorkingDirectory: snapshot.preferredWorkingDirectory
+            preferredWorkingDirectory: snapshot.preferredWorkingDirectory,
+            paneID: snapshot.id
         )
         self.title = launchConfiguration.command.displayName
         self.surfaceController = surfaceController
@@ -212,7 +214,8 @@ final class ShellSession: ObservableObject, Identifiable {
     func start() {
         launchConfiguration = Self.makeLaunchConfiguration(
             backendConfiguration: backendConfiguration,
-            preferredWorkingDirectory: preferredWorkingDirectory
+            preferredWorkingDirectory: preferredWorkingDirectory,
+            paneID: id
         )
         title = launchConfiguration.command.displayName
 
@@ -234,7 +237,8 @@ final class ShellSession: ObservableObject, Identifiable {
         let previousLaunchConfiguration = launchConfiguration
         launchConfiguration = Self.makeLaunchConfiguration(
             backendConfiguration: backendConfiguration,
-            preferredWorkingDirectory: preferredWorkingDirectory
+            preferredWorkingDirectory: preferredWorkingDirectory,
+            paneID: id
         )
         surfaceController.updateLaunchConfiguration(launchConfiguration)
         processReaper(previousLaunchConfiguration)
@@ -379,9 +383,11 @@ final class ShellSession: ObservableObject, Identifiable {
 
     private static func makeLaunchConfiguration(
         backendConfiguration: SessionBackendConfiguration,
-        preferredWorkingDirectory: String
+        preferredWorkingDirectory: String,
+        paneID: UUID
     ) -> TerminalLaunchConfiguration {
-        let baseEnvironment = LineyTerminalManagedProcessReaper.prepareEnvironment(defaultEnvironment())
+        var baseEnvironment = LineyTerminalManagedProcessReaper.prepareEnvironment(defaultEnvironment())
+        baseEnvironment[LineyAgentNotifyEnvironment.paneIDKey] = paneID.uuidString.lowercased()
         return backendConfiguration.makeLaunchConfiguration(
             preferredWorkingDirectory: preferredWorkingDirectory,
             baseEnvironment: baseEnvironment
@@ -550,7 +556,7 @@ enum TerminalWorkspaceAction {
     case equalizeSplits
     case togglePaneZoom
     case closePane
-    case desktopNotification(title: String)
+    case desktopNotification(title: String, body: String?)
 }
 
 nonisolated struct LineyTerminalManagedProcessMetadata: Equatable {

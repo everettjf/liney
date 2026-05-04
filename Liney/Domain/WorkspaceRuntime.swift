@@ -36,6 +36,17 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     @Published var zoomedPaneID: UUID?
     @Published var sshTarget: SSHSessionConfiguration?
 
+    /// TCP ports the focused pane (and its descendants) are listening on.
+    /// Refreshed every 10 seconds while the workspace is active. Empty when
+    /// no panes hold a listener — most panes won't.
+    @Published var listeningPorts: [Int] = []
+
+    /// Process names that own those listeners. Same lifecycle as
+    /// `listeningPorts`; used for tooltips ("vite, node :3000").
+    @Published var listeningPortProcessNames: [String] = []
+
+    private var listeningPortRefreshTask: Task<Void, Never>?
+
     /// Flipped to true by WorkspaceStore when this workspace becomes the
     /// selected one. Sessions are started lazily: at launch every workspace's
     /// sessionController is bootstrapped with idle panes, and only the active
@@ -46,6 +57,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         didSet {
             guard isActive, !oldValue else { return }
             sessionController.startAllIfNeeded()
+            startListeningPortRefreshLoop()
         }
     }
 
@@ -1108,21 +1120,91 @@ final class WorkspaceModel: ObservableObject, Identifiable {
             toggleZoom(on: paneID)
         case .closePane:
             closePane(paneID)
-        case .desktopNotification(let title):
-            let item = IslandNotificationItem(
-                id: UUID(),
-                workspaceID: id,
-                worktreePath: activeWorktreePath,
+        case .desktopNotification(let title, let body):
+            postAgentNotification(
                 title: title,
-                agentName: nil,
-                terminalTag: nil,
-                status: .running,
-                startedAt: Date(),
-                body: nil,
-                prompt: nil
+                body: body,
+                paneID: paneID,
+                agentName: nil
             )
-            IslandNotificationState.shared.post(item: item)
-            IslandPanelController.shared.show()
+        }
+    }
+
+    func postAgentNotification(
+        title: String,
+        body: String?,
+        paneID: UUID?,
+        agentName: String?
+    ) {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBody = body?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle: String
+        let resolvedBody: String?
+        if trimmedTitle.isEmpty, let trimmedBody, !trimmedBody.isEmpty {
+            resolvedTitle = trimmedBody
+            resolvedBody = nil
+        } else {
+            resolvedTitle = trimmedTitle.isEmpty ? "Liney" : trimmedTitle
+            resolvedBody = (trimmedBody?.isEmpty == false) ? trimmedBody : nil
+        }
+        let terminalTag = paneID?.uuidString.lowercased()
+        let item = IslandNotificationItem(
+            id: UUID(),
+            workspaceID: id,
+            worktreePath: activeWorktreePath,
+            title: resolvedTitle,
+            agentName: agentName,
+            terminalTag: terminalTag,
+            status: .running,
+            startedAt: Date(),
+            body: resolvedBody,
+            prompt: nil
+        )
+        IslandNotificationState.shared.post(item: item)
+        IslandPanelController.shared.show()
+    }
+
+    // MARK: - Listening port discovery
+
+    /// Idempotent: starts the periodic refresh loop the first time the
+    /// workspace is activated, no-ops thereafter. Stops itself when the
+    /// workspace is deinitialised (Task captures `self` weakly).
+    func startListeningPortRefreshLoop() {
+        guard listeningPortRefreshTask == nil else { return }
+        listeningPortRefreshTask = Task { [weak self] in
+            // Initial probe is fast — the user just switched to this
+            // workspace, so they want to see ports without a 10s wait.
+            await self?.refreshListeningPortsOnce()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                if Task.isCancelled { break }
+                await self?.refreshListeningPortsOnce()
+            }
+        }
+    }
+
+    private func refreshListeningPortsOnce() async {
+        let pids = sessionController.sessions.values.compactMap(\.pid)
+        guard !pids.isEmpty else {
+            if !listeningPorts.isEmpty || !listeningPortProcessNames.isEmpty {
+                listeningPorts = []
+                listeningPortProcessNames = []
+            }
+            return
+        }
+        var union = ListeningPortInspector.Result(ports: [], processNames: [])
+        for pid in pids {
+            let result = await ListeningPortInspector.inspect(rootPID: pid)
+            union.ports.append(contentsOf: result.ports)
+            union.processNames.append(contentsOf: result.processNames)
+        }
+        let dedupedPorts = Array(Set(union.ports)).sorted()
+        let dedupedNames = Array(Set(union.processNames)).sorted()
+        if dedupedPorts != listeningPorts {
+            listeningPorts = dedupedPorts
+        }
+        if dedupedNames != listeningPortProcessNames {
+            listeningPortProcessNames = dedupedNames
         }
     }
 }

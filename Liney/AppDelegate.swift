@@ -30,6 +30,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var suppressQuitConfirmationUntil: Date?
     @MainActor private var pendingIncomingURLs: [URL] = []
     @MainActor private var isReadyToHandleURLs = false
+    @MainActor private var agentNotifyServer: AgentNotifyServer?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         if lineyIsRunningTests() {
@@ -121,6 +122,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     }
                 }
                 self.drainPendingIncomingURLs()
+                self.startAgentNotifyServer()
             }
         }
     }
@@ -253,7 +255,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         guard Thread.isMainThread else { return }
         MainActor.assumeIsolated {
+            agentNotifyServer?.stop()
+            agentNotifyServer = nil
             desktopApplication?.shutdown()
+        }
+    }
+
+    @MainActor
+    private func startAgentNotifyServer() {
+        guard agentNotifyServer == nil else { return }
+        let dispatcher = LineyControlDispatcher(host: desktopApplication)
+        let server = AgentNotifyServer { [weak dispatcher] frame -> Data? in
+            guard let dispatcher else { return nil }
+            return AgentNotifyMainActorBridge.dispatchOnMain(frame, dispatcher: dispatcher)
+        }
+        do {
+            try server.start()
+            agentNotifyServer = server
+        } catch {
+            NSLog("[Liney] agent-notify server failed to start: %@", String(describing: error))
         }
     }
 

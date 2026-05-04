@@ -57,6 +57,7 @@ Download the latest signed `.dmg` from GitHub Releases:
 Power features:
 
 - [Lifecycle hooks](https://liney.dev/docs/guides/lifecycle-hooks) — run a command when the app or a session starts/exits
+- [Agent notifications](./docs/guides/agent-notifications.md) — `liney notify` CLI and OSC 9/777 sequences route through the dynamic island, scoped to the pane that fired them
 
 ## Branches
 
