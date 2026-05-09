@@ -135,16 +135,28 @@ sparkle_sign_embedded_frameworks() {
 sparkle_codesign_app() {
   local app_path="$1"
   local signing_identity="$2"
+  local entitlements_path="${3:-}"
 
   sparkle_sign_embedded_frameworks "$app_path" "$signing_identity" || return 1
   sparkle_sign_embedded_bundle "$app_path" "$signing_identity" || return 1
-  /usr/bin/codesign \
-    --force \
-    --sign "$signing_identity" \
-    --options runtime \
-    --timestamp \
-    --preserve-metadata=entitlements,requirements,flags \
-    "$app_path"
+
+  local sign_args=(
+    /usr/bin/codesign
+    --force
+    --sign "$signing_identity"
+    --options runtime
+    --timestamp
+  )
+  if [[ -n "$entitlements_path" ]]; then
+    if [[ ! -f "$entitlements_path" ]]; then
+      echo "Missing entitlements file: $entitlements_path" >&2
+      return 1
+    fi
+    sign_args+=(--entitlements "$entitlements_path")
+  else
+    sign_args+=(--preserve-metadata=entitlements,requirements,flags)
+  fi
+  "${sign_args[@]}" "$app_path"
 }
 
 sparkle_create_app_zip() {

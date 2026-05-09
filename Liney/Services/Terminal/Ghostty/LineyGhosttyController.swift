@@ -508,7 +508,6 @@ private final class LineyGhosttySurfaceView: NSView {
     private var surfaceUserdataToken: UnsafeMutableRawPointer?
     private var pointerShape: ghostty_action_mouse_shape_e = GHOSTTY_MOUSE_SHAPE_DEFAULT
     private var cursorVisible = true
-    private var cursorHiddenToken = false
     private var mouseInside = false
     private var markedText = NSMutableAttributedString()
     private var keyTextAccumulator: [String]?
@@ -1588,14 +1587,12 @@ private final class LineyGhosttySurfaceView: NSView {
     }
 
     private func updateCursorVisibility() {
-        let shouldHide = mouseInside && !cursorVisible
-        guard shouldHide != cursorHiddenToken else { return }
-        cursorHiddenToken = shouldHide
-        if shouldHide {
-            NSCursor.hide()
-        } else {
-            NSCursor.unhide()
-        }
+        // Use the system one-shot hide so the cursor reappears on any mouse
+        // motion. NSCursor.hide() increments a process-wide counter that must
+        // be balanced with unhide(); a missed unhide (focus change, surface
+        // teardown) leaves the cursor stuck invisible after a single click.
+        guard mouseInside, !cursorVisible else { return }
+        NSCursor.setHiddenUntilMouseMoves(true)
     }
 
     private func cursor(for shape: ghostty_action_mouse_shape_e) -> NSCursor {

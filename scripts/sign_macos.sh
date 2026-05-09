@@ -11,6 +11,7 @@ APP_BUNDLE_PATH="${APP_BUNDLE_PATH:-}"
 DMG_PATH="${DMG_PATH:-}"
 RELEASE_ARCHS="${RELEASE_ARCHS:-arm64 x86_64}"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
+ENTITLEMENTS_PATH="${ENTITLEMENTS_PATH:-$ROOT_DIR/Liney/Liney.entitlements}"
 BUILD_IF_MISSING="${BUILD_IF_MISSING:-1}"
 FORCE_REBUILD="${FORCE_REBUILD:-0}"
 NOTARIZE="${NOTARIZE:-0}"
@@ -184,7 +185,7 @@ if [[ ! -d "$APP_BUNDLE_PATH" ]]; then
 fi
 
 /usr/bin/codesign --remove-signature "$APP_BUNDLE_PATH" >/dev/null 2>&1 || true
-sparkle_codesign_app "$APP_BUNDLE_PATH" "$SIGNING_IDENTITY"
+sparkle_codesign_app "$APP_BUNDLE_PATH" "$SIGNING_IDENTITY" "$ENTITLEMENTS_PATH"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE_PATH"
 /usr/sbin/spctl --assess -vv --type execute "$APP_BUNDLE_PATH"
 

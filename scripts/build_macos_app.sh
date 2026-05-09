@@ -140,8 +140,9 @@ fi
 /usr/bin/ditto "$BUILT_APP_PATH" "$APP_BUNDLE_PATH"
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then
+  ENTITLEMENTS_PATH="${ENTITLEMENTS_PATH:-$ROOT_DIR/Liney/Liney.entitlements}"
   /usr/bin/codesign --remove-signature "$APP_BUNDLE_PATH" >/dev/null 2>&1 || true
-  sparkle_codesign_app "$APP_BUNDLE_PATH" "$SIGNING_IDENTITY"
+  sparkle_codesign_app "$APP_BUNDLE_PATH" "$SIGNING_IDENTITY" "$ENTITLEMENTS_PATH"
   /usr/bin/codesign --verify --deep --strict "$APP_BUNDLE_PATH"
 fi
 
