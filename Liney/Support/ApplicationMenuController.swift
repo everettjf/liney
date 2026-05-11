@@ -166,6 +166,9 @@ final class ApplicationMenuController: NSObject {
         workspaceMenuItem.submenu = workspaceMenu
         addShortcutItem(title: localized("menu.workspace.refreshSelected"), shortcutAction: .refreshSelectedWorkspace, to: workspaceMenu, target: target)
         addShortcutItem(title: localized("menu.workspace.refreshAll"), shortcutAction: .refreshAllRepositories, to: workspaceMenu, target: target)
+        workspaceMenu.addItem(.separator())
+        addShortcutItem(title: localized("menu.workspace.nextWorkspace"), shortcutAction: .nextWorkspace, to: workspaceMenu, target: target)
+        addShortcutItem(title: localized("menu.workspace.previousWorkspace"), shortcutAction: .previousWorkspace, to: workspaceMenu, target: target)
 
         let windowMenu = NSMenu(title: localized("menu.window"))
         windowMenuItem.submenu = windowMenu

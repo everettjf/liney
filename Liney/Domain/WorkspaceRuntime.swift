@@ -743,6 +743,14 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         state.upsertTab(newTab, selecting: true)
         worktreeStates[activeWorktreePath] = state
         loadActiveWorktreeState()
+        // Defer firstResponder until SwiftUI has mounted the new pane's
+        // surface — without it, SSH-backed surfaces never grab input focus
+        // on Cmd+T because their bootstrap is async and the logical
+        // setFocused flag alone doesn't issue makeFirstResponder.
+        let newPaneID = initialPane.id
+        DispatchQueue.main.async { [weak self] in
+            self?.sessionController.focus(newPaneID)
+        }
     }
 
     func selectTab(_ tabID: UUID) {

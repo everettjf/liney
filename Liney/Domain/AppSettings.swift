@@ -881,6 +881,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
     case openHistory
     case refreshSelectedWorkspace
     case refreshAllRepositories
+    case nextWorkspace
+    case previousWorkspace
     case newTab
     case closeTab
     case nextTab
@@ -924,7 +926,9 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
              .openHistory:
             return .general
         case .refreshSelectedWorkspace,
-             .refreshAllRepositories:
+             .refreshAllRepositories,
+             .nextWorkspace,
+             .previousWorkspace:
             return .workspace
         case .newTab,
              .closeTab,
@@ -996,6 +1000,10 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.refreshSelectedWorkspace.title")
         case .refreshAllRepositories:
             return lineyLocalizedSettingsString("settings.shortcuts.action.refreshAllRepositories.title")
+        case .nextWorkspace:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.nextWorkspace.title")
+        case .previousWorkspace:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.previousWorkspace.title")
         case .newTab:
             return lineyLocalizedSettingsString("settings.shortcuts.action.newTab.title")
         case .closeTab:
@@ -1079,6 +1087,10 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.refreshSelectedWorkspace.subtitle")
         case .refreshAllRepositories:
             return lineyLocalizedSettingsString("settings.shortcuts.action.refreshAllRepositories.subtitle")
+        case .nextWorkspace:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.nextWorkspace.subtitle")
+        case .previousWorkspace:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.previousWorkspace.subtitle")
         case .newTab:
             return lineyLocalizedSettingsString("settings.shortcuts.action.newTab.subtitle")
         case .closeTab:
@@ -1162,6 +1174,10 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return StoredShortcut(key: "r", command: true, shift: false, option: false, control: false)
         case .refreshAllRepositories:
             return StoredShortcut(key: "r", command: true, shift: true, option: false, control: false)
+        case .nextWorkspace:
+            return StoredShortcut(key: "]", command: true, shift: true, option: false, control: false)
+        case .previousWorkspace:
+            return StoredShortcut(key: "[", command: true, shift: true, option: false, control: false)
         case .newTab:
             return StoredShortcut(key: "t", command: true, shift: false, option: false, control: false)
         case .closeTab:

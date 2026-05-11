@@ -497,6 +497,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 return desktopApplication.selectedWorkspaceSupportsRepositoryFeatures
             case .refreshAllRepositories:
                 return desktopApplication.hasRepositoryWorkspaces
+            case .nextWorkspace, .previousWorkspace:
+                return desktopApplication.canCycleWorkspaces
             case .newTab:
                 return desktopApplication.hasSelectedWorkspace
             case .closeTab:
@@ -599,6 +601,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         case .refreshAllRepositories:
             desktopApplication?.refreshAllRepositories()
+
+        case .nextWorkspace:
+            desktopApplication?.selectNextWorkspace()
+
+        case .previousWorkspace:
+            desktopApplication?.selectPreviousWorkspace()
 
         case .newTab:
             desktopApplication?.createTabInSelectedWorkspace()

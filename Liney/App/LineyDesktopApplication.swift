@@ -283,6 +283,18 @@ public final class LineyDesktopApplication: NSObject {
         store.selectPreviousTab(in: workspace)
     }
 
+    public func selectNextWorkspace() {
+        activeStore?.selectNextWorkspace()
+    }
+
+    public func selectPreviousWorkspace() {
+        activeStore?.selectPreviousWorkspace()
+    }
+
+    public var canCycleWorkspaces: Bool {
+        (activeStore?.workspaces.count ?? 0) > 1
+    }
+
     func insertQuickCommand(_ preset: QuickCommandPreset) {
         activeStore?.insertQuickCommand(preset)
     }

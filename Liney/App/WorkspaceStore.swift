@@ -810,6 +810,24 @@ final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    func selectNextWorkspace() {
+        cycleSelectedWorkspace(by: 1)
+    }
+
+    func selectPreviousWorkspace() {
+        cycleSelectedWorkspace(by: -1)
+    }
+
+    private func cycleSelectedWorkspace(by offset: Int) {
+        guard !workspaces.isEmpty else { return }
+        let currentIndex = selectedWorkspaceID
+            .flatMap { id in workspaces.firstIndex(where: { $0.id == id }) }
+            ?? -1
+        let count = workspaces.count
+        let nextIndex = ((currentIndex + offset) % count + count) % count
+        selectWorkspace(workspaces[nextIndex])
+    }
+
     /// Flip the selected workspace's isActive flag. That triggers its
     /// WorkspaceSessionController to start any idle Ghostty surfaces —
     /// workspaces the user has never selected stay dormant so launch cost
