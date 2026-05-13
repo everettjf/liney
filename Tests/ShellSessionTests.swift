@@ -548,6 +548,7 @@ private final class FakeManagedTerminalSurfaceController: ManagedTerminalSession
     func selectedText() -> String? { nil }
     func toggleReadOnly() {}
     func scrollByLines(_ delta: Int) {}
+    func resetTerminal() {}
 
     func emitProcessExit(_ exitCode: Int32?) {
         needsConfirmQuit = false

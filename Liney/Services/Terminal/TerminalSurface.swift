@@ -50,6 +50,7 @@ protocol TerminalSurfaceController: AnyObject {
     func selectedText() -> String?
     func toggleReadOnly()
     func scrollByLines(_ delta: Int)
+    func resetTerminal()
 }
 
 @MainActor
@@ -124,6 +125,8 @@ private final class LineyTestManagedTerminalSurfaceController: ManagedTerminalSe
     func toggleReadOnly() {}
 
     func scrollByLines(_ delta: Int) {}
+
+    func resetTerminal() {}
 
     func updateLaunchConfiguration(_ configuration: TerminalLaunchConfiguration) {
         launchConfiguration = configuration

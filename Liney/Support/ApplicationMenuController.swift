@@ -116,6 +116,8 @@ final class ApplicationMenuController: NSObject {
         addShortcutItem(title: localized("menu.file.splitDown"), shortcutAction: .splitDown, to: fileMenu, target: target)
         addShortcutItem(title: localized("menu.file.duplicatePane"), shortcutAction: .duplicatePane, to: fileMenu, target: target)
         fileMenu.addItem(.separator())
+        addShortcutItem(title: localized("menu.file.resetTerminal"), shortcutAction: .resetTerminal, to: fileMenu, target: target)
+        fileMenu.addItem(.separator())
         addShortcutItem(title: localized("menu.file.closeTab"), shortcutAction: .closeTab, to: fileMenu, target: target)
         addShortcutItem(title: localized("menu.file.closePane"), shortcutAction: .closePane, to: fileMenu, target: target)
 

@@ -89,6 +89,11 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         _ = terminalView.performBindingAction("toggle_readonly")
     }
 
+    func resetTerminal() {
+        focus()
+        _ = terminalView.performBindingAction("reset")
+    }
+
     func scrollByLines(_ delta: Int) {
         guard delta != 0 else { return }
         // Prefer ghostty's `scroll_page_lines` binding which scrolls an exact

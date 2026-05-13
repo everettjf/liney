@@ -344,6 +344,16 @@ public final class LineyDesktopApplication: NSObject {
         store.closePane(in: workspace, paneID: paneID)
     }
 
+    func resetFocusedPaneTerminal() {
+        guard let store = activeStore,
+              let workspace = store.selectedWorkspace,
+              let paneID = workspace.sessionController.focusedPaneID,
+              let session = workspace.sessionController.session(for: paneID) else {
+            return
+        }
+        session.resetTerminal()
+    }
+
     /// Smart close: close focused pane if multiple panes exist, otherwise close the tab.
     func closeFocusedPaneOrTab() {
         guard let store = activeStore,

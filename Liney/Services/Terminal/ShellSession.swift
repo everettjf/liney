@@ -309,6 +309,10 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.toggleReadOnly()
     }
 
+    func resetTerminal() {
+        surfaceController.resetTerminal()
+    }
+
     func scrollByLines(_ delta: Int) {
         surfaceController.scrollByLines(delta)
     }

@@ -897,6 +897,7 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
     case duplicatePane
     case togglePaneZoom
     case closePane
+    case resetTerminal
     case minimizeWindow
     case closeWindow
     case enterFullScreen
@@ -944,7 +945,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
              .splitDown,
              .duplicatePane,
              .togglePaneZoom,
-             .closePane:
+             .closePane,
+             .resetTerminal:
             return .panes
         case .newWindow,
              .minimizeWindow,
@@ -1032,6 +1034,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.togglePaneZoom.title")
         case .closePane:
             return lineyLocalizedSettingsString("settings.shortcuts.action.closePane.title")
+        case .resetTerminal:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.resetTerminal.title")
         case .minimizeWindow:
             return lineyLocalizedSettingsString("settings.shortcuts.action.minimizeWindow.title")
         case .closeWindow:
@@ -1119,6 +1123,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.togglePaneZoom.subtitle")
         case .closePane:
             return lineyLocalizedSettingsString("settings.shortcuts.action.closePane.subtitle")
+        case .resetTerminal:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.resetTerminal.subtitle")
         case .minimizeWindow:
             return lineyLocalizedSettingsString("settings.shortcuts.action.minimizeWindow.subtitle")
         case .closeWindow:
@@ -1205,6 +1211,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
         case .togglePaneZoom:
             return StoredShortcut(key: "\r", command: true, shift: true, option: false, control: false)
         case .closePane:
+            return nil
+        case .resetTerminal:
             return nil
         case .minimizeWindow:
             return StoredShortcut(key: "m", command: true, shift: false, option: false, control: false)

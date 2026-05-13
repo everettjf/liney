@@ -515,7 +515,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                  .splitDown,
                  .duplicatePane,
                  .togglePaneZoom,
-                 .closePane:
+                 .closePane,
+                 .resetTerminal:
                 return desktopApplication.hasFocusedPane
             case .minimizeWindow, .closeWindow, .enterFullScreen:
                 return NSApp.keyWindow != nil
@@ -649,6 +650,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         case .closePane:
             desktopApplication?.closeFocusedPane()
+
+        case .resetTerminal:
+            desktopApplication?.resetFocusedPaneTerminal()
 
         case .minimizeWindow:
             NSApp.keyWindow?.performMiniaturize(nil)
