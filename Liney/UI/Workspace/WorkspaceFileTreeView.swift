@@ -363,7 +363,21 @@ private struct FileTreeRow: View {
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .onTapGesture { activate() }
+        .onDrag { dragItemProvider() }
         .contextMenu { contextMenu }
+    }
+
+    /// Drag payload for dropping onto a terminal (à la VSCode). Local entries
+    /// carry a file URL so the terminal shell-quotes the path (and drag-to-Finder
+    /// works); remote entries have no local URL, so the shell-quoted remote path
+    /// is provided as plain text, which the terminal inserts as-is.
+    private func dragItemProvider() -> NSItemProvider {
+        switch source {
+        case .local:
+            return NSItemProvider(object: entry.url as NSURL)
+        case .remote:
+            return NSItemProvider(object: entry.url.path.shellQuoted as NSString)
+        }
     }
 
     @ViewBuilder
