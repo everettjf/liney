@@ -92,6 +92,39 @@ actor SFTPService {
         return entries
     }
 
+    /// List files and directories at the given remote path.
+    ///
+    /// Unlike `listDirectories`, this returns both files and directories with an
+    /// `isDirectory` flag, and honors `includesHidden` (always dropping `.`/`..`).
+    /// Directories sort before files, then case-insensitively by name.
+    func listEntries(at path: String, includesHidden: Bool) async throws -> [SFTPFileEntry] {
+        let target = try currentTarget()
+        // `-p` appends `/` to directories so we can tell them apart; `-a` adds
+        // hidden entries. Omitting `-a` lets `ls` exclude dotfiles for us.
+        let command = includesHidden ? "ls -1pa \(path.shellQuoted)" : "ls -1p \(path.shellQuoted)"
+        let result = try await executeRemoteCommand(command, target: target)
+        guard result.exitCode == 0 else {
+            throw SFTPServiceError.commandFailed(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        let base = path.hasSuffix("/") ? path : path + "/"
+        return result.stdout
+            .components(separatedBy: "\n")
+            .compactMap { line -> SFTPFileEntry? in
+                guard !line.isEmpty else { return nil }
+                let isDirectory = line.hasSuffix("/")
+                let name = isDirectory ? String(line.dropLast()) : line
+                guard name != ".", name != "..", !name.isEmpty else { return nil }
+                return SFTPFileEntry(name: name, path: base + name, isDirectory: isDirectory)
+            }
+            .sorted { lhs, rhs in
+                if lhs.isDirectory != rhs.isDirectory {
+                    return lhs.isDirectory && !rhs.isDirectory
+                }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+    }
+
     /// Return the home directory on the remote host.
     func homeDirectory() async throws -> String {
         let target = try currentTarget()

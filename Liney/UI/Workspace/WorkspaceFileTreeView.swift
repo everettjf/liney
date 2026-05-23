@@ -19,10 +19,30 @@ struct WorkspaceFileTreeView: View {
     var body: some View {
         if let paneID = sessionController.focusedPaneID,
            let session = sessionController.session(for: paneID) {
-            FileTreeFollowingSession(workspace: workspace, session: session)
+            FileTreeFollowingSession(workspace: workspace, session: session, source: source)
         } else {
-            FileTreeContent(workspace: workspace, rootPath: workspace.activeWorktreePath)
+            FileTreeContent(workspace: workspace, rootPath: workspace.activeWorktreePath, source: source)
         }
+    }
+
+    /// Remote workspaces list their tree over SSH; everything else stays local.
+    private var source: DirectoryTreeSource {
+        if let target = workspace.sshTarget {
+            return .remote(target)
+        }
+        return .local
+    }
+}
+
+/// Where the file tree reads directory contents from: the local filesystem, or
+/// a remote host over SSH (used by SSH terminal / remote workspaces).
+enum DirectoryTreeSource: Equatable {
+    case local
+    case remote(SSHSessionConfiguration)
+
+    var isRemote: Bool {
+        if case .remote = self { return true }
+        return false
     }
 }
 
@@ -31,9 +51,10 @@ struct WorkspaceFileTreeView: View {
 private struct FileTreeFollowingSession: View {
     @ObservedObject var workspace: WorkspaceModel
     @ObservedObject var session: ShellSession
+    let source: DirectoryTreeSource
 
     var body: some View {
-        FileTreeContent(workspace: workspace, rootPath: session.effectiveWorkingDirectory)
+        FileTreeContent(workspace: workspace, rootPath: session.effectiveWorkingDirectory, source: source)
     }
 }
 
@@ -45,11 +66,34 @@ private struct FileTreeLoadKey: Hashable {
     let showsHidden: Bool
 }
 
-/// Off-main directory read shared by the root and each row.
-private func loadEntries(at url: URL, showsHidden: Bool) async -> [DirectoryTreeEntry] {
-    await Task.detached(priority: .userInitiated) {
-        DirectoryTreeLoader.entries(at: url, includesHidden: showsHidden)
-    }.value
+/// Off-main directory read shared by the root and each row. Dispatches to the
+/// local filesystem or to a remote host over SSH depending on `source`. Returns
+/// an empty list on any failure so the view falls back to its empty state.
+private func loadEntries(at path: String, source: DirectoryTreeSource, showsHidden: Bool) async -> [DirectoryTreeEntry] {
+    switch source {
+    case .local:
+        let url = URL(fileURLWithPath: path, isDirectory: true)
+        return await Task.detached(priority: .userInitiated) {
+            DirectoryTreeLoader.entries(at: url, includesHidden: showsHidden)
+        }.value
+    case .remote(let config):
+        do {
+            let remote = try await RemoteDirectoryConnectionPool.shared.listEntries(
+                config: config,
+                path: path,
+                includesHidden: showsHidden
+            )
+            return remote.map { entry in
+                DirectoryTreeEntry(
+                    url: URL(fileURLWithPath: entry.path, isDirectory: entry.isDirectory),
+                    name: entry.name,
+                    isDirectory: entry.isDirectory
+                )
+            }
+        } catch {
+            return []
+        }
+    }
 }
 
 private struct FileTreeContent: View {
@@ -57,6 +101,7 @@ private struct FileTreeContent: View {
     @ObservedObject private var localization = LocalizationManager.shared
     @ObservedObject var workspace: WorkspaceModel
     let rootPath: String
+    let source: DirectoryTreeSource
 
     @State private var selectedPath: String?
     @State private var showsHidden = false
@@ -86,6 +131,7 @@ private struct FileTreeContent: View {
                             FileTreeRow(
                                 entry: entry,
                                 depth: 0,
+                                source: source,
                                 showsHidden: showsHidden,
                                 reloadToken: reloadToken,
                                 selectedPath: $selectedPath,
@@ -107,12 +153,14 @@ private struct FileTreeContent: View {
             // focused pane's directory, refresh, or hidden toggle changes.
             .task(id: loadKey) {
                 isLoaded = false
-                guard DirectoryTreeLoader.isReadableDirectory(rootPath) else {
+                // Local readability can be checked up front; remote paths are
+                // validated by the listing itself (empty result on failure).
+                if !source.isRemote, !DirectoryTreeLoader.isReadableDirectory(rootPath) {
                     rootEntries = []
                     isLoaded = true
                     return
                 }
-                let loaded = await loadEntries(at: rootURL, showsHidden: showsHidden)
+                let loaded = await loadEntries(at: rootPath, source: source, showsHidden: showsHidden)
                 guard !Task.isCancelled else { return }
                 rootEntries = loaded
                 isLoaded = true
@@ -189,6 +237,9 @@ private struct FileTreeContent: View {
     private func open(entry: DirectoryTreeEntry) {
         selectedPath = entry.url.path
         guard !entry.isDirectory else { return }
+        // Remote files live on another host; opening/previewing them locally
+        // isn't possible yet, so selecting is the only action.
+        guard !source.isRemote else { return }
         if let content = WorkspacePreviewContent.makeFile(entry.url) {
             workspace.openPreview(content)
         } else {
@@ -235,6 +286,7 @@ private struct FileTreeRow: View {
     @ObservedObject private var localization = LocalizationManager.shared
     let entry: DirectoryTreeEntry
     let depth: Int
+    let source: DirectoryTreeSource
     let showsHidden: Bool
     let reloadToken: UUID
     @Binding var selectedPath: String?
@@ -261,6 +313,7 @@ private struct FileTreeRow: View {
                     FileTreeRow(
                         entry: child,
                         depth: depth + 1,
+                        source: source,
                         showsHidden: showsHidden,
                         reloadToken: reloadToken,
                         selectedPath: $selectedPath,
@@ -274,7 +327,7 @@ private struct FileTreeRow: View {
         // toggle. Attached to the always-present VStack so it fires reliably.
         .task(id: childLoadKey) {
             guard entry.isDirectory, isExpanded else { return }
-            let loaded = await loadEntries(at: entry.url, showsHidden: showsHidden)
+            let loaded = await loadEntries(at: entry.url.path, source: source, showsHidden: showsHidden)
             guard !Task.isCancelled else { return }
             children = loaded
         }
@@ -315,15 +368,19 @@ private struct FileTreeRow: View {
 
     @ViewBuilder
     private var contextMenu: some View {
-        if entry.isPreviewable {
+        // Preview / Reveal / Open externally act on the local filesystem, so
+        // they're omitted for remote entries; cd and Copy Path work for both.
+        if entry.isPreviewable, !source.isRemote {
             Button(localized("fileTree.menu.openInPreview")) { onCommand(.openInPreview, entry) }
             Divider()
         }
         if entry.isDirectory {
             Button(localized("fileTree.menu.cdHere")) { onCommand(.changeDirectory, entry) }
         }
-        Button(localized("fileTree.menu.reveal")) { onCommand(.reveal, entry) }
-        Button(localized("fileTree.menu.openExternal")) { onCommand(.openExternal, entry) }
+        if !source.isRemote {
+            Button(localized("fileTree.menu.reveal")) { onCommand(.reveal, entry) }
+            Button(localized("fileTree.menu.openExternal")) { onCommand(.openExternal, entry) }
+        }
         Button(localized("fileTree.menu.copyPath")) { onCommand(.copyPath, entry) }
     }
 
