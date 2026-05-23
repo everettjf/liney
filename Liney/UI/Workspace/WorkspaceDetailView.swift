@@ -51,15 +51,15 @@ private struct WorkspaceSessionDetailView: View {
     var body: some View {
         HSplitView {
             VStack(spacing: 8) {
-                if workspace.tabs.count > 1 {
-                    WorkspaceTabBarView(workspace: workspace)
+                if showsTabStrip {
+                    centerTabStrip
                 }
-                terminalContent
+                centerContent
             }
             .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
             .layoutPriority(1)
 
-            if showsRightColumn {
+            if workspace.isFileTreePresented {
                 rightColumn
                     .frame(minWidth: 240, idealWidth: 320, maxWidth: 480, maxHeight: .infinity)
             }
@@ -69,30 +69,50 @@ private struct WorkspaceSessionDetailView: View {
         }
     }
 
-    private var showsRightColumn: Bool {
-        workspace.isFileTreePresented || workspace.previewPanel != nil
+    /// The tab strip is shown when there is more than one terminal tab, or when
+    /// a preview tab is open (so it can be selected / dismissed).
+    private var showsTabStrip: Bool {
+        workspace.tabs.count > 1 || workspace.previewPanel != nil
     }
 
-    /// The right-hand "workbench" column: the directory tree (top) and the
-    /// preview panel (bottom). Either can be present on its own; together they
-    /// share the column via a resizable vertical split.
+    /// Terminal tabs plus, when a preview is loaded, a trailing preview chip.
     @ViewBuilder
-    private var rightColumn: some View {
-        VSplitView {
-            if workspace.isFileTreePresented {
-                WorkspaceFileTreeView(workspace: workspace, sessionController: workspace.sessionController)
-                    .frame(minHeight: 120, maxHeight: .infinity)
-            }
+    private var centerTabStrip: some View {
+        HStack(spacing: 6) {
+            WorkspaceTabBarView(workspace: workspace)
             if let preview = workspace.previewPanel {
-                WorkspacePreviewPanel(
+                CenterPreviewTabChip(
                     content: preview,
-                    onNavigate: { workspace.openPreview($0) },
+                    isSelected: workspace.isPreviewActive,
+                    onSelect: { workspace.showPreviewTab() },
                     onClose: { workspace.closePreview() }
                 )
-                .id(previewPanelIdentity(preview))
-                .frame(minHeight: 200, maxHeight: .infinity)
             }
         }
+    }
+
+    /// The main content area: the preview tab when active, otherwise the
+    /// terminal split tree.
+    @ViewBuilder
+    private var centerContent: some View {
+        if workspace.isPreviewActive, let preview = workspace.previewPanel {
+            WorkspacePreviewPanel(
+                content: preview,
+                onNavigate: { workspace.openPreview($0) },
+                onClose: { workspace.closePreview() }
+            )
+            .id(previewPanelIdentity(preview))
+        } else {
+            terminalContent
+        }
+    }
+
+    /// The right-hand "workbench" column. Now hosts only the directory tree —
+    /// the preview moved into the center area as its own tab.
+    @ViewBuilder
+    private var rightColumn: some View {
+        WorkspaceFileTreeView(workspace: workspace, sessionController: workspace.sessionController)
+            .frame(maxHeight: .infinity)
     }
 
     /// Recreate the panel only when switching between file and web modes (so a
@@ -150,11 +170,12 @@ private struct WorkspaceTabBarView: View {
                         WorkspaceTabButton(
                             title: tab.title,
                             paneCount: workspace.paneCount(for: tab.id),
-                            isSelected: workspace.activeTabID == tab.id,
+                            isSelected: workspace.activeTabID == tab.id && !workspace.isPreviewActive,
                             canClose: workspace.tabs.count > 1,
                             canMoveLeft: canMoveTabLeft(tab.id),
                             canMoveRight: canMoveTabRight(tab.id),
                             onSelect: {
+                                workspace.showTerminals()
                                 store.selectTab(in: workspace, tabID: tab.id)
                             },
                             onRename: {
@@ -530,6 +551,73 @@ private extension WorkspaceTabButton {
             return Color.black.opacity(0.18)
         }
         return .clear
+    }
+}
+
+/// The trailing chip in the center tab strip that selects / dismisses the
+/// preview tab. Styled like a terminal tab but driven by `previewPanel`.
+private struct CenterPreviewTabChip: View {
+    let content: WorkspacePreviewContent
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onClose: () -> Void
+
+    @State private var isHovered = false
+    @State private var isCloseHovered = false
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 6) {
+                Image(systemName: content.symbolName)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(isSelected ? LineyTheme.accent : LineyTheme.mutedText)
+                Text(content.title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 180, alignment: .leading)
+            }
+            .padding(.leading, 12)
+            .padding(.trailing, 30)
+            .padding(.vertical, 9)
+            .frame(minHeight: 38)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isSelected ? .white : LineyTheme.secondaryText)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isSelected ? LineyTheme.panelRaised : LineyTheme.paneHeaderBackground.opacity(isHovered ? 0.98 : 0.78))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isSelected ? LineyTheme.accent.opacity(0.42) : LineyTheme.border, lineWidth: isSelected ? 1.15 : 1)
+        )
+        .overlay(alignment: .trailing) {
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .frame(width: 16, height: 16)
+            }
+            .buttonStyle(WorkspaceTabCloseButtonStyle(isSelected: isSelected, isTabHovered: isHovered, isCloseHovered: isCloseHovered))
+            .onHover { isCloseHovered = $0 }
+            .padding(.trailing, 8)
+        }
+        .overlay(alignment: .topLeading) {
+            if isSelected {
+                Capsule()
+                    .fill(LineyTheme.accent)
+                    .frame(width: 26, height: 2.5)
+                    .padding(.top, 1)
+                    .padding(.leading, 12)
+            }
+        }
+        .layoutPriority(1)
+        .onHover { hovering in
+            isHovered = hovering
+            if !hovering { isCloseHovered = false }
+        }
+        .help(content.subtitle)
     }
 }
 
