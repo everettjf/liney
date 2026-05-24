@@ -175,7 +175,6 @@ private struct WorkspaceTabBarView: View {
                             canMoveLeft: canMoveTabLeft(tab.id),
                             canMoveRight: canMoveTabRight(tab.id),
                             onSelect: {
-                                workspace.showTerminals()
                                 store.selectTab(in: workspace, tabID: tab.id)
                             },
                             onRename: {

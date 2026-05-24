@@ -66,16 +66,24 @@ private struct FileTreeLoadKey: Hashable {
     let showsHidden: Bool
 }
 
+/// Outcome of a directory read: the listed entries, or a failure to list (so
+/// the view can tell a genuinely empty folder apart from one it couldn't read —
+/// e.g. a remote host the file tree's `BatchMode` SSH can't authenticate to).
+private enum DirectoryLoadResult {
+    case entries([DirectoryTreeEntry])
+    case unavailable
+}
+
 /// Off-main directory read shared by the root and each row. Dispatches to the
-/// local filesystem or to a remote host over SSH depending on `source`. Returns
-/// an empty list on any failure so the view falls back to its empty state.
-private func loadEntries(at path: String, source: DirectoryTreeSource, showsHidden: Bool) async -> [DirectoryTreeEntry] {
+/// local filesystem or to a remote host over SSH depending on `source`.
+private func loadEntries(at path: String, source: DirectoryTreeSource, showsHidden: Bool) async -> DirectoryLoadResult {
     switch source {
     case .local:
         let url = URL(fileURLWithPath: path, isDirectory: true)
-        return await Task.detached(priority: .userInitiated) {
+        let entries = await Task.detached(priority: .userInitiated) {
             DirectoryTreeLoader.entries(at: url, includesHidden: showsHidden)
         }.value
+        return .entries(entries)
     case .remote(let config):
         do {
             let remote = try await RemoteDirectoryConnectionPool.shared.listEntries(
@@ -83,15 +91,15 @@ private func loadEntries(at path: String, source: DirectoryTreeSource, showsHidd
                 path: path,
                 includesHidden: showsHidden
             )
-            return remote.map { entry in
+            return .entries(remote.map { entry in
                 DirectoryTreeEntry(
                     url: URL(fileURLWithPath: entry.path, isDirectory: entry.isDirectory),
                     name: entry.name,
                     isDirectory: entry.isDirectory
                 )
-            }
+            })
         } catch {
-            return []
+            return .unavailable
         }
     }
 }
@@ -108,6 +116,7 @@ private struct FileTreeContent: View {
     @State private var reloadToken = UUID()
     @State private var rootEntries: [DirectoryTreeEntry] = []
     @State private var isLoaded = false
+    @State private var loadFailed = false
 
     private func localized(_ key: String) -> String { localization.string(key) }
 
@@ -143,7 +152,7 @@ private struct FileTreeContent: View {
                     .padding(.vertical, 4)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } else if isLoaded {
-                    emptyMessage(localized("fileTree.empty"))
+                    emptyMessage(localized(loadFailed ? "fileTree.unavailable" : "fileTree.empty"))
                 } else {
                     emptyMessage(localized("fileTree.loading"))
                 }
@@ -154,15 +163,23 @@ private struct FileTreeContent: View {
             .task(id: loadKey) {
                 isLoaded = false
                 // Local readability can be checked up front; remote paths are
-                // validated by the listing itself (empty result on failure).
+                // validated by the listing itself (a failure marks it unavailable).
                 if !source.isRemote, !DirectoryTreeLoader.isReadableDirectory(rootPath) {
                     rootEntries = []
+                    loadFailed = false
                     isLoaded = true
                     return
                 }
-                let loaded = await loadEntries(at: rootPath, source: source, showsHidden: showsHidden)
+                let result = await loadEntries(at: rootPath, source: source, showsHidden: showsHidden)
                 guard !Task.isCancelled else { return }
-                rootEntries = loaded
+                switch result {
+                case .entries(let loaded):
+                    rootEntries = loaded
+                    loadFailed = false
+                case .unavailable:
+                    rootEntries = []
+                    loadFailed = true
+                }
                 isLoaded = true
             }
         }
@@ -327,9 +344,13 @@ private struct FileTreeRow: View {
         // toggle. Attached to the always-present VStack so it fires reliably.
         .task(id: childLoadKey) {
             guard entry.isDirectory, isExpanded else { return }
-            let loaded = await loadEntries(at: entry.url.path, source: source, showsHidden: showsHidden)
+            let result = await loadEntries(at: entry.url.path, source: source, showsHidden: showsHidden)
             guard !Task.isCancelled else { return }
-            children = loaded
+            if case .entries(let loaded) = result {
+                children = loaded
+            } else {
+                children = []
+            }
         }
     }
 

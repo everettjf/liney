@@ -825,6 +825,9 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     }
 
     func selectTab(_ tabID: UUID) {
+        // Selecting any terminal tab (mouse, keyboard, or programmatic) leaves
+        // the preview tab and returns the center area to the terminals.
+        isPreviewActive = false
         guard tabID != activeTabID else { return }
         saveActiveWorktreeState()
         var state = activeWorktreeState
