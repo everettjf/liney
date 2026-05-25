@@ -462,6 +462,9 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     }
 
     func createPane(splitAxis: PaneSplitAxis?, snapshot: PaneSnapshot? = nil, placement: PaneSplitPlacement) {
+        // Creating a session/pane means the user wants the terminals, so leave
+        // the preview tab if it was showing.
+        isPreviewActive = false
         let targetPane = sessionController.focusedPaneID ?? layout?.firstPaneID
         let defaultSnapshot: PaneSnapshot = {
             if kind == .sshTerminal {
