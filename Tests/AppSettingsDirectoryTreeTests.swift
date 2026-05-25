@@ -9,22 +9,22 @@ import XCTest
 @testable import Liney
 
 final class AppSettingsDirectoryTreeTests: XCTestCase {
-    func testDefaultsToEnabled() {
-        XCTAssertTrue(AppSettings().directoryTreeEnabled)
+    func testDefaultsToDisabled() {
+        XCTAssertFalse(AppSettings().directoryTreeEnabled)
     }
 
     func testRoundTrips() throws {
         var settings = AppSettings()
-        settings.directoryTreeEnabled = false
+        settings.directoryTreeEnabled = true
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
-        XCTAssertFalse(decoded.directoryTreeEnabled)
+        XCTAssertTrue(decoded.directoryTreeEnabled)
     }
 
-    func testLegacySettingsWithoutKeyDefaultToEnabled() throws {
-        // Settings persisted before this flag existed must default to on.
+    func testLegacySettingsWithoutKeyDefaultToDisabled() throws {
+        // Settings persisted before this flag existed default to off.
         let json = Data("{}".utf8)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: json)
-        XCTAssertTrue(decoded.directoryTreeEnabled)
+        XCTAssertFalse(decoded.directoryTreeEnabled)
     }
 }
