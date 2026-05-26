@@ -1,5 +1,11 @@
 # Liney Repository Collaboration Guide
 
+## 交流语言 / Communication Language
+
+**始终使用简体中文回复。** 无论用户使用何种语言提问,所有面向用户的回复、解释和总结都必须用简体中文。代码、标识符、命令、文件路径以及代码内的注释保持原样(通常为英文),不要翻译。
+
+**Always reply in Simplified Chinese.** Regardless of the language the user writes in, all user-facing responses, explanations, and summaries must be in Simplified Chinese. Keep code, identifiers, commands, file paths, and in-code comments as-is (usually English); do not translate them.
+
 ## Project Overview
 
 Liney is a native macOS terminal workspace app built around `AppKit + SwiftUI + a vendored Ghostty runtime`.
