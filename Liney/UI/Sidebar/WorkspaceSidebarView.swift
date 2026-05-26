@@ -1482,8 +1482,13 @@ private final class SidebarOutlineContainerView: NSView {
     }
 
     private func updateContentLayout() {
-        let visibleWidth = max(scrollView.contentSize.width, bounds.width)
-        let visibleHeight = max(scrollView.contentSize.height, bounds.height)
+        // Size the document view against the scroll view's own visible area
+        // (its clip view), not the container's bounds. The scroll view is
+        // shorter than the container because the footer occupies the bottom,
+        // so using `bounds` here made the document view taller than the clip
+        // view and left the vertical scroller permanently visible. (#112)
+        let visibleWidth = scrollView.contentSize.width
+        let visibleHeight = scrollView.contentSize.height
         let outlineHeight = outlineContentHeight()
         contentView.outlineHeight = outlineHeight
         let requiredHeight = contentView.requiredHeight(forWidth: visibleWidth)
