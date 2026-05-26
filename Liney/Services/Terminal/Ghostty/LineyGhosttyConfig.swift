@@ -74,6 +74,14 @@ enum LineyGhosttyConfigManager {
             lines.append("scrollback-limit = \(scrollbackLines)")
         }
 
+        // Only emit background-opacity when the terminal is meant to be
+        // translucent. At full opacity we leave it unset so Ghostty keeps its
+        // default opaque background (and the host view stays fully opaque).
+        if settings.terminalBackgroundOpacity < 1 {
+            let opacity = min(max(settings.terminalBackgroundOpacity, 0.5), 1)
+            lines.append("background-opacity = \(String(format: "%.2f", opacity))")
+        }
+
         return lines.joined(separator: "\n") + "\n"
     }
 

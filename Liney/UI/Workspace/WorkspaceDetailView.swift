@@ -17,9 +17,17 @@ struct WorkspaceDetailView: View {
         localization.string(key)
     }
 
+    private var terminalIsTranslucent: Bool {
+        store.appSettings.terminalBackgroundOpacity < 1
+    }
+
     var body: some View {
         ZStack {
-            WorkspaceBackdrop()
+            // The decorative backdrop is opaque; skip it when the terminal is
+            // translucent so the panes reveal whatever is behind the window.
+            if !terminalIsTranslucent {
+                WorkspaceBackdrop()
+            }
 
             Group {
                 if let workspace = store.selectedWorkspace {
@@ -35,7 +43,7 @@ struct WorkspaceDetailView: View {
             }
             .padding(6)
         }
-        .background(LineyTheme.appBackground)
+        .background(terminalIsTranslucent ? Color.clear : LineyTheme.appBackground)
     }
 }
 

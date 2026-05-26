@@ -125,6 +125,7 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         guard let surface = currentSurface else { return }
         ghostty_surface_update_config(surface, config)
         ghostty_surface_refresh(surface)
+        terminalView.applyBackingLayerBackground()
         terminalView.syncSurfaceMetrics()
     }
 
@@ -799,7 +800,6 @@ private final class LineyGhosttySurfaceView: NSView {
 
     func applyColorChange(_ change: ghostty_action_color_change_s) {
         guard change.kind == GHOSTTY_ACTION_COLOR_KIND_BACKGROUND else { return }
-        wantsLayer = true
         let color = NSColor(
             red: CGFloat(change.r) / 255,
             green: CGFloat(change.g) / 255,
@@ -807,7 +807,22 @@ private final class LineyGhosttySurfaceView: NSView {
             alpha: 1
         )
         surfaceBackgroundColor = color
-        layer?.backgroundColor = color.cgColor
+        applyBackingLayerBackground()
+    }
+
+    /// Applies the backing-layer background, honoring the configured terminal
+    /// opacity. When the terminal is translucent we keep the backing layer
+    /// clear so Ghostty's Metal `background-opacity` is the only thing painting
+    /// the background; otherwise we paint the opaque surface color (which also
+    /// avoids a transparent flash before the first frame renders).
+    func applyBackingLayerBackground() {
+        wantsLayer = true
+        let opacity = LineyGhosttyRuntime.shared.terminalBackgroundOpacity
+        if opacity < 1 {
+            layer?.backgroundColor = NSColor.clear.cgColor
+        } else if let surfaceBackgroundColor {
+            layer?.backgroundColor = surfaceBackgroundColor.cgColor
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -1289,10 +1304,7 @@ private final class LineyGhosttySurfaceView: NSView {
         }
         self.surface = surface
         self.surfaceUserdataToken = surfaceUserdataToken
-        if let surfaceBackgroundColor {
-            wantsLayer = true
-            layer?.backgroundColor = surfaceBackgroundColor.cgColor
-        }
+        applyBackingLayerBackground()
         ghostty_surface_set_focus(surface, workspaceFocused)
         syncSurfaceMetrics()
     }

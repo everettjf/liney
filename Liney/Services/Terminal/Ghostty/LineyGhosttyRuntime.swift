@@ -17,6 +17,11 @@ final class LineyGhosttyRuntime: NSObject {
     var app: ghostty_app_t!
     private var appSettingsObserver: NSObjectProtocol?
 
+    /// Current terminal background opacity (0.5...1). Surface views read this
+    /// to decide whether their backing layer should stay opaque or go clear so
+    /// Ghostty's `background-opacity` is the sole source of translucency.
+    private(set) var terminalBackgroundOpacity: CGFloat = 1
+
     var needsConfirmQuit: Bool {
         guard let app else { return false }
         return ghostty_app_needs_confirm_quit(app)
@@ -26,7 +31,9 @@ final class LineyGhosttyRuntime: NSObject {
         super.init()
         LineyGhosttyBootstrap.initialize()
 
-        config = Self.makeConfig(for: AppSettingsPersistence().load())
+        let initialSettings = AppSettingsPersistence().load()
+        terminalBackgroundOpacity = CGFloat(initialSettings.terminalBackgroundOpacity)
+        config = Self.makeConfig(for: initialSettings)
 
         var runtimeConfiguration = ghostty_runtime_config_s(
             userdata: Unmanaged.passUnretained(self).toOpaque(),
@@ -111,6 +118,7 @@ final class LineyGhosttyRuntime: NSObject {
     }
 
     private func apply(settings: AppSettings) {
+        terminalBackgroundOpacity = CGFloat(settings.terminalBackgroundOpacity)
         let nextConfig = Self.makeConfig(for: settings)
         ghostty_app_update_config(app, nextConfig)
         for controller in LineyGhosttyControllerRegistry.shared.liveControllers() {

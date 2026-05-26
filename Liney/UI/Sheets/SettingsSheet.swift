@@ -928,6 +928,24 @@ struct SettingsSheet: View {
                     Text(localized("settings.general.terminal.scrollbackHint"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
+
+                    Divider()
+
+                    HStack {
+                        Text(localized("settings.general.terminal.backgroundOpacity"))
+                        Spacer()
+                        Text("\(Int((appSettings.terminalBackgroundOpacity * 100).rounded()))%")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Slider(value: $appSettings.terminalBackgroundOpacity, in: 0.5...1, step: 0.05)
+
+                    Toggle(localized("settings.general.terminal.backgroundBlur"), isOn: $appSettings.terminalBackgroundBlur)
+                        .disabled(appSettings.terminalBackgroundOpacity >= 1)
+
+                    Text(localized("settings.general.terminal.backgroundOpacityHint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
                 .padding(.top, 8)
             }

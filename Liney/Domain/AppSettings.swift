@@ -340,6 +340,8 @@ struct AppSettings: Codable, Hashable {
     var terminalFontSize: Double?
     var terminalTheme: String?
     var terminalScrollbackLines: Int?
+    var terminalBackgroundOpacity: Double
+    var terminalBackgroundBlur: Bool
     var sidebarShowsSecondaryLabels: Bool
     var sidebarShowsWorkspaceBadges: Bool
     var sidebarShowsWorktreeBadges: Bool
@@ -389,6 +391,8 @@ struct AppSettings: Codable, Hashable {
         terminalFontSize: Double? = nil,
         terminalTheme: String? = nil,
         terminalScrollbackLines: Int? = nil,
+        terminalBackgroundOpacity: Double = 1,
+        terminalBackgroundBlur: Bool = false,
         sidebarShowsSecondaryLabels: Bool = true,
         sidebarShowsWorkspaceBadges: Bool = true,
         sidebarShowsWorktreeBadges: Bool = true,
@@ -445,6 +449,8 @@ struct AppSettings: Codable, Hashable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
         self.terminalScrollbackLines = terminalScrollbackLines.map { min(max($0, 1000), 1_000_000) }
+        self.terminalBackgroundOpacity = min(max(terminalBackgroundOpacity, 0.5), 1)
+        self.terminalBackgroundBlur = terminalBackgroundBlur
         self.sidebarShowsSecondaryLabels = sidebarShowsSecondaryLabels
         self.sidebarShowsWorkspaceBadges = sidebarShowsWorkspaceBadges
         self.sidebarShowsWorktreeBadges = sidebarShowsWorktreeBadges
@@ -514,6 +520,8 @@ extension AppSettings {
         case terminalFontSize
         case terminalTheme
         case terminalScrollbackLines
+        case terminalBackgroundOpacity
+        case terminalBackgroundBlur
         case sidebarShowsSecondaryLabels
         case sidebarShowsWorkspaceBadges
         case sidebarShowsWorktreeBadges
@@ -574,6 +582,8 @@ extension AppSettings {
             terminalFontSize: try container.decodeIfPresent(Double.self, forKey: .terminalFontSize),
             terminalTheme: try container.decodeIfPresent(String.self, forKey: .terminalTheme),
             terminalScrollbackLines: try container.decodeIfPresent(Int.self, forKey: .terminalScrollbackLines),
+            terminalBackgroundOpacity: try container.decodeIfPresent(Double.self, forKey: .terminalBackgroundOpacity) ?? 1,
+            terminalBackgroundBlur: try container.decodeIfPresent(Bool.self, forKey: .terminalBackgroundBlur) ?? false,
             sidebarShowsSecondaryLabels: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsSecondaryLabels) ?? true,
             sidebarShowsWorkspaceBadges: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsWorkspaceBadges) ?? true,
             sidebarShowsWorktreeBadges: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsWorktreeBadges) ?? true,

@@ -20,6 +20,14 @@ public final class LineyDesktopApplication: NSObject {
         let baseLevel: NSWindow.Level
         let baseCollectionBehavior: NSWindow.CollectionBehavior
         weak var owner: LineyDesktopApplication?
+        // `nonisolated(unsafe)` so the (MainActor-isolated) deinit can read it
+        // and unregister without an actor hop, which would otherwise trip the
+        // libmalloc abort seen with isolated deinits in this project.
+        private nonisolated(unsafe) var appSettingsObserver: NSObjectProtocol?
+        private weak var backgroundBlurView: NSVisualEffectView?
+
+        /// Opaque window background used when terminal transparency is off.
+        private static let opaqueBackgroundColor = NSColor(calibratedRed: 0.055, green: 0.06, blue: 0.075, alpha: 1)
 
         init(
             store: WorkspaceStore,
@@ -42,7 +50,7 @@ public final class LineyDesktopApplication: NSObject {
             window.minSize = NSSize(width: 1120, height: 720)
             window.center()
             window.isOpaque = false
-            window.backgroundColor = NSColor(calibratedRed: 0.055, green: 0.06, blue: 0.075, alpha: 1)
+            window.backgroundColor = WindowContext.opaqueBackgroundColor
             window.styleMask.remove(.fullSizeContentView)
             window.titleVisibility = .visible
             window.titlebarAppearsTransparent = false
@@ -61,10 +69,62 @@ public final class LineyDesktopApplication: NSObject {
             super.init()
 
             window.delegate = self
+            applyBackgroundAppearance(store.appSettings)
+            appSettingsObserver = NotificationCenter.default.addObserver(
+                forName: .lineyAppSettingsDidChange,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                guard let settings = notification.object as? AppSettings else { return }
+                MainActor.assumeIsolated {
+                    self?.applyBackgroundAppearance(settings)
+                }
+            }
+        }
+
+        deinit {
+            if let appSettingsObserver {
+                NotificationCenter.default.removeObserver(appSettingsObserver)
+            }
         }
 
         var window: NSWindow? {
             controller.window
+        }
+
+        /// Applies window translucency + background blur based on the terminal
+        /// background settings. Defaults (opacity == 1) keep the window fully
+        /// opaque with no blur, preserving the original look.
+        func applyBackgroundAppearance(_ settings: AppSettings) {
+            guard let window else { return }
+            let transparent = settings.terminalBackgroundOpacity < 1
+            window.isOpaque = !transparent
+            // When transparent we clear the window fill so the translucent
+            // terminal region reveals whatever is behind the window; when
+            // opaque we restore the solid chrome color.
+            window.backgroundColor = transparent ? .clear : WindowContext.opaqueBackgroundColor
+            updateBackgroundBlur(enabled: transparent && settings.terminalBackgroundBlur)
+        }
+
+        private func updateBackgroundBlur(enabled: Bool) {
+            guard let contentView = window?.contentView else { return }
+            if enabled {
+                let effect = backgroundBlurView ?? {
+                    let view = NSVisualEffectView()
+                    view.blendingMode = .behindWindow
+                    view.material = .underWindowBackground
+                    view.state = .active
+                    view.autoresizingMask = [.width, .height]
+                    backgroundBlurView = view
+                    return view
+                }()
+                effect.frame = contentView.bounds
+                if effect.superview !== contentView {
+                    contentView.addSubview(effect, positioned: .below, relativeTo: nil)
+                }
+            } else {
+                backgroundBlurView?.removeFromSuperview()
+            }
         }
 
         func present(ignoringOtherApps: Bool, activatesApplication: Bool = true) {

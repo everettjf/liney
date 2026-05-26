@@ -31,6 +31,12 @@ struct TerminalPaneView: View {
         sessionController.focusedPaneID == paneID
     }
 
+    /// When the terminal background is translucent, the pane fill is cleared so
+    /// the terminal region reveals the (optionally blurred) window backdrop.
+    private var paneFill: Color {
+        store.appSettings.terminalBackgroundOpacity < 1 ? .clear : LineyTheme.paneBackground
+    }
+
     private func localized(_ key: String) -> String {
         localization.string(key)
     }
@@ -103,7 +109,7 @@ struct TerminalPaneView: View {
             }
 
             TerminalHostView(session: session, shouldRestoreFocus: isFocused)
-                .background(LineyTheme.paneBackground)
+                .background(paneFill)
                 .onTapGesture {
                     workspace.focusPane(paneID)
                 }
@@ -126,7 +132,7 @@ struct TerminalPaneView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(isFocused ? LineyTheme.accent.opacity(0.46) : LineyTheme.border, lineWidth: isFocused ? 1.2 : 1)
         )
-        .background(LineyTheme.paneBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(paneFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .shadow(color: Color.black.opacity(isFocused ? 0.12 : 0.05), radius: isFocused ? 5 : 2, y: 2)
         .contextMenu {
             Button(localized("terminal.menu.splitRight")) {
