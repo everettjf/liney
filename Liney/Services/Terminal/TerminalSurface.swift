@@ -176,14 +176,17 @@ func lineyGhosttySearchNavigationBindingAction(_ direction: LineyGhosttySearchNa
 }
 
 func lineyTerminalDropText(fileURLs: [URL], plainText: String?) -> String? {
-    let quotedPaths = fileURLs
+    // Backslash-escape rather than wrap in quotes, so a dropped path reads as
+    // /Users/me/Screen\ Studio. This covers file URLs from any source (the file
+    // tree as well as Finder), since both arrive here as file URLs.
+    let escapedPaths = fileURLs
         .filter(\.isFileURL)
         .map(\.path)
         .filter { !$0.isEmpty }
-        .map(\.shellQuoted)
+        .map(\.shellEscaped)
 
-    if !quotedPaths.isEmpty {
-        return quotedPaths.joined(separator: " ")
+    if !escapedPaths.isEmpty {
+        return escapedPaths.joined(separator: " ")
     }
 
     guard let plainText, !plainText.isEmpty else { return nil }

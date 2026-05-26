@@ -389,15 +389,16 @@ private struct FileTreeRow: View {
     }
 
     /// Drag payload for dropping onto a terminal (à la VSCode). Local entries
-    /// carry a file URL so the terminal shell-quotes the path (and drag-to-Finder
-    /// works); remote entries have no local URL, so the shell-quoted remote path
-    /// is provided as plain text, which the terminal inserts as-is.
+    /// carry a file URL (so drag-to-Finder works); the terminal's drop handler
+    /// backslash-escapes file-URL paths, so they insert unquoted. Remote entries
+    /// have no local file URL, so the backslash-escaped remote path is provided
+    /// as plain text, which the terminal inserts as-is.
     private func dragItemProvider() -> NSItemProvider {
         switch source {
         case .local:
             return NSItemProvider(object: entry.url as NSURL)
         case .remote:
-            return NSItemProvider(object: entry.url.path.shellQuoted as NSString)
+            return NSItemProvider(object: entry.url.path.shellEscaped as NSString)
         }
     }
 

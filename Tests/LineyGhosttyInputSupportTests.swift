@@ -686,7 +686,7 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
         )
     }
 
-    func testTerminalDropTextQuotesFilePathsForShells() {
+    func testTerminalDropTextEscapesFilePathsForShells() {
         let fileURLs = [
             URL(fileURLWithPath: "/tmp/liney screenshot.png"),
             URL(fileURLWithPath: "/tmp/it's-liney.jpg"),
@@ -694,7 +694,7 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
 
         XCTAssertEqual(
             lineyTerminalDropText(fileURLs: fileURLs, plainText: nil),
-            "'/tmp/liney screenshot.png' '/tmp/it'\\''s-liney.jpg'"
+            "/tmp/liney\\ screenshot.png /tmp/it\\'s-liney.jpg"
         )
     }
 
