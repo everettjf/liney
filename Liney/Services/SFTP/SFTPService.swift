@@ -42,6 +42,18 @@ actor SFTPService {
     private var mode: ConnectionMode = .none
     private let runner = ShellCommandRunner()
 
+    /// Per-user directory holding SSH control sockets. Kept short (the socket
+    /// path must fit in `sun_path`, ~104 chars) and user-only (`0700`).
+    private static let controlDirectory: String = {
+        let dir = "/tmp/liney-ssh-\(getuid())"
+        try? FileManager.default.createDirectory(
+            atPath: dir,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        return dir
+    }()
+
     // MARK: - Public API
 
     /// Connect using system SSH with BatchMode (key-based auth only).
@@ -92,6 +104,43 @@ actor SFTPService {
         return entries
     }
 
+    /// List files and directories at the given remote path.
+    ///
+    /// Unlike `listDirectories`, this returns both files and directories with an
+    /// `isDirectory` flag, and honors `includesHidden` (always dropping `.`/`..`).
+    /// Directories sort before files, then case-insensitively by name.
+    func listEntries(at path: String, includesHidden: Bool) async throws -> [SFTPFileEntry] {
+        let target = try currentTarget()
+        // `-p` appends `/` to directories; `-L` dereferences symlinks so a link
+        // pointing at a directory is also marked with `/` (not shown as a file);
+        // `-a` adds hidden entries (omitting it lets `ls` exclude dotfiles).
+        let command = includesHidden ? "ls -1paL \(path.shellQuoted)" : "ls -1pL \(path.shellQuoted)"
+        let result = try await executeRemoteCommand(command, target: target)
+        // `ls` exits non-zero on partial errors (e.g. a broken symlink) while
+        // still listing the rest on stdout. Only treat it as a hard failure
+        // when there is nothing to show.
+        guard result.exitCode == 0 || !result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw SFTPServiceError.commandFailed(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        let base = path.hasSuffix("/") ? path : path + "/"
+        return result.stdout
+            .components(separatedBy: "\n")
+            .compactMap { line -> SFTPFileEntry? in
+                guard !line.isEmpty else { return nil }
+                let isDirectory = line.hasSuffix("/")
+                let name = isDirectory ? String(line.dropLast()) : line
+                guard name != ".", name != "..", !name.isEmpty else { return nil }
+                return SFTPFileEntry(name: name, path: base + name, isDirectory: isDirectory)
+            }
+            .sorted { lhs, rhs in
+                if lhs.isDirectory != rhs.isDirectory {
+                    return lhs.isDirectory && !rhs.isDirectory
+                }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+    }
+
     /// Return the home directory on the remote host.
     func homeDirectory() async throws -> String {
         let target = try currentTarget()
@@ -125,6 +174,14 @@ actor SFTPService {
         args += ["-o", "BatchMode=yes"]
         args += ["-o", "ConnectTimeout=10"]
         args += ["-o", "StrictHostKeyChecking=accept-new"]
+
+        // Connection multiplexing: the first command opens a master connection
+        // and later ones (e.g. expanding the file tree) reuse it instead of
+        // paying a full SSH handshake each time. `%C` keys the socket per
+        // host/port/user. The master lingers briefly after the last command.
+        args += ["-o", "ControlMaster=auto"]
+        args += ["-o", "ControlPath=\(Self.controlDirectory)/%C"]
+        args += ["-o", "ControlPersist=60"]
 
         // Port
         if let port = target.port {

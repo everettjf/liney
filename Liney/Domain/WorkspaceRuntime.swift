@@ -51,9 +51,13 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     /// the focused pane's working directory. Ephemeral per session.
     @Published var isFileTreePresented: Bool = false
 
-    /// What the right-hand preview panel is showing, if anything: a rendered
-    /// Markdown/HTML file or a live web page served on the host. `nil` hides it.
+    /// What the preview tab is showing, if anything: a rendered Markdown/HTML
+    /// file or a live web page served on the host. `nil` means no preview tab.
     @Published var previewPanel: WorkspacePreviewContent?
+
+    /// Whether the center content area is currently showing the preview tab
+    /// (vs. the terminal panes). Transient — never persisted.
+    @Published var isPreviewActive = false
 
     /// Whether the file-tree default from app settings has been applied to this
     /// workspace yet. Seeding happens once, the first time the workspace is
@@ -458,6 +462,9 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     }
 
     func createPane(splitAxis: PaneSplitAxis?, snapshot: PaneSnapshot? = nil, placement: PaneSplitPlacement) {
+        // Creating a session/pane means the user wants the terminals, so leave
+        // the preview tab if it was showing.
+        isPreviewActive = false
         let targetPane = sessionController.focusedPaneID ?? layout?.firstPaneID
         let defaultSnapshot: PaneSnapshot = {
             if kind == .sshTerminal {
@@ -557,19 +564,34 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         return activeWorktreePath
     }
 
-    /// Shows `content` in the right-hand preview panel.
+    /// Shows `content` in the center preview tab and brings it to the front.
     func openPreview(_ content: WorkspacePreviewContent) {
         previewPanel = content
+        isPreviewActive = true
     }
 
     /// Opens a localhost web page for a detected listening port.
     func openPreviewForPort(_ port: Int) {
         guard let url = WorkspacePreviewContent.localhostURL(port: port) else { return }
         previewPanel = .web(url)
+        isPreviewActive = true
     }
 
     func closePreview() {
         previewPanel = nil
+        isPreviewActive = false
+    }
+
+    /// Brings the preview tab to the front (no-op when nothing is loaded).
+    func showPreviewTab() {
+        guard previewPanel != nil else { return }
+        isPreviewActive = true
+    }
+
+    /// Returns the center area to the terminal panes, keeping any loaded
+    /// preview available behind its tab.
+    func showTerminals() {
+        isPreviewActive = false
     }
 
     func toggleFileTree() {
@@ -806,6 +828,9 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     }
 
     func selectTab(_ tabID: UUID) {
+        // Selecting any terminal tab (mouse, keyboard, or programmatic) leaves
+        // the preview tab and returns the center area to the terminals.
+        isPreviewActive = false
         guard tabID != activeTabID else { return }
         saveActiveWorktreeState()
         var state = activeWorktreeState
