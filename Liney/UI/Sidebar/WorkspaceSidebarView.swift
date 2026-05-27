@@ -39,12 +39,16 @@ struct WorkspaceSidebarView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12 * uiScale, weight: .medium))
             }
-            .padding(.horizontal, 12 * uiScale)
-            .padding(.vertical, 8 * uiScale)
-            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .padding(.horizontal, 10 * uiScale)
+            .padding(.vertical, 6 * uiScale)
+            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(LineyTheme.border, lineWidth: 1)
+            )
             .padding(.horizontal, 8 * uiScale)
-            .padding(.top, 12 * uiScale)
-            .padding(.bottom, 10 * uiScale)
+            .padding(.top, 8 * uiScale)
+            .padding(.bottom, 6 * uiScale)
             .background(LineyTheme.sidebarBackground)
             .overlay(alignment: .bottom) {
                 Rectangle()
@@ -1156,13 +1160,13 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             guard let node = item as? SidebarNodeItem else { return 48 }
             switch node.kind {
             case .group, .archiveGroup:
-                return 32
+                return 26
             case .workspace:
-                return 36
+                return 30
             case .branch:
                 return 18
             case .worktree:
-                return 26
+                return 22
             }
         }
 
@@ -1409,7 +1413,7 @@ private final class SidebarOutlineContainerView: NSView {
         outlineView.headerView = nil
         outlineView.rowSizeStyle = .default
         outlineView.rowHeight = 46
-        outlineView.indentationPerLevel = 10
+        outlineView.indentationPerLevel = 8
         outlineView.floatsGroupRows = false
         outlineView.selectionHighlightStyle = .regular
         outlineView.focusRingType = .none
@@ -1417,7 +1421,7 @@ private final class SidebarOutlineContainerView: NSView {
         outlineView.usesAlternatingRowBackgroundColors = false
         outlineView.allowsMultipleSelection = true
         outlineView.allowsEmptySelection = true
-        outlineView.intercellSpacing = NSSize(width: 0, height: 4)
+        outlineView.intercellSpacing = NSSize(width: 0, height: 2)
         outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
         outlineView.setDraggingSourceOperationMask([], forLocal: false)
         outlineView.draggingDestinationFeedbackStyle = .gap
@@ -1627,12 +1631,12 @@ private final class SidebarOutlineRowView: NSTableRowView {
     override func drawBackground(in dirtyRect: NSRect) {}
 
     override func drawSelection(in dirtyRect: NSRect) {
-        let rect = bounds.insetBy(dx: 6, dy: 1)
-        let path = NSBezierPath(roundedRect: rect, xRadius: 12, yRadius: 12)
+        let rect = bounds.insetBy(dx: 4, dy: 1)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
         LineyTheme.sidebarSelectionFill.setFill()
         path.fill()
         LineyTheme.sidebarSelectionStroke.setStroke()
-        path.lineWidth = 1.25
+        path.lineWidth = 1
         path.stroke()
     }
 
@@ -1899,7 +1903,7 @@ private struct WorkspaceRowContent: View {
         .padding(.trailing, 8 * uiScale)
         .background(
             LineyTheme.subtleFill.opacity(isHovering ? 1 : 0),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
         )
         .onHover { isInside in
             isHovering = isInside
@@ -1989,10 +1993,10 @@ private struct WorktreeRowContent: View {
         .padding(.vertical, 1 * uiScale)
         .padding(.leading, leadingInset)
         .padding(.trailing, 8 * uiScale)
-        .frame(maxWidth: .infinity, minHeight: 24 * uiScale, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 20 * uiScale, alignment: .leading)
         .background(
             LineyTheme.subtleFill.opacity(isHovering ? 1 : 0),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
         )
         .onHover { isInside in
             isHovering = isInside
