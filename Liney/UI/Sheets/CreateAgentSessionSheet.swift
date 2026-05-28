@@ -64,7 +64,7 @@ struct CreateAgentSessionSheet: View {
                 TextEditor(text: $draft.argumentsText)
                     .font(.system(size: 12, design: .monospaced))
                     .frame(height: 110)
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08)))
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white.opacity(0.08)))
                     .padding(.top, 8)
             }
 
@@ -72,7 +72,7 @@ struct CreateAgentSessionSheet: View {
                 TextEditor(text: $draft.environmentText)
                     .font(.system(size: 12, design: .monospaced))
                     .frame(height: 90)
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08)))
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white.opacity(0.08)))
                     .padding(.top, 8)
             }
 

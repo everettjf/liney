@@ -41,9 +41,9 @@ struct WorkspaceSidebarView: View {
             }
             .padding(.horizontal, 9 * uiScale)
             .padding(.vertical, 5 * uiScale)
-            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .strokeBorder(LineyTheme.border, lineWidth: 1)
             )
             .padding(.horizontal, 8 * uiScale)
@@ -120,11 +120,11 @@ private struct SidebarFooterView: View {
                 }
                 .padding(.horizontal, 10 * uiScale)
                 .frame(maxWidth: .infinity, minHeight: 30 * uiScale, alignment: .leading)
-                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
             .buttonStyle(.plain)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                     .foregroundStyle(LineyTheme.border)
             )
@@ -135,11 +135,11 @@ private struct SidebarFooterView: View {
                 Image(systemName: "network")
                     .font(.system(size: 12 * uiScale, weight: .semibold))
                     .frame(width: 30 * uiScale, height: 30 * uiScale)
-                    .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
             .buttonStyle(.plain)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                     .foregroundStyle(LineyTheme.border)
             )
@@ -1633,7 +1633,7 @@ private final class SidebarOutlineRowView: NSTableRowView {
 
     override func drawSelection(in dirtyRect: NSRect) {
         let rect = bounds.insetBy(dx: 4, dy: 1)
-        let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3)
         LineyTheme.sidebarSelectionFill.setFill()
         path.fill()
         LineyTheme.sidebarSelectionStroke.withAlphaComponent(0.55).setStroke()
@@ -1744,7 +1744,7 @@ private struct GroupRowContent: View {
         }
         .background(
             LineyTheme.subtleFill.opacity(isHovering ? 0.8 : 0),
-            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 3, style: .continuous)
         )
         .onHover { isInside in
             isHovering = isInside
@@ -1906,7 +1906,7 @@ private struct WorkspaceRowContent: View {
         .padding(.trailing, 8 * uiScale)
         .background(
             LineyTheme.subtleFill.opacity(isHovering ? 1 : 0),
-            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 3, style: .continuous)
         )
         .onHover { isInside in
             isHovering = isInside
@@ -1999,7 +1999,7 @@ private struct WorktreeRowContent: View {
         .frame(maxWidth: .infinity, minHeight: 20 * uiScale, alignment: .leading)
         .background(
             LineyTheme.subtleFill.opacity(isHovering ? 1 : 0),
-            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 3, style: .continuous)
         )
         .onHover { isInside in
             isHovering = isInside
@@ -2022,7 +2022,7 @@ struct SidebarItemIconView: View {
 
     private var backgroundShape: some InsettableShape {
         RoundedRectangle(
-            cornerRadius: usesCircularShape ? size / 2 : max(4, size * 0.28),
+            cornerRadius: usesCircularShape ? size / 2 : max(2, size * 0.14),
             style: .continuous
         )
     }
@@ -2615,7 +2615,7 @@ private struct SidebarInlineIconButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(LineyTheme.secondaryText)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
 }
 

@@ -61,11 +61,11 @@ private struct DirectoryRowView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .background(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(isSelected ? Color(nsColor: LineyTheme.sidebarSelectionFill) : Color.clear)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .strokeBorder(isSelected ? Color(nsColor: LineyTheme.sidebarSelectionStroke) : Color.clear, lineWidth: 1)
             )
             .onTapGesture {

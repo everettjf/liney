@@ -58,10 +58,10 @@ struct QuickCommandEditorSheet: View {
         .padding(12)
         .background(
             LineyTheme.panelBackground,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
         .task {
@@ -233,9 +233,9 @@ struct QuickCommandEditorSheet: View {
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 8)
-            .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .stroke(LineyTheme.border, lineWidth: 1)
             )
         }
@@ -476,9 +476,9 @@ struct QuickCommandEditorSheet: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }
@@ -509,9 +509,9 @@ private struct QuickCommandCompactButton: View {
             .foregroundStyle(tint)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .stroke(LineyTheme.border, lineWidth: 1)
             )
         }
@@ -548,9 +548,9 @@ private struct QuickCommandCompactMenu: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(width: 28, height: 28)
-                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(LineyTheme.border, lineWidth: 1)
                 )
         }
@@ -577,9 +577,9 @@ private struct QuickCommandLoadingState: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }
@@ -591,7 +591,7 @@ private struct QuickCommandDetailLoadingState: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 10) {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(LineyTheme.subtleRaisedFill)
                     .frame(width: 16, height: 16)
 
@@ -618,9 +618,9 @@ private struct QuickCommandDetailLoadingState: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(LineyTheme.panelRaised, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(LineyTheme.panelRaised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }
@@ -628,7 +628,7 @@ private struct QuickCommandDetailLoadingState: View {
     private func loadingField(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             QuickCommandSkeletonBar(width: width, height: 10)
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(LineyTheme.subtleFill)
                 .frame(height: 34)
         }
@@ -638,14 +638,14 @@ private struct QuickCommandDetailLoadingState: View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 QuickCommandSkeletonBar(width: 58, height: 10)
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(LineyTheme.subtleFill)
                     .frame(height: 34)
             }
 
             VStack(alignment: .leading, spacing: 8) {
                 QuickCommandSkeletonBar(width: 78, height: 10)
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(LineyTheme.subtleFill)
                     .frame(height: 34)
             }
@@ -655,7 +655,7 @@ private struct QuickCommandDetailLoadingState: View {
     private func loadingCommandEditor() -> some View {
         VStack(alignment: .leading, spacing: 8) {
             QuickCommandSkeletonBar(width: 62, height: 10)
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(LineyTheme.subtleFill)
                 .frame(height: 178)
         }
@@ -679,7 +679,7 @@ private struct QuickCommandDetailLoadingState: View {
 private struct QuickCommandLoadingRow: View {
     var body: some View {
         HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .fill(LineyTheme.subtleRaisedFill)
                 .frame(width: 14, height: 14)
 
@@ -692,7 +692,7 @@ private struct QuickCommandLoadingRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(LineyTheme.appBackground.opacity(0.28), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(LineyTheme.appBackground.opacity(0.28), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -709,7 +709,7 @@ private struct QuickCommandSkeletonBar: View {
 
 private struct QuickCommandSkeletonButton: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(LineyTheme.subtleFill)
             .frame(width: 32, height: 30)
     }
@@ -771,7 +771,7 @@ private struct QuickCommandListItem: View {
     }
 
     private var backgroundShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
     }
 
     private var backgroundColor: Color {
@@ -873,11 +873,11 @@ private struct QuickCommandDetailPanel: View {
                         .frame(minHeight: 160)
                         .padding(8)
                         .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(Color.white.opacity(0.035))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .stroke(LineyTheme.border, lineWidth: 1)
                         )
                 }
@@ -897,18 +897,18 @@ private struct QuickCommandDetailPanel: View {
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .stroke(LineyTheme.border, lineWidth: 1)
                 )
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(LineyTheme.panelRaised, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(LineyTheme.panelRaised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }
@@ -1058,9 +1058,9 @@ private struct QuickCommandLibrarySheet: View {
                         }
                         .padding(.horizontal, 11)
                         .padding(.vertical, 8)
-                        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
                                 .stroke(LineyTheme.border, lineWidth: 1)
                         )
 
@@ -1191,10 +1191,10 @@ private struct QuickCommandLibrarySheet: View {
             .frame(width: 900, height: 500)
             .background(
                 LineyTheme.panelBackground,
-                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .stroke(LineyTheme.border, lineWidth: 1)
             )
             .padding(.horizontal, 12)
@@ -1233,11 +1233,11 @@ private struct QuickCommandLibraryCategoryRow: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(isSelected ? LineyTheme.accent.opacity(0.12) : LineyTheme.subtleFill)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .stroke(isSelected ? LineyTheme.accent.opacity(0.35) : LineyTheme.border, lineWidth: 1)
         )
     }
@@ -1285,11 +1285,11 @@ private struct QuickCommandLibraryItem: View {
             }
             .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(backgroundColor)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .stroke(borderColor, lineWidth: 1)
             )
         }
@@ -1409,9 +1409,9 @@ private struct QuickCommandCategoryManagerSheet: View {
                                 Spacer()
                             }
                             .padding(12)
-                            .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
                                     .stroke(LineyTheme.border, lineWidth: 1)
                             )
                         }
@@ -1428,7 +1428,7 @@ private struct QuickCommandCategoryManagerSheet: View {
                                 .foregroundStyle(LineyTheme.secondaryText)
                                 .padding(12)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                         } else {
                             ForEach(customCategories) { category in
                                 customCategoryRow(category)
@@ -1524,9 +1524,9 @@ private struct QuickCommandCategoryManagerSheet: View {
             .buttonStyle(.bordered)
         }
         .padding(12)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }

@@ -216,11 +216,11 @@ struct WorkspaceFileBrowserSheet: View {
                 .font(.system(.body, design: .monospaced))
                 .padding(10)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(LineyTheme.panelRaised)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(LineyTheme.border, lineWidth: 1)
                 )
         case .unsupported(let reason):

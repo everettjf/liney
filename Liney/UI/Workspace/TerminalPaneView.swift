@@ -127,12 +127,12 @@ struct TerminalPaneView: View {
                 searchLabel: searchStatusLabel
             )
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .stroke(isFocused ? LineyTheme.accent.opacity(0.46) : LineyTheme.border, lineWidth: isFocused ? 1.2 : 1)
         )
-        .background(paneFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(paneFill, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
         .shadow(color: Color.black.opacity(isFocused ? 0.12 : 0.05), radius: isFocused ? 5 : 2, y: 2)
         .contextMenu {
             Button(localized("terminal.menu.splitRight")) {
@@ -388,7 +388,7 @@ private struct PaneHeaderButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(LineyTheme.secondaryText)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
     }
 }
 
@@ -414,7 +414,7 @@ private struct PaneSearchBar: View {
                 .onExitCommand(perform: onClose)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
-                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
 
             if let resultLabel {
                 PaneTag(text: resultLabel, tone: .neutral)

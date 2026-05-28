@@ -70,7 +70,7 @@ struct IslandCollapsedView: View {
                             .foregroundStyle(.white.opacity(0.8))
                             .frame(width: 22, height: 22)
                             .background(
-                                RoundedRectangle(cornerRadius: 6)
+                                RoundedRectangle(cornerRadius: 3)
                                     .fill(.white.opacity(0.15))
                             )
                     }
@@ -88,11 +88,11 @@ struct IslandCollapsedView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(Color(red: 0.08, green: 0.08, blue: 0.09))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 10)
                 .stroke(.white.opacity(0.08), lineWidth: 0.5)
         )
     }
@@ -118,7 +118,7 @@ struct IslandCollapsedView: View {
                         .foregroundStyle(.white.opacity(0.8))
                         .frame(width: 22, height: 22)
                         .background(
-                            RoundedRectangle(cornerRadius: 6)
+                            RoundedRectangle(cornerRadius: 3)
                                 .fill(.white.opacity(0.15))
                         )
                 }
@@ -146,11 +146,11 @@ struct IslandCollapsedView: View {
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(Color(red: 0.08, green: 0.08, blue: 0.09))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 10)
                 .stroke(.white.opacity(0.08), lineWidth: 0.5)
         )
     }

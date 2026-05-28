@@ -29,14 +29,14 @@ struct IslandExpandedView: View {
             .frame(maxHeight: .infinity)
         }
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(Color(red: 0.08, green: 0.08, blue: 0.09))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 10)
                 .stroke(.white.opacity(0.08), lineWidth: 0.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private var islandTabBar: some View {
@@ -64,7 +64,7 @@ struct IslandExpandedView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 4)
                             .fill(state.selectedTab == tab ? .white.opacity(0.12) : .clear)
                     )
                 }
@@ -99,7 +99,7 @@ struct IslandExpandedView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background(
-                        RoundedRectangle(cornerRadius: 6)
+                        RoundedRectangle(cornerRadius: 3)
                             .fill(.white.opacity(0.06))
                     )
                 }
@@ -293,7 +293,7 @@ private struct IslandGroupRow: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 5)
                     .fill(.white.opacity(0.04))
             )
             .contentShape(Rectangle())
@@ -349,7 +349,7 @@ private struct IslandWorkspaceRow: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(
-                            RoundedRectangle(cornerRadius: 4)
+                            RoundedRectangle(cornerRadius: 2)
                                 .fill(.orange.opacity(0.12))
                         )
                 }
@@ -357,7 +357,7 @@ private struct IslandWorkspaceRow: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 5)
                     .fill(isSelected ? .white.opacity(0.1) : .clear)
             )
             .contentShape(Rectangle())
@@ -429,7 +429,7 @@ private struct IslandNotificationRow: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 5)
                     .fill(item.status == .done ? .green.opacity(0.08) : .clear)
             )
             .contentShape(Rectangle())
@@ -471,7 +471,7 @@ private struct IslandPromptRow: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
                             .background(
-                                RoundedRectangle(cornerRadius: 4)
+                                RoundedRectangle(cornerRadius: 2)
                                     .fill(.white.opacity(0.1))
                             )
 
@@ -484,7 +484,7 @@ private struct IslandPromptRow: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 4)
                             .fill(.white.opacity(0.06))
                     )
                     .contentShape(Rectangle())
@@ -509,7 +509,7 @@ struct IslandTagPill: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 2)
                     .fill(.white.opacity(0.1))
             )
     }

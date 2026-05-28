@@ -134,7 +134,7 @@ struct OverviewView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(LineyTheme.mutedText)
                     .frame(width: 24, height: 24)
-                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 6))
+                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 3))
             }
             .buttonStyle(.plain)
         }
@@ -243,9 +243,9 @@ private struct OverviewMetricCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(accent.opacity(0.15), lineWidth: 1)
         )
     }
@@ -280,7 +280,7 @@ private struct OverviewWorkflowStrip: View {
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
-                            .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                         }
                         .buttonStyle(.plain)
                     }
@@ -336,9 +336,9 @@ private struct OverviewTimelinePanel: View {
             }
         }
         .padding(14)
-        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }
@@ -376,7 +376,7 @@ private struct OverviewWorktreePanel: View {
             VStack(spacing: 8) {
                 ForEach(items.prefix(8)) { item in
                     HStack(alignment: .top, spacing: 10) {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
                             .fill(item.isActive ? LineyTheme.accent : LineyTheme.border)
                             .frame(width: 6, height: 28)
 
@@ -409,14 +409,14 @@ private struct OverviewWorktreePanel: View {
                         }
                     }
                     .padding(10)
-                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
             }
         }
         .padding(14)
-        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }
@@ -486,14 +486,14 @@ private struct OverviewTodayFocusPanel: View {
                         }
                     }
                     .padding(10)
-                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
             }
         }
         .padding(14)
-        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }
@@ -588,15 +588,15 @@ private struct OverviewTaskLane: View {
                             .lineLimit(3)
                     }
                     .padding(10)
-                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .padding(14)
-        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }
@@ -712,21 +712,21 @@ private struct OverviewPullRequestInboxPanel: View {
                             .foregroundStyle(section.category.tint)
                         }
                         .padding(10)
-                        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                     }
                 }
                 .padding(12)
-                .background(section.category.tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(section.category.tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(section.category.tint.opacity(0.14), lineWidth: 1)
                 )
             }
         }
         .padding(14)
-        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }
@@ -801,21 +801,21 @@ private struct OverviewBlockerPanel: View {
                             .foregroundStyle(group.tint)
                         }
                         .padding(10)
-                        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                     }
                 }
                 .padding(12)
-                .background(group.tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(group.tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(group.tint.opacity(0.14), lineWidth: 1)
                 )
             }
         }
         .padding(14)
-        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
     }
@@ -905,7 +905,7 @@ private struct OverviewTimelineRow: View {
             }
         }
         .padding(10)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
 }
 

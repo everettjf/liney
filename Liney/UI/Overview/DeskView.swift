@@ -37,9 +37,9 @@ struct DeskView: View {
             deskSurface
             deskFooter
         }
-        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(isHovering ? accentColor.opacity(0.5) : LineyTheme.border, lineWidth: 1)
         )
         .onHover { isHovering = $0 }
@@ -54,7 +54,7 @@ struct DeskView: View {
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(accentColor)
                 .frame(width: 18, height: 18)
-                .background(accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .background(accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
 
             Text(workspace.name)
                 .font(.system(size: 12, weight: .semibold))
@@ -158,7 +158,7 @@ private struct MonitorView: View {
         VStack(spacing: 4) {
             // Monitor screen
             ZStack {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(isActive ? LineyTheme.paneBackground : Color.black.opacity(0.3))
 
                 if isActive {
@@ -184,7 +184,7 @@ private struct MonitorView: View {
             }
             .frame(height: 32)
             .overlay(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .strokeBorder(isActive ? accentColor.opacity(0.2) : Color.white.opacity(0.06), lineWidth: 0.5)
             )
 
@@ -201,6 +201,6 @@ private struct MonitorView: View {
                 .frame(maxWidth: .infinity)
         }
         .padding(4)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
     }
 }

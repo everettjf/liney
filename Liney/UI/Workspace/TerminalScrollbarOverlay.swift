@@ -32,7 +32,7 @@ struct TerminalScrollbarOverlay: View {
             ZStack(alignment: .top) {
                 Color.clear
                 if let thumb = thumbMetrics {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(Color.white.opacity(isDragging ? 0.55 : (isHovering ? 0.40 : 0.22)))
                         .frame(width: 5, height: thumb.height)
                         .padding(.leading, 1)

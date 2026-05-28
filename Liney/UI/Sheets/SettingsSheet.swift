@@ -1040,7 +1040,7 @@ struct SettingsSheet: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(RoundedRectangle(cornerRadius: 4).fill(.orange))
+                            .background(RoundedRectangle(cornerRadius: 2).fill(.orange))
                     }
                     Text(localized("settings.dynamicIsland.enable.description"))
                         .font(.callout)
@@ -1250,7 +1250,7 @@ struct SettingsSheet: View {
                         TextEditor(text: $workspaceSettings.runScript)
                             .font(.system(size: 12, design: .monospaced))
                             .frame(height: 80)
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08)))
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white.opacity(0.08)))
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
@@ -1259,7 +1259,7 @@ struct SettingsSheet: View {
                         TextEditor(text: $workspaceSettings.setupScript)
                             .font(.system(size: 12, design: .monospaced))
                             .frame(height: 80)
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08)))
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white.opacity(0.08)))
                     }
                 } else {
                     Text(localized("settings.workspace.emptyState"))
@@ -1471,7 +1471,7 @@ struct SettingsSheet: View {
             .lineLimit(2...5)
         }
         .padding(12)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
 
     @ViewBuilder
@@ -1538,7 +1538,7 @@ struct SettingsSheet: View {
             .lineLimit(2...5)
         }
         .padding(12)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
 
     private func moveAgentPreset(from sourceIndex: Int, to destinationIndex: Int) {
@@ -1769,7 +1769,7 @@ private struct TerminalFontOptionRow: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(isSelected ? Color.accentColor.opacity(0.12) : LineyTheme.subtleFill)
             )
         }
@@ -1817,11 +1817,11 @@ private struct TerminalThemePreviewCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(18)
                     .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(colors.background)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .strokeBorder(Color.white.opacity(0.08))
                     )
 
@@ -1832,14 +1832,14 @@ private struct TerminalThemePreviewCard: View {
                             .foregroundStyle(.secondary)
                         HStack(spacing: 4) {
                             ForEach(0..<8, id: \.self) { i in
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
                                     .fill(colors.ansi(i))
                                     .frame(height: 24)
                             }
                         }
                         HStack(spacing: 4) {
                             ForEach(8..<16, id: \.self) { i in
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
                                     .fill(colors.ansi(i))
                                     .frame(height: 24)
                             }
@@ -1862,11 +1862,11 @@ private struct TerminalThemePreviewCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(18)
                     .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(Color.black.opacity(0.28))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .strokeBorder(Color.white.opacity(0.08))
                     )
                 }
@@ -1897,7 +1897,7 @@ private struct TerminalThemeOptionRow: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(isSelected ? Color.accentColor.opacity(0.12) : LineyTheme.subtleFill)
             )
         }
@@ -1965,11 +1965,11 @@ private struct TerminalFontPreviewCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(18)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.black.opacity(0.28))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.08))
                 )
             }
@@ -2090,7 +2090,7 @@ private struct WorkspaceSidebarAppearanceSection: View {
             }
         }
         .padding(12)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
 }
 
@@ -2148,7 +2148,7 @@ private struct SidebarIconEditorCard: View {
                         Button {
                             icon.palette = palette
                         } label: {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .fill(
                                     LinearGradient(
                                         colors: [palette.descriptor.gradientStart, palette.descriptor.gradientEnd],
@@ -2157,7 +2157,7 @@ private struct SidebarIconEditorCard: View {
                                     )
                                 )
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
                                         .stroke(icon.palette == palette ? Color.white.opacity(0.9) : palette.descriptor.border, lineWidth: icon.palette == palette ? 2 : 1)
                                 )
                                 .frame(width: 34, height: 24)
@@ -2169,7 +2169,7 @@ private struct SidebarIconEditorCard: View {
             }
         }
         .padding(12)
-        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
 }
 
