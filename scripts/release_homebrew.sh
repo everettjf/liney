@@ -443,35 +443,51 @@ if [[ ! -f "$DIST_ZIP_PATH" ]]; then
   exit 1
 fi
 
-# Wrap `gh release create/upload` in a retry loop. These calls do large HTTPS
-# uploads and have hit TLS "bad record MAC" errors on flaky networks.
+# `gh` does large HTTPS uploads to uploads.github.com that have hit TLS
+# "bad record MAC" / forced-close errors on flaky networks. A single
+# `gh release create <all assets>` is all-or-nothing: any blip mid-upload
+# tears the half-made release back down, so the retry re-creates it and
+# re-uploads every asset from scratch — never making progress on an unstable
+# link. Instead, create the release empty (a small, reliable API call), then
+# upload each asset on its own with per-file retries and `--clobber`, so a
+# failure only re-sends the one file that didn't make it.
 GH_MAX_ATTEMPTS="${GH_RELEASE_MAX_ATTEMPTS:-3}"
 GH_RETRY_DELAY="${GH_RELEASE_RETRY_DELAY:-10}"
-gh_attempt=1
-while :; do
-  gh_rc=0
-  if gh release view "$TAG" >/dev/null 2>&1; then
-    gh release upload "$TAG" "$DIST_DMG_PATH" "$DIST_ZIP_PATH" "$DIST_DSYM_ZIP_PATH" "$APPCAST_FILE" --clobber || gh_rc=$?
-    if [[ "$gh_rc" -eq 0 ]]; then
-      gh release edit "$TAG" \
-        --title "$APP_NAME $VERSION" \
-        --notes-file "$RELEASE_NOTES_FILE" || gh_rc=$?
+
+gh_retry() {
+  local label="$1"
+  shift
+  local attempt=1
+  local rc
+  while :; do
+    rc=0
+    "$@" || rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+      return 0
     fi
-  else
-    gh release create "$TAG" "$DIST_DMG_PATH" "$DIST_ZIP_PATH" "$DIST_DSYM_ZIP_PATH" "$APPCAST_FILE" \
-      --title "$APP_NAME $VERSION" \
-      --notes-file "$RELEASE_NOTES_FILE" || gh_rc=$?
-  fi
-  if [[ "$gh_rc" -eq 0 ]]; then
-    break
-  fi
-  if (( gh_attempt >= GH_MAX_ATTEMPTS )); then
-    echo "gh release publish failed after ${gh_attempt} attempt(s) (exit ${gh_rc})." >&2
-    exit "$gh_rc"
-  fi
-  echo "gh release publish failed (exit ${gh_rc}); retrying in ${GH_RETRY_DELAY}s (attempt $((gh_attempt + 1))/${GH_MAX_ATTEMPTS})..." >&2
-  sleep "$GH_RETRY_DELAY"
-  gh_attempt=$((gh_attempt + 1))
+    if (( attempt >= GH_MAX_ATTEMPTS )); then
+      echo "${label} failed after ${attempt} attempt(s) (exit ${rc})." >&2
+      return "$rc"
+    fi
+    echo "${label} failed (exit ${rc}); retrying in ${GH_RETRY_DELAY}s (attempt $((attempt + 1))/${GH_MAX_ATTEMPTS})..." >&2
+    sleep "$GH_RETRY_DELAY"
+    attempt=$((attempt + 1))
+  done
+}
+
+if gh release view "$TAG" >/dev/null 2>&1; then
+  gh_retry "gh release edit" gh release edit "$TAG" \
+    --title "$APP_NAME $VERSION" \
+    --notes-file "$RELEASE_NOTES_FILE"
+else
+  gh_retry "gh release create" gh release create "$TAG" \
+    --title "$APP_NAME $VERSION" \
+    --notes-file "$RELEASE_NOTES_FILE"
+fi
+
+for asset in "$DIST_DMG_PATH" "$DIST_ZIP_PATH" "$DIST_DSYM_ZIP_PATH" "$APPCAST_FILE"; do
+  gh_retry "gh release upload $(basename "$asset")" \
+    gh release upload "$TAG" "$asset" --clobber
 done
 
 if [[ "$SKIP_CASK_UPDATE" != "1" ]]; then
