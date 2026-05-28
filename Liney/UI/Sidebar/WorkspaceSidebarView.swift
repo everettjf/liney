@@ -1831,7 +1831,7 @@ private struct WorkspaceRowContent: View {
         HStack(spacing: 7 * uiScale) {
             SidebarItemIconView(
                 icon: icon,
-                size: 14 * uiScale,
+                size: 16 * uiScale,
                 activityIndicator: iconActivityIndicator,
                 activityPalette: appSettings.sidebarActivityIndicatorPalette,
                 isEmphasized: isSelected
