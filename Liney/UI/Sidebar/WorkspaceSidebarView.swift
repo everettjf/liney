@@ -1162,7 +1162,8 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             case .group, .archiveGroup:
                 return 22
             case .workspace:
-                return 25
+                // 显示二级标签时为两行文本,需要更高的行以避免文字贴住选中框
+                return (store?.appSettings.sidebarShowsSecondaryLabels ?? true) ? 33 : 24
             case .branch:
                 return 18
             case .worktree:
@@ -1635,7 +1636,7 @@ private final class SidebarOutlineRowView: NSTableRowView {
         let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
         LineyTheme.sidebarSelectionFill.setFill()
         path.fill()
-        LineyTheme.sidebarSelectionStroke.setStroke()
+        LineyTheme.sidebarSelectionStroke.withAlphaComponent(0.55).setStroke()
         path.lineWidth = 1
         path.stroke()
     }
@@ -1900,7 +1901,7 @@ private struct WorkspaceRowContent: View {
                 }
             }
         }
-        .padding(.vertical, 2 * uiScale)
+        .padding(.vertical, 3 * uiScale)
         .padding(.leading, 2 * uiScale)
         .padding(.trailing, 8 * uiScale)
         .background(
