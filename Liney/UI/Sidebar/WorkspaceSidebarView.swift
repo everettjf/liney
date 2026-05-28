@@ -25,26 +25,30 @@ struct WorkspaceSidebarView: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11 * uiScale, weight: .semibold))
-                    .foregroundStyle(LineyTheme.mutedText)
+                    .font(.system(size: 11 * uiScale, weight: .regular))
+                    .foregroundStyle(LineyTheme.mutedText.opacity(0.8))
 
                 TextField(
                     text: $query,
                     prompt: Text(localized("sidebar.filterWorkspaces"))
-                        .font(.system(size: 11 * uiScale, weight: .medium))
-                        .foregroundStyle(LineyTheme.mutedText)
+                        .font(.system(size: 12 * uiScale, weight: .regular))
+                        .foregroundStyle(LineyTheme.mutedText.opacity(0.7))
                 ) {
                     EmptyView()
                 }
                 .textFieldStyle(.plain)
-                .font(.system(size: 12 * uiScale, weight: .medium))
+                .font(.system(size: 12 * uiScale, weight: .regular))
             }
-            .padding(.horizontal, 12 * uiScale)
-            .padding(.vertical, 8 * uiScale)
-            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .padding(.horizontal, 9 * uiScale)
+            .padding(.vertical, 5 * uiScale)
+            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .strokeBorder(LineyTheme.border, lineWidth: 1)
+            )
             .padding(.horizontal, 8 * uiScale)
-            .padding(.top, 12 * uiScale)
-            .padding(.bottom, 10 * uiScale)
+            .padding(.top, 7 * uiScale)
+            .padding(.bottom, 6 * uiScale)
             .background(LineyTheme.sidebarBackground)
             .overlay(alignment: .bottom) {
                 Rectangle()
@@ -116,11 +120,11 @@ private struct SidebarFooterView: View {
                 }
                 .padding(.horizontal, 10 * uiScale)
                 .frame(maxWidth: .infinity, minHeight: 30 * uiScale, alignment: .leading)
-                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
             .buttonStyle(.plain)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                     .foregroundStyle(LineyTheme.border)
             )
@@ -131,11 +135,11 @@ private struct SidebarFooterView: View {
                 Image(systemName: "network")
                     .font(.system(size: 12 * uiScale, weight: .semibold))
                     .frame(width: 30 * uiScale, height: 30 * uiScale)
-                    .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
             .buttonStyle(.plain)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                     .foregroundStyle(LineyTheme.border)
             )
@@ -1156,13 +1160,14 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             guard let node = item as? SidebarNodeItem else { return 48 }
             switch node.kind {
             case .group, .archiveGroup:
-                return 32
+                return 22
             case .workspace:
-                return 36
+                // 显示二级标签时为两行文本,需要更高的行以避免文字贴住选中框
+                return (store?.appSettings.sidebarShowsSecondaryLabels ?? true) ? 33 : 24
             case .branch:
                 return 18
             case .worktree:
-                return 26
+                return 18
             }
         }
 
@@ -1409,7 +1414,7 @@ private final class SidebarOutlineContainerView: NSView {
         outlineView.headerView = nil
         outlineView.rowSizeStyle = .default
         outlineView.rowHeight = 46
-        outlineView.indentationPerLevel = 10
+        outlineView.indentationPerLevel = 8
         outlineView.floatsGroupRows = false
         outlineView.selectionHighlightStyle = .regular
         outlineView.focusRingType = .none
@@ -1417,7 +1422,7 @@ private final class SidebarOutlineContainerView: NSView {
         outlineView.usesAlternatingRowBackgroundColors = false
         outlineView.allowsMultipleSelection = true
         outlineView.allowsEmptySelection = true
-        outlineView.intercellSpacing = NSSize(width: 0, height: 4)
+        outlineView.intercellSpacing = NSSize(width: 0, height: 2)
         outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
         outlineView.setDraggingSourceOperationMask([], forLocal: false)
         outlineView.draggingDestinationFeedbackStyle = .gap
@@ -1627,12 +1632,12 @@ private final class SidebarOutlineRowView: NSTableRowView {
     override func drawBackground(in dirtyRect: NSRect) {}
 
     override func drawSelection(in dirtyRect: NSRect) {
-        let rect = bounds.insetBy(dx: 6, dy: 1)
-        let path = NSBezierPath(roundedRect: rect, xRadius: 12, yRadius: 12)
+        let rect = bounds.insetBy(dx: 4, dy: 1)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3)
         LineyTheme.sidebarSelectionFill.setFill()
         path.fill()
-        LineyTheme.sidebarSelectionStroke.setStroke()
-        path.lineWidth = 1.25
+        LineyTheme.sidebarSelectionStroke.withAlphaComponent(0.55).setStroke()
+        path.lineWidth = 1
         path.stroke()
     }
 
@@ -1711,11 +1716,12 @@ private struct GroupRowContent: View {
         VStack(spacing: 0) {
             HStack(spacing: 6 * uiScale) {
                 Image(systemName: group.icon.symbolName)
-                    .font(.system(size: 10 * uiScale, weight: .bold))
+                    .font(.system(size: 8 * uiScale, weight: .medium))
                     .foregroundStyle(iconPalette.foreground.opacity(0.85))
 
-                Text(group.name)
-                    .font(.system(size: 11 * uiScale, weight: .bold, design: .rounded))
+                Text(group.name.uppercased())
+                    .font(.system(size: 10 * uiScale, weight: .semibold))
+                    .tracking(0.5)
                     .foregroundStyle(isSelected ? LineyTheme.tertiaryText : LineyTheme.mutedText)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -1723,8 +1729,8 @@ private struct GroupRowContent: View {
                 Spacer(minLength: 4)
 
                 Text("\(childCount)")
-                    .font(.system(size: 9 * uiScale, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(LineyTheme.mutedText.opacity(0.7))
+                    .font(.system(size: 9 * uiScale, weight: .medium, design: .monospaced))
+                    .foregroundStyle(LineyTheme.mutedText.opacity(0.6))
             }
             .padding(.vertical, 4 * uiScale)
             .padding(.leading, 2 * uiScale)
@@ -1738,7 +1744,7 @@ private struct GroupRowContent: View {
         }
         .background(
             LineyTheme.subtleFill.opacity(isHovering ? 0.8 : 0),
-            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 3, style: .continuous)
         )
         .onHover { isInside in
             isHovering = isInside
@@ -1758,11 +1764,12 @@ private struct ArchiveGroupRowContent: View {
         VStack(spacing: 0) {
             HStack(spacing: 6 * uiScale) {
                 Image(systemName: "archivebox.fill")
-                    .font(.system(size: 10 * uiScale, weight: .bold))
+                    .font(.system(size: 8 * uiScale, weight: .medium))
                     .foregroundStyle(LineyTheme.mutedText.opacity(0.6))
 
-                Text(LocalizationManager.shared.string("sidebar.archiveGroup.title"))
-                    .font(.system(size: 11 * uiScale, weight: .bold, design: .rounded))
+                Text(LocalizationManager.shared.string("sidebar.archiveGroup.title").uppercased())
+                    .font(.system(size: 10 * uiScale, weight: .semibold))
+                    .tracking(0.5)
                     .foregroundStyle(LineyTheme.mutedText)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -1770,8 +1777,8 @@ private struct ArchiveGroupRowContent: View {
                 Spacer(minLength: 4)
 
                 Text("\(childCount)")
-                    .font(.system(size: 9 * uiScale, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(LineyTheme.mutedText.opacity(0.7))
+                    .font(.system(size: 9 * uiScale, weight: .medium, design: .monospaced))
+                    .foregroundStyle(LineyTheme.mutedText.opacity(0.6))
             }
             .padding(.vertical, 4 * uiScale)
             .padding(.leading, 2 * uiScale)
@@ -1821,24 +1828,24 @@ private struct WorkspaceRowContent: View {
     }
 
     var body: some View {
-        HStack(spacing: 8 * uiScale) {
+        HStack(spacing: 7 * uiScale) {
             SidebarItemIconView(
                 icon: icon,
-                size: 22 * uiScale,
+                size: 16 * uiScale,
                 activityIndicator: iconActivityIndicator,
                 activityPalette: appSettings.sidebarActivityIndicatorPalette,
                 isEmphasized: isSelected
             )
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(workspace.name)
-                    .font(.system(size: 12 * uiScale, weight: .semibold))
+                    .font(.system(size: 11.5 * uiScale, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if appSettings.sidebarShowsSecondaryLabels {
                     Text(workspace.supportsRepositoryFeatures ? workspace.currentBranch : workspace.activeWorktreePath.lastPathComponentValue)
-                        .font(.system(size: 10 * uiScale, weight: .medium, design: .monospaced))
-                        .foregroundStyle(LineyTheme.mutedText)
+                        .font(.system(size: 9.5 * uiScale, weight: .regular, design: .monospaced))
+                        .foregroundStyle(LineyTheme.mutedText.opacity(0.85))
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -1894,12 +1901,12 @@ private struct WorkspaceRowContent: View {
                 }
             }
         }
-        .padding(.vertical, 4 * uiScale)
+        .padding(.vertical, 3 * uiScale)
         .padding(.leading, 2 * uiScale)
         .padding(.trailing, 8 * uiScale)
         .background(
             LineyTheme.subtleFill.opacity(isHovering ? 1 : 0),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 3, style: .continuous)
         )
         .onHover { isInside in
             isHovering = isInside
@@ -1935,9 +1942,9 @@ private struct WorktreeRowContent: View {
         CGFloat(appSettings.uiScale)
     }
 
-    private var iconSize: CGFloat { 16 * uiScale }
+    private var iconSize: CGFloat { 13 * uiScale }
     private var leadingInset: CGFloat { 5 * uiScale }
-    private var iconColumnWidth: CGFloat { 24 * uiScale }
+    private var iconColumnWidth: CGFloat { 18 * uiScale }
     private var iconActivityIndicator: SidebarIconActivityIndicator {
         if workspace.runningSessionCount(forWorktreePath: worktree.path) > 0 {
             return .working
@@ -1960,7 +1967,7 @@ private struct WorktreeRowContent: View {
             )
             .frame(width: iconColumnWidth, alignment: .leading)
             Text(worktree.displayName)
-                .font(.system(size: 10 * uiScale, weight: .medium))
+                .font(.system(size: 10 * uiScale, weight: .regular))
                 .lineLimit(1)
             if worktree.isLocked {
                 Image(systemName: "lock.fill")
@@ -1989,10 +1996,10 @@ private struct WorktreeRowContent: View {
         .padding(.vertical, 1 * uiScale)
         .padding(.leading, leadingInset)
         .padding(.trailing, 8 * uiScale)
-        .frame(maxWidth: .infinity, minHeight: 24 * uiScale, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 20 * uiScale, alignment: .leading)
         .background(
             LineyTheme.subtleFill.opacity(isHovering ? 1 : 0),
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 3, style: .continuous)
         )
         .onHover { isInside in
             isHovering = isInside
@@ -2015,7 +2022,7 @@ struct SidebarItemIconView: View {
 
     private var backgroundShape: some InsettableShape {
         RoundedRectangle(
-            cornerRadius: usesCircularShape ? size / 2 : max(7, size * 0.34),
+            cornerRadius: usesCircularShape ? size / 2 : max(2, size * 0.14),
             style: .continuous
         )
     }
@@ -2023,14 +2030,14 @@ struct SidebarItemIconView: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             Image(systemName: icon.symbolName)
-                .font(.system(size: max(9, size * 0.48), weight: .bold))
+                .font(.system(size: max(9, size * 0.46), weight: .semibold))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(palette.foreground)
                 .frame(width: size, height: size)
                 .background(background)
                 .overlay(
                     backgroundShape
-                        .strokeBorder(palette.border, lineWidth: 1)
+                        .strokeBorder(palette.border, lineWidth: 0.5)
                 )
 
             if activityIndicator == .working {
@@ -2608,7 +2615,7 @@ private struct SidebarInlineIconButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(LineyTheme.secondaryText)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
 }
 

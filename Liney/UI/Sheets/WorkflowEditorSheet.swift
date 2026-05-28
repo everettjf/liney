@@ -82,10 +82,10 @@ private struct WorkflowEditorContent: View {
         .padding(12)
         .background(
             LineyTheme.panelBackground,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
         .task {
@@ -193,7 +193,7 @@ private struct WorkflowEditorContent: View {
             .padding(.vertical, 8)
             .background(
                 isSelected ? LineyTheme.accent : Color.clear,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 4, style: .continuous)
             )
             .contentShape(Rectangle())
         }
@@ -388,7 +388,7 @@ private struct WorkflowEditorContent: View {
             .font(.system(size: 12, design: .monospaced))
         }
         .padding(10)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
 }
 

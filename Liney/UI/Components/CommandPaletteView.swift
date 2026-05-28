@@ -88,9 +88,9 @@ struct CommandPaletteView: View {
                 .frame(maxHeight: 380)
             }
             .frame(width: 640)
-            .background(LineyTheme.canvasBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(LineyTheme.canvasBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .stroke(LineyTheme.border, lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.28), radius: 30, y: 14)
@@ -120,7 +120,7 @@ private struct CommandPaletteRow: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(iconColor)
                 .frame(width: 22, height: 22)
-                .background(iconColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .background(iconColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
@@ -138,7 +138,7 @@ private struct CommandPaletteRow: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
                 .fill(LineyTheme.subtleFill.opacity(isSelected || isHovering ? 1 : 0))
         )
         .onHover { isHovering = $0 }

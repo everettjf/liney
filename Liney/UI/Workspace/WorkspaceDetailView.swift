@@ -417,16 +417,16 @@ private struct WorkspaceTabButton: View {
             .padding(.vertical, 9)
             .frame(width: WorkspaceTabSizing.width(for: title, paneCount: paneCount, canClose: canClose), alignment: .leading)
             .frame(minHeight: 38, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         }
         .buttonStyle(.plain)
         .foregroundStyle(labelColor)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(backgroundFill)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .stroke(borderColor, lineWidth: isSelected ? 1.15 : 1)
         )
         .overlay(alignment: .trailing) {
@@ -452,7 +452,7 @@ private struct WorkspaceTabButton: View {
                     .padding(.leading, 12)
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         .shadow(color: shadowColor, radius: isSelected ? 14 : (isHovered ? 8 : 0), y: isSelected || isHovered ? 4 : 0)
         .offset(y: isHovered ? -1 : 0)
         .animation(.easeInOut(duration: 0.12), value: isHovered)
@@ -504,11 +504,11 @@ private struct WorkspaceTabRenameField: View {
             .padding(.vertical, 6)
             .frame(width: WorkspaceTabSizing.width(for: title.isEmpty ? localization.string("main.tab.namePlaceholder") : title, paneCount: 1, canClose: false))
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(LineyTheme.panelRaised)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .stroke(LineyTheme.accent.opacity(0.45), lineWidth: 1)
             )
             .focused(isFocused)
@@ -588,16 +588,16 @@ private struct CenterPreviewTabChip: View {
             .padding(.trailing, 30)
             .padding(.vertical, 9)
             .frame(minHeight: 38)
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         }
         .buttonStyle(.plain)
         .foregroundStyle(isSelected ? .white : LineyTheme.secondaryText)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(isSelected ? LineyTheme.panelRaised : LineyTheme.paneHeaderBackground.opacity(isHovered ? 0.98 : 0.78))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .stroke(isSelected ? LineyTheme.accent.opacity(0.42) : LineyTheme.border, lineWidth: isSelected ? 1.15 : 1)
         )
         .overlay(alignment: .trailing) {

@@ -273,7 +273,7 @@ struct GlobalCanvasView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -309,9 +309,9 @@ struct GlobalCanvasView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LineyTheme.chromeBackground.opacity(0.96), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(LineyTheme.chromeBackground.opacity(0.96), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
@@ -1040,20 +1040,20 @@ private struct GlobalCanvasCardView: View {
                 content
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         .offset(
             x: dragTranslation.width / canvasScale,
             y: dragTranslation.height / canvasScale
         )
-        .background(cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(cardBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(cardBorder, lineWidth: card.isSelected ? 1.4 : 1)
         )
         .overlay {
             if !card.isSelected {
                 Color.clear
-                    .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     .onTapGesture(perform: onSelect)
             }
         }
@@ -1156,7 +1156,7 @@ private struct GlobalCanvasCardView: View {
     }
 
     private var inactiveOverlay: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
             .fill(Color.black.opacity(0.12))
     }
 
@@ -1296,9 +1296,9 @@ private struct WorkspaceCanvasTerminalPane: View {
                 .background(LineyTheme.paneBackground)
                 .allowsHitTesting(allowsInteraction)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
                 .stroke(isFocused ? LineyTheme.accent.opacity(0.4) : LineyTheme.border, lineWidth: 1)
         )
     }

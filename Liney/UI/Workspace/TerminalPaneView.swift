@@ -388,7 +388,7 @@ private struct PaneHeaderButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(LineyTheme.secondaryText)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
     }
 }
 
@@ -414,7 +414,7 @@ private struct PaneSearchBar: View {
                 .onExitCommand(perform: onClose)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
-                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
 
             if let resultLabel {
                 PaneTag(text: resultLabel, tone: .neutral)

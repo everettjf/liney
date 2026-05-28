@@ -41,10 +41,10 @@ struct WorkspacePreviewPanel: View {
         }
         .background(LineyTheme.panelBackground)
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
         .onAppear {
             addressText = webAddressString
             loadCurrentContent()
@@ -131,9 +131,9 @@ struct WorkspacePreviewPanel: View {
             .onSubmit { navigateToAddress() }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .stroke(LineyTheme.border, lineWidth: 1)
             )
             .onTapGesture { isEditingAddress = true }
@@ -170,8 +170,8 @@ struct WorkspacePreviewPanel: View {
         }
         .padding(28)
         .frame(maxWidth: 360)
-        .background(LineyTheme.panelRaised, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(LineyTheme.border, lineWidth: 1))
+        .background(LineyTheme.panelRaised, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(LineyTheme.border, lineWidth: 1))
     }
 
     // MARK: - Content loading

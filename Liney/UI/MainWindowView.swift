@@ -1222,7 +1222,7 @@ private struct StatusBanner: View {
 
     private var shape: AnyShape {
         isMultiline
-            ? AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            ? AnyShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             : AnyShape(Capsule())
     }
 }

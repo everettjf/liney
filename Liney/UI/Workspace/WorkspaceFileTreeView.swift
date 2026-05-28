@@ -185,10 +185,10 @@ private struct FileTreeContent: View {
         }
         .background(LineyTheme.sidebarBackground)
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
                 .stroke(LineyTheme.border, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
 
     // MARK: - Header

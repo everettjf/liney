@@ -13,7 +13,7 @@ struct ToolbarFeatureIcon: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .fill(tint.opacity(0.18))
                 .frame(width: 16, height: 16)
 

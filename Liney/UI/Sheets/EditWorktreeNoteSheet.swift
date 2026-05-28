@@ -45,10 +45,10 @@ struct EditWorktreeNoteSheet: View {
                     .padding(8)
                     .background(
                         Color(nsColor: .controlBackgroundColor).opacity(0.92),
-                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        in: RoundedRectangle(cornerRadius: 4, style: .continuous)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
                     )
                     .focused($isNoteFocused)
