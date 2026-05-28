@@ -64,6 +64,20 @@ final class DirectoryTreeLoaderTests: XCTestCase {
         XCTAssertEqual(previewable, ["doc.md", "page.html"])
     }
 
+    func testSymlinkAndTargetKeepDistinctIdentities() throws {
+        try makeFile("AGENTS.md")
+        try FileManager.default.createSymbolicLink(
+            at: root.appendingPathComponent("CLAUDE.md"),
+            withDestinationURL: root.appendingPathComponent("AGENTS.md")
+        )
+
+        let entries = DirectoryTreeLoader.entries(at: root)
+        XCTAssertEqual(Set(entries.map(\.name)), ["AGENTS.md", "CLAUDE.md"])
+        // Each entry's `id` (its url.path) must be unique, otherwise SwiftUI's
+        // ForEach renders one row blank.
+        XCTAssertEqual(Set(entries.map(\.id)).count, entries.count)
+    }
+
     func testEntriesForMissingDirectoryIsEmpty() {
         let missing = root.appendingPathComponent("does-not-exist", isDirectory: true)
         XCTAssertTrue(DirectoryTreeLoader.entries(at: missing).isEmpty)

@@ -62,7 +62,11 @@ nonisolated enum DirectoryTreeLoader {
             let values = try? url.resourceValues(forKeys: Set(keys))
             let isDirectory = values?.isDirectory ?? false
             let name = values?.name ?? url.lastPathComponent
-            return DirectoryTreeEntry(url: url.resolvingSymlinksInPath(), name: name, isDirectory: isDirectory)
+            // Keep the original (unresolved) URL: an entry's identity is its
+            // path, so resolving symlinks would make a link and its target
+            // collide on `id` and render one row blank. Open/preview/reveal
+            // follow the link at the filesystem level regardless.
+            return DirectoryTreeEntry(url: url, name: name, isDirectory: isDirectory)
         }
 
         return sort(mapped)
