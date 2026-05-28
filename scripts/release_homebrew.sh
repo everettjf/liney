@@ -178,6 +178,26 @@ brew_install_target() {
   echo "$APP_SLUG"
 }
 
+# A previous run is considered "fully published" when the GitHub release for
+# the tag already carries every core artifact (DMG, app zip, dSYM zip). The
+# appcast.xml alone does not count — a release with only the appcast is the
+# signature of a publish that died midway through asset upload.
+release_assets_complete() {
+  local tag="$1"
+  local assets
+  assets="$(gh release view "$tag" --repo "$RELEASE_REPO" --json assets --jq '.assets[].name' 2>/dev/null)" || return 1
+  local required=(
+    "$(basename "$DIST_DMG_PATH")"
+    "$(basename "$DIST_ZIP_PATH")"
+    "$(basename "$DIST_DSYM_ZIP_PATH")"
+  )
+  local name
+  for name in "${required[@]}"; do
+    grep -qxF "$name" <<<"$assets" || return 1
+  done
+  return 0
+}
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   usage
   exit 0
@@ -287,20 +307,29 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Resume detection: if a tag matching the current MARKETING_VERSION already
-# exists locally, this is a re-run after a previous publish step failed
-# (e.g. flaky TLS during `gh release create`). Skip everything that was
-# already done, only redo the publish.
+# Resume vs. new-release detection. A tag matching the current
+# MARKETING_VERSION already existing locally means a previous run got at least
+# as far as tagging. Two cases to tell apart:
+#   1. The previous run fully published — the GitHub release already carries
+#      every core asset. The version simply was never bumped afterwards, so
+#      this invocation is a brand new release: fall through and bump normally.
+#   2. The publish step died partway (tag pushed, but some/all assets missing,
+#      e.g. flaky TLS during `gh release create`). This is a real resume: skip
+#      everything already done and only redo the upload.
 RESUMING=0
 if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
-  RESUMING=1
-  SKIP_BUMP=1
-  echo "Tag v$VERSION already exists locally — resuming release upload only." >&2
-  echo "Skipping: bump, sign/notarize, dSYM archive+upload, app zip, appcast regen, commit, tag push." >&2
-  echo "All artifacts must already exist in $OUTPUT_DIR." >&2
-  # On resume the latest tag IS the current release, so step back one for
-  # the release-notes diff.
-  PREVIOUS_TAG="$(git tag -l 'v*' --sort=-version:refname | grep -v "^v${VERSION}\$" | head -n 1 || true)"
+  if release_assets_complete "v$VERSION"; then
+    echo "Release v$VERSION is already published with all core assets — treating this as a new release and bumping the version." >&2
+  else
+    RESUMING=1
+    SKIP_BUMP=1
+    echo "Tag v$VERSION already exists locally but its release is incomplete — resuming release upload only." >&2
+    echo "Skipping: bump, sign/notarize, dSYM archive+upload, app zip, appcast regen, commit, tag push." >&2
+    echo "All artifacts must already exist in $OUTPUT_DIR." >&2
+    # On resume the latest tag IS the current release, so step back one for
+    # the release-notes diff.
+    PREVIOUS_TAG="$(git tag -l 'v*' --sort=-version:refname | grep -v "^v${VERSION}\$" | head -n 1 || true)"
+  fi
 fi
 
 if [[ "$SKIP_BUMP" != "1" ]]; then
