@@ -127,12 +127,12 @@ struct TerminalPaneView: View {
                 searchLabel: searchStatusLabel
             )
         }
-        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(isFocused ? LineyTheme.accent.opacity(0.46) : LineyTheme.border, lineWidth: isFocused ? 1.2 : 1)
         )
-        .background(paneFill, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .background(paneFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .shadow(color: Color.black.opacity(isFocused ? 0.12 : 0.05), radius: isFocused ? 5 : 2, y: 2)
         .contextMenu {
             Button(localized("terminal.menu.splitRight")) {
