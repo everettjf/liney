@@ -19,14 +19,15 @@ struct WorkspaceFileTreeView: View {
     var body: some View {
         if let paneID = sessionController.focusedPaneID,
            let session = sessionController.session(for: paneID) {
-            FileTreeFollowingSession(workspace: workspace, session: session, source: source)
+            FileTreeFollowingSession(workspace: workspace, session: session)
         } else {
-            FileTreeContent(workspace: workspace, rootPath: workspace.activeWorktreePath, source: source)
+            FileTreeContent(workspace: workspace, rootPath: workspace.activeWorktreePath, source: workspaceSource)
         }
     }
 
-    /// Remote workspaces list their tree over SSH; everything else stays local.
-    private var source: DirectoryTreeSource {
+    /// Source used when no pane is focused: a remote workspace lists over SSH,
+    /// everything else stays local.
+    private var workspaceSource: DirectoryTreeSource {
         if let target = workspace.sshTarget {
             return .remote(target)
         }
@@ -51,10 +52,42 @@ enum DirectoryTreeSource: Equatable {
 private struct FileTreeFollowingSession: View {
     @ObservedObject var workspace: WorkspaceModel
     @ObservedObject var session: ShellSession
-    let source: DirectoryTreeSource
 
     var body: some View {
-        FileTreeContent(workspace: workspace, rootPath: session.effectiveWorkingDirectory, source: source)
+        FileTreeContent(workspace: workspace, rootPath: rootPath, source: source)
+    }
+
+    /// The focused pane decides the source: an SSH pane lists its own remote
+    /// host even inside an otherwise-local workspace (the pane carries the SSH
+    /// config in its backend configuration). Falls back to a remote workspace's
+    /// target, then to the local filesystem.
+    private var source: DirectoryTreeSource {
+        if session.backendConfiguration.kind == .ssh,
+           let config = session.backendConfiguration.ssh {
+            return .remote(config)
+        }
+        if let target = workspace.sshTarget {
+            return .remote(target)
+        }
+        return .local
+    }
+
+    /// Root the tree on the focused pane's working directory. For an SSH pane
+    /// the local worktree path doesn't exist on the remote host, so prefer the
+    /// remote cwd reported by the shell (which also tracks `cd`), then the
+    /// configured remote working directory, then the remote login directory.
+    private var rootPath: String {
+        if session.backendConfiguration.kind == .ssh {
+            if let reported = session.reportedWorkingDirectory, !reported.isEmpty {
+                return reported
+            }
+            if let remoteDirectory = session.backendConfiguration.ssh?.remoteWorkingDirectory,
+               !remoteDirectory.isEmpty {
+                return remoteDirectory
+            }
+            return "."
+        }
+        return session.effectiveWorkingDirectory
     }
 }
 
