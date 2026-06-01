@@ -17,7 +17,7 @@ It gives you one focused place to open codebases, switch worktrees, keep termina
 
 - Keep multiple repositories and worktrees in one sidebar.
 - Reopen the same pane layout when you come back to a repo.
-- Mix local shell, SSH, and agent-backed terminal sessions.
+- Mix local shell, SSH, and agent-backed terminal sessions — the file tree follows the focused pane and browses the remote host over SSH.
 - Stay in a native macOS app built around keyboard-heavy workflows.
 
 ## Install

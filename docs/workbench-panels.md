@@ -31,6 +31,26 @@ and reload when the path, refresh button, or hidden-file toggle changes.
   focused terminal), reveal in Finder, open with default app, copy path.
 - Header buttons: toggle hidden files, refresh, hide.
 
+### Local vs. remote source
+
+The tree's source follows the **focused pane**, not the workspace. The
+`DirectoryTreeSource` is derived in `WorkspaceFileTreeView`:
+
+- If the focused pane is an **SSH session** (`backendConfiguration.kind == .ssh`),
+  the tree lists that pane's **remote host** over SFTP
+  (`RemoteDirectoryConnectionPool` → `SFTPService` `ls`), using the SSH config
+  carried by the pane itself. This works even inside an otherwise-local
+  workspace, where `workspace.sshTarget` is never set.
+- Otherwise it falls back to a remote workspace's `sshTarget`, then to the local
+  filesystem.
+
+For a remote (SSH) pane the local worktree path doesn't exist on the remote
+host, so the root is resolved in priority order: the remote `cwd` reported by the
+shell over OSC 7 (so the tree still tracks `cd` when the remote shell has shell
+integration), then the configured remote working directory, then `.` (the remote
+login directory). Remote-only entries skip Finder/preview/open actions — `cd` and
+copy-path still apply, and dragging inserts the shell-escaped remote path.
+
 ## Preview panel (right, bottom)
 
 `WorkspacePreviewPanel` renders the workspace's current `WorkspacePreviewContent`
