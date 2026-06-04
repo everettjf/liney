@@ -61,9 +61,16 @@ extension SessionBackendConfiguration {
                 remoteWorkingDirectory: nil,
                 remoteCommand: nil
             )
+            var environment = baseEnvironment
+            // When a Keychain password is configured, wire up the SSH_ASKPASS
+            // hook so ssh fetches the secret non-interactively. `_REQUIRE=force`
+            // makes ssh use the helper even though we run with a PTY (-tt).
+            if let askpass = SSHPasswordStore.askpassEnvironment(account: configuration.passwordKeychainAccount) {
+                environment.merge(askpass) { _, new in new }
+            }
             return TerminalLaunchConfiguration(
                 workingDirectory: NSHomeDirectory(),
-                environment: baseEnvironment,
+                environment: environment,
                 command: TerminalCommandDefinition(
                     executablePath: "/usr/bin/ssh",
                     arguments: configuration.sshArguments(),
@@ -170,6 +177,12 @@ private extension SSHSessionConfiguration {
         }
         if let identityFilePath, !identityFilePath.isEmpty {
             arguments.append(contentsOf: ["-i", identityFilePath])
+        }
+        if let passwordKeychainAccount, !passwordKeychainAccount.isEmpty {
+            // With SSH_ASKPASS_REQUIRE=force the helper also answers host-key
+            // prompts, so auto-accept new keys to keep the helper exclusively a
+            // password source. Existing/changed keys are still rejected.
+            arguments.append(contentsOf: ["-o", "StrictHostKeyChecking=accept-new"])
         }
         arguments.append(destination)
         if let remoteInvocation = remoteInvocation(), !remoteInvocation.isEmpty {

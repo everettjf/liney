@@ -37,11 +37,20 @@ actor SSHConfigService {
     /// non-zero (typically a key-auth failure), and `.unreachable` when the
     /// command itself throws (e.g. executable not found, timeout).
     func testConnection(_ entry: SSHConfigEntry) async -> SSHConnectionStatus {
+        // With a stored Keychain password, authenticate via SSH_ASKPASS instead
+        // of BatchMode (which would forbid it). A wrong password surfaces as
+        // `.authRequired` after a single capped prompt.
+        let askpassEnvironment = SSHPasswordStore.askpassEnvironment(account: entry.passwordKeychainAccount)
+
         var arguments: [String] = [
-            "-o", "BatchMode=yes",
             "-o", "ConnectTimeout=5",
             "-o", "StrictHostKeyChecking=accept-new",
         ]
+        if askpassEnvironment == nil {
+            arguments += ["-o", "BatchMode=yes"]
+        } else {
+            arguments += ["-o", "NumberOfPasswordPrompts=1"]
+        }
 
         if let user = entry.user {
             arguments.append(contentsOf: ["-l", user])
@@ -62,7 +71,8 @@ actor SSHConfigService {
         do {
             let result = try await runner.run(
                 executable: "/usr/bin/ssh",
-                arguments: arguments
+                arguments: arguments,
+                environment: askpassEnvironment
             )
 
             if result.exitCode == 0, result.stdout.contains("__OK__") {

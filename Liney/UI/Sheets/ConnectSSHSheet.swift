@@ -23,6 +23,7 @@ struct ConnectSSHSheet: View {
     @State private var user = ""
     @State private var port = "22"
     @State private var identityFile = ""
+    @State private var password = ""
     @State private var remotePath = ""
     @State private var workspaceName = ""
     @State private var connectionStatus: SSHConnectionStatus?
@@ -63,6 +64,44 @@ struct ConnectSSHSheet: View {
             remoteWorkingDirectory: remotePath.isEmpty ? nil : remotePath,
             remoteCommand: trimmedCommand.isEmpty ? nil : trimmedCommand
         )
+    }
+
+    /// Stable Keychain account for the host/user/port currently in the form.
+    private var keychainAccount: String {
+        SSHPasswordStore.account(
+            host: host,
+            user: user.isEmpty ? nil : user,
+            port: Int(port)
+        )
+    }
+
+    /// Placeholder hints whether a password is already stored for this host so
+    /// the user knows an empty field will reuse it rather than clear it.
+    private var passwordPlaceholder: String {
+        if !host.isEmpty, SSHPasswordStore.hasPassword(account: keychainAccount) {
+            return localized("sheet.ssh.password.stored")
+        }
+        return localized("sheet.ssh.password")
+    }
+
+    /// Persists a freshly typed password to the Keychain and returns the account
+    /// to attach to a connection, or `nil` when there is no password to use.
+    /// Side-effecting, so call only from user-initiated actions.
+    private func persistedPasswordAccount() -> String? {
+        let account = keychainAccount
+        if !password.isEmpty {
+            SSHPasswordStore.save(account: account, password: password)
+            return account
+        }
+        return SSHPasswordStore.hasPassword(account: account) ? account : nil
+    }
+
+    /// Builds the configuration to launch/browse, tagging it so ssh fetches the
+    /// stored password via SSH_ASKPASS.
+    private func preparedConfiguration() -> SSHSessionConfiguration {
+        var configuration = currentConfiguration
+        configuration.passwordKeychainAccount = persistedPasswordAccount()
+        return configuration
     }
 
     private var currentEntry: SSHConfigEntry {
@@ -113,7 +152,8 @@ struct ConnectSSHSheet: View {
     private func testConnection() {
         isTesting = true
         connectionStatus = nil
-        let entry = currentEntry
+        var entry = currentEntry
+        entry.passwordKeychainAccount = persistedPasswordAccount()
         Task {
             let service = SSHConfigService()
             let status = await service.testConnection(entry)
@@ -211,6 +251,10 @@ struct ConnectSSHSheet: View {
                     TextField(localized("sheet.ssh.user"), text: $user)
                     TextField(localized("sheet.ssh.port"), text: $port)
                     TextField(localized("sheet.ssh.identityFile"), text: $identityFile)
+                    SecureField(passwordPlaceholder, text: $password)
+                    Text(localized("sheet.ssh.password.hint"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                     HStack {
                         TextField(localized("sheet.ssh.remoteWorkingDirectory"), text: $remotePath)
                         Button(localized("sheet.remote.browse")) {
@@ -252,7 +296,7 @@ struct ConnectSSHSheet: View {
                     Label(localized("common.cancel"), systemImage: "xmark")
                 }
                 Button {
-                    onCreate(currentConfiguration, workspaceName, mode, selectedPresetID)
+                    onCreate(preparedConfiguration(), workspaceName, mode, selectedPresetID)
                     dismiss()
                 } label: {
                     Label(createButtonLabel, systemImage: "plus")
@@ -272,7 +316,7 @@ struct ConnectSSHSheet: View {
             }
         }
         .sheet(isPresented: $showDirectoryBrowser) {
-            RemoteDirectoryBrowser(sshConfig: currentConfiguration) { selectedPath in
+            RemoteDirectoryBrowser(sshConfig: preparedConfiguration()) { selectedPath in
                 remotePath = selectedPath
                 if workspaceName.isEmpty {
                     let lastComponent = (selectedPath as NSString).lastPathComponent
