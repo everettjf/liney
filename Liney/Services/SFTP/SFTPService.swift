@@ -170,8 +170,17 @@ actor SFTPService {
     private func executeRemoteCommand(_ command: String, target: SSHSessionConfiguration) async throws -> ShellCommandResult {
         var args: [String] = []
 
+        // When a Keychain password is configured, authenticate through the
+        // SSH_ASKPASS helper. BatchMode would disable that path, so we drop it
+        // and cap the prompt count to fail fast on a wrong stored password.
+        let askpassEnvironment = SSHPasswordStore.askpassEnvironment(account: target.passwordKeychainAccount)
+
         // SSH options
-        args += ["-o", "BatchMode=yes"]
+        if askpassEnvironment == nil {
+            args += ["-o", "BatchMode=yes"]
+        } else {
+            args += ["-o", "NumberOfPasswordPrompts=1"]
+        }
         args += ["-o", "ConnectTimeout=10"]
         args += ["-o", "StrictHostKeyChecking=accept-new"]
 
@@ -202,7 +211,8 @@ actor SFTPService {
 
         return try await runner.run(
             executable: "/usr/bin/ssh",
-            arguments: args
+            arguments: args,
+            environment: askpassEnvironment
         )
     }
 }

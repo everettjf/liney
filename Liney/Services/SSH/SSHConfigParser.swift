@@ -14,6 +14,10 @@ struct SSHConfigEntry: Hashable, Sendable {
     let port: Int             // default 22
     let user: String?
     let identityFile: String?
+    /// Non-secret Keychain account whose stored password should authenticate the
+    /// test connection via SSH_ASKPASS. `nil` for entries parsed from
+    /// `~/.ssh/config` (those rely on keys/agent).
+    var passwordKeychainAccount: String? = nil
 }
 
 /// Parses OpenSSH config files into SSHConfigEntry models.

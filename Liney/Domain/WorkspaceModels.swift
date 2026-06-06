@@ -167,6 +167,11 @@ struct SSHSessionConfiguration: Codable, Hashable {
     var identityFilePath: String?
     var remoteWorkingDirectory: String?
     var remoteCommand: String?
+    /// Non-secret Keychain account whose stored password ssh should use via the
+    /// `SSH_ASKPASS` helper. The plaintext password is never persisted here — it
+    /// lives in the Keychain (see `SSHPasswordStore`). Optional so older
+    /// persisted state decodes without migration.
+    var passwordKeychainAccount: String?
 
     var destination: String {
         guard let user, !user.isEmpty else { return host }
