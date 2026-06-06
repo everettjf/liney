@@ -29,6 +29,12 @@ struct ConnectSSHSheet: View {
     @State private var connectionStatus: SSHConnectionStatus?
     @State private var isTesting = false
     @State private var showDirectoryBrowser = false
+    /// Account most recently saved to the Keychain during this sheet session, so
+    /// editing host/user/port and re-saving can clean up the now-orphaned entry.
+    @State private var lastPersistedAccount: String?
+    /// Bumped after a Keychain mutation to force the password field's placeholder
+    /// and the clear button to re-evaluate `SSHPasswordStore.hasPassword`.
+    @State private var keychainRefreshToken = 0
 
     init(
         request: ConnectSSHRequest,
@@ -75,13 +81,17 @@ struct ConnectSSHSheet: View {
         )
     }
 
+    /// Whether a password is already stored for the host/user/port in the form.
+    /// Reads `keychainRefreshToken` so the view re-evaluates after a mutation.
+    private var hasStoredPassword: Bool {
+        _ = keychainRefreshToken
+        return !host.isEmpty && SSHPasswordStore.hasPassword(account: keychainAccount)
+    }
+
     /// Placeholder hints whether a password is already stored for this host so
     /// the user knows an empty field will reuse it rather than clear it.
     private var passwordPlaceholder: String {
-        if !host.isEmpty, SSHPasswordStore.hasPassword(account: keychainAccount) {
-            return localized("sheet.ssh.password.stored")
-        }
-        return localized("sheet.ssh.password")
+        hasStoredPassword ? localized("sheet.ssh.password.stored") : localized("sheet.ssh.password")
     }
 
     /// Persists a freshly typed password to the Keychain and returns the account
@@ -89,11 +99,35 @@ struct ConnectSSHSheet: View {
     /// Side-effecting, so call only from user-initiated actions.
     private func persistedPasswordAccount() -> String? {
         let account = keychainAccount
-        if !password.isEmpty {
-            SSHPasswordStore.save(account: account, password: password)
-            return account
+        guard !password.isEmpty else {
+            return SSHPasswordStore.hasPassword(account: account) ? account : nil
         }
-        return SSHPasswordStore.hasPassword(account: account) ? account : nil
+        // The form may have changed host/user/port since the last save, which
+        // would strand the secret under the old account name. Drop that orphan
+        // before writing the new one. Keychain writes run synchronously so the
+        // secret is ready for the caller; only the @State update is deferred to
+        // avoid mutating state mid view-update (this runs from the sheet body).
+        if let previous = lastPersistedAccount, previous != account {
+            SSHPasswordStore.delete(account: previous)
+        }
+        SSHPasswordStore.save(account: account, password: password)
+        DispatchQueue.main.async {
+            lastPersistedAccount = account
+            keychainRefreshToken += 1
+        }
+        return account
+    }
+
+    /// Removes the stored password for the current host/user/port and clears the
+    /// field. Invoked from the clear button, so mutating state directly is safe.
+    private func clearStoredPassword() {
+        let account = keychainAccount
+        SSHPasswordStore.delete(account: account)
+        if lastPersistedAccount == account {
+            lastPersistedAccount = nil
+        }
+        password = ""
+        keychainRefreshToken += 1
     }
 
     /// Builds the configuration to launch/browse, tagging it so ssh fetches the
@@ -251,7 +285,18 @@ struct ConnectSSHSheet: View {
                     TextField(localized("sheet.ssh.user"), text: $user)
                     TextField(localized("sheet.ssh.port"), text: $port)
                     TextField(localized("sheet.ssh.identityFile"), text: $identityFile)
-                    SecureField(passwordPlaceholder, text: $password)
+                    HStack {
+                        SecureField(passwordPlaceholder, text: $password)
+                        if hasStoredPassword {
+                            Button {
+                                clearStoredPassword()
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.borderless)
+                            .help(localized("sheet.ssh.password.clear"))
+                        }
+                    }
                     Text(localized("sheet.ssh.password.hint"))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
