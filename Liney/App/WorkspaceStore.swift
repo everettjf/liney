@@ -836,7 +836,11 @@ final class WorkspaceStore: ObservableObject {
         guard let selectedWorkspaceID,
               let workspace = workspaces.first(where: { $0.id == selectedWorkspaceID })
         else { return }
+        // Becoming active starts any idle panes (first visit). Re-selecting a
+        // workspace whose remote session has since dropped reconnects it, so a
+        // lingering SSH entry transparently re-establishes its connection.
         workspace.isActive = true
+        workspace.reconnectExitedRemoteSessionsIfNeeded()
     }
 
     func selectGlobalCanvasCard(_ cardID: GlobalCanvasCardID) {
@@ -1933,7 +1937,28 @@ final class WorkspaceStore: ObservableObject {
         )
     }
 
+    /// Two SSH configurations point at the same destination when host, user and
+    /// effective port match. Per-session details (remote directory, command,
+    /// identity file) are intentionally ignored so reconnecting to a host reuses
+    /// its existing sidebar entry instead of creating a duplicate.
+    private func sshTargetsMatch(_ lhs: SSHSessionConfiguration, _ rhs: SSHSessionConfiguration) -> Bool {
+        lhs.host.caseInsensitiveCompare(rhs.host) == .orderedSame
+            && (lhs.user ?? "") == (rhs.user ?? "")
+            && (lhs.port ?? 22) == (rhs.port ?? 22)
+    }
+
     func addRemoteWorkspace(sshConfig: SSHSessionConfiguration, name: String) {
+        if let existing = workspaces.first(where: { workspace in
+            workspace.kind == .remoteServer
+                && (workspace.sshTarget.map { sshTargetsMatch($0, sshConfig) } ?? false)
+        }) {
+            selectedWorkspaceID = existing.id
+            existing.bootstrapIfNeeded()
+            existing.reconnectExitedRemoteSessionsIfNeeded()
+            persist()
+            Task { await refreshRemoteWorkspace(existing) }
+            return
+        }
         let activeWorktreePath = sshConfig.remoteWorkingDirectory ?? "/"
         let initialPane = PaneSnapshot(
             id: UUID(),
@@ -1969,6 +1994,16 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func addSSHTerminalWorkspace(sshConfig: SSHSessionConfiguration, name: String?) {
+        if let existing = workspaces.first(where: { workspace in
+            workspace.kind == .sshTerminal
+                && (workspace.settings.sshConfiguration.map { sshTargetsMatch($0, sshConfig) } ?? false)
+        }) {
+            selectedWorkspaceID = existing.id
+            existing.bootstrapIfNeeded()
+            existing.reconnectExitedRemoteSessionsIfNeeded()
+            persist()
+            return
+        }
         let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         let workspace = WorkspaceModel(
             sshConfiguration: sshConfig,

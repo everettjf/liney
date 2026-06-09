@@ -171,6 +171,14 @@ final class WorkspaceSessionController: ObservableObject {
         }
     }
 
+    /// Relaunch any remote (SSH / remote tmux) session whose connection has
+    /// dropped. Local shells and agents are left untouched.
+    func reconnectExitedRemoteSessions() {
+        for session in sessions.values {
+            session.reconnectIfRemoteExited()
+        }
+    }
+
     func clearFocused() {
         guard let focusedPaneID, let session = sessions[focusedPaneID] else { return }
         session.clear()

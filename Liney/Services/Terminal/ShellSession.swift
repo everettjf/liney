@@ -211,6 +211,29 @@ final class ShellSession: ObservableObject, Identifiable {
         start()
     }
 
+    /// A remote session (SSH, or a tmux attach over SSH) whose process has
+    /// already exited. Re-selecting such a pane should transparently reconnect
+    /// rather than leaving a dead terminal showing the local shell prompt.
+    var isReconnectableRemoteSession: Bool {
+        guard lifecycle == .exited else { return false }
+        switch backendConfiguration.kind {
+        case .ssh:
+            return true
+        case .tmuxAttach:
+            return backendConfiguration.tmuxAttach?.isRemote == true
+        case .localShell, .agent:
+            return false
+        }
+    }
+
+    /// Reconnect a remote session that has dropped. No-op for local shells,
+    /// agents, or sessions that are still alive — only exited remote sessions
+    /// are relaunched, so deliberately-closed local shells are never revived.
+    func reconnectIfRemoteExited() {
+        guard isReconnectableRemoteSession else { return }
+        restart()
+    }
+
     func start() {
         launchConfiguration = Self.makeLaunchConfiguration(
             backendConfiguration: backendConfiguration,
