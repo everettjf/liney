@@ -82,7 +82,7 @@ scripts/sign_macos.sh \
 Provide notarization credentials with either:
 
 - `NOTARYTOOL_PROFILE=liney-notarytool` (recommended)
-- `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`
+- `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD` (the password is also accepted as `APPLE_SPECIFIC_PASSWORD`, `APPLE_PASSWORD`, or `APP_SPECIFIC_PASSWORD`)
 
 ## Publish
 
