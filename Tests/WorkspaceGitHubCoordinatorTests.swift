@@ -131,7 +131,12 @@ private func makeCoordinatorWorkspace(name: String, rootPath: String, prNumber: 
     return workspace
 }
 
-private actor FakeGitHubClient: GitHubCLIClient {
+// GitHubCLIClient is @MainActor under the module's default isolation, so the
+// fake must be a MainActor class (an actor can't adopt a global-actor-isolated
+// protocol). `nonisolated deinit` opts out of the deinit executor hop that
+// crashes under XCTest's memory checker (see LineyControlDispatcher).
+@MainActor
+private final class FakeGitHubClient: GitHubCLIClient {
     let failingUpdateNumbers: Set<Int>
     let releaseDrafts: [Int: String]
     private(set) var updatedNumbers: [Int] = []
@@ -140,6 +145,8 @@ private actor FakeGitHubClient: GitHubCLIClient {
         self.failingUpdateNumbers = failingUpdateNumbers
         self.releaseDrafts = releaseDrafts
     }
+
+    nonisolated deinit {}
 
     var integrationStateResult: GitHubIntegrationState { .authorized(GitHubAuthStatus(username: "tester", host: "github.com")) }
 

@@ -99,11 +99,13 @@ private struct FileTreeLoadKey: Hashable {
     let showsHidden: Bool
 }
 
-/// Outcome of a directory read: the listed entries, or a failure to list (so
-/// the view can tell a genuinely empty folder apart from one it couldn't read —
-/// e.g. a remote host the file tree's `BatchMode` SSH can't authenticate to).
+/// Outcome of a directory read: the listed entries plus the absolute directory
+/// they were read from (remote listings resolve relative paths like `.` on the
+/// host), or a failure to list (so the view can tell a genuinely empty folder
+/// apart from one it couldn't read — e.g. a remote host the file tree's
+/// `BatchMode` SSH can't authenticate to).
 private enum DirectoryLoadResult {
-    case entries([DirectoryTreeEntry])
+    case entries([DirectoryTreeEntry], resolvedPath: String)
     case unavailable
 }
 
@@ -116,21 +118,21 @@ private func loadEntries(at path: String, source: DirectoryTreeSource, showsHidd
         let entries = await Task.detached(priority: .userInitiated) {
             DirectoryTreeLoader.entries(at: url, includesHidden: showsHidden)
         }.value
-        return .entries(entries)
+        return .entries(entries, resolvedPath: path)
     case .remote(let config):
         do {
-            let remote = try await RemoteDirectoryConnectionPool.shared.listEntries(
+            let listing = try await RemoteDirectoryConnectionPool.shared.listEntries(
                 config: config,
                 path: path,
                 includesHidden: showsHidden
             )
-            return .entries(remote.map { entry in
+            return .entries(listing.entries.map { entry in
                 DirectoryTreeEntry(
                     url: URL(fileURLWithPath: entry.path, isDirectory: entry.isDirectory),
                     name: entry.name,
                     isDirectory: entry.isDirectory
                 )
-            })
+            }, resolvedPath: listing.path)
         } catch {
             return .unavailable
         }
@@ -150,11 +152,19 @@ private struct FileTreeContent: View {
     @State private var rootEntries: [DirectoryTreeEntry] = []
     @State private var isLoaded = false
     @State private var loadFailed = false
+    @State private var resolvedRootPath: String?
 
     private func localized(_ key: String) -> String { localization.string(key) }
 
+    /// What the header shows: the absolute directory the listing actually ran
+    /// in when known (a remote root of `.` resolves to the login directory),
+    /// falling back to the requested path while loading.
+    private var displayPath: String {
+        resolvedRootPath ?? rootPath
+    }
+
     private var rootURL: URL {
-        URL(fileURLWithPath: rootPath, isDirectory: true)
+        URL(fileURLWithPath: displayPath, isDirectory: true)
     }
 
     private var loadKey: FileTreeLoadKey {
@@ -200,18 +210,21 @@ private struct FileTreeContent: View {
                 if !source.isRemote, !DirectoryTreeLoader.isReadableDirectory(rootPath) {
                     rootEntries = []
                     loadFailed = false
+                    resolvedRootPath = nil
                     isLoaded = true
                     return
                 }
                 let result = await loadEntries(at: rootPath, source: source, showsHidden: showsHidden)
                 guard !Task.isCancelled else { return }
                 switch result {
-                case .entries(let loaded):
+                case .entries(let loaded, let resolvedPath):
                     rootEntries = loaded
                     loadFailed = false
+                    resolvedRootPath = resolvedPath
                 case .unavailable:
                     rootEntries = []
                     loadFailed = true
+                    resolvedRootPath = nil
                 }
                 isLoaded = true
             }
@@ -232,12 +245,12 @@ private struct FileTreeContent: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(LineyTheme.localAccent)
 
-            Text(rootURL.lastPathComponent.isEmpty ? rootPath : rootURL.lastPathComponent)
+            Text(rootURL.lastPathComponent.isEmpty ? displayPath : rootURL.lastPathComponent)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(LineyTheme.tertiaryText)
                 .lineLimit(1)
                 .truncationMode(.head)
-                .help(rootPath)
+                .help(displayPath)
 
             Spacer(minLength: 2)
 
@@ -379,7 +392,7 @@ private struct FileTreeRow: View {
             guard entry.isDirectory, isExpanded else { return }
             let result = await loadEntries(at: entry.url.path, source: source, showsHidden: showsHidden)
             guard !Task.isCancelled else { return }
-            if case .entries(let loaded) = result {
+            if case .entries(let loaded, _) = result {
                 children = loaded
             } else {
                 children = []
