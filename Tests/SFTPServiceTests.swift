@@ -112,6 +112,47 @@ final class SFTPServiceTests: XCTestCase {
         XCTAssertNotEqual(SFTPServiceError.notConnected, SFTPServiceError.authenticationFailed)
     }
 
+    // MARK: - Listing Parsing (cd && pwd && ls)
+
+    func testParseListingResolvesRelativeRoot() {
+        // A relative root like "." is resolved by the remote `pwd`; entry paths
+        // must be rooted on that absolute directory, not the requested path.
+        let stdout = "/home/user\nagent/\nDocuments/\nnohup.out\n"
+        let listing = SFTPService.parseListing(from: stdout)
+        XCTAssertEqual(listing?.path, "/home/user")
+        XCTAssertEqual(listing?.entries.map(\.path), [
+            "/home/user/agent",
+            "/home/user/Documents",
+            "/home/user/nohup.out",
+        ])
+        XCTAssertEqual(listing?.entries.map(\.isDirectory), [true, true, false])
+    }
+
+    func testParseListingMissingPwdLineReturnsNil() {
+        // No `pwd` output means the `cd` failed, so nothing was listed.
+        XCTAssertNil(SFTPService.parseListing(from: ""))
+        XCTAssertNil(SFTPService.parseListing(from: "ls: cannot access\n"))
+    }
+
+    func testParseListingDropsDotEntries() {
+        let stdout = "/srv\n./\n../\n.hidden/\ndata/\n"
+        let listing = SFTPService.parseListing(from: stdout)
+        XCTAssertEqual(listing?.entries.map(\.name), [".hidden", "data"])
+    }
+
+    func testParseListingSortsDirectoriesBeforeFiles() {
+        let stdout = "/srv\nzeta.txt\nApps/\nbeta/\nalpha.txt\n"
+        let listing = SFTPService.parseListing(from: stdout)
+        XCTAssertEqual(listing?.entries.map(\.name), ["Apps", "beta", "alpha.txt", "zeta.txt"])
+    }
+
+    func testParseListingAtFilesystemRoot() {
+        let stdout = "/\nbin/\netc/\n"
+        let listing = SFTPService.parseListing(from: stdout)
+        XCTAssertEqual(listing?.path, "/")
+        XCTAssertEqual(listing?.entries.map(\.path), ["/bin", "/etc"])
+    }
+
     // MARK: - SFTPService Disconnect
 
     func testDisconnectResetsState() async {

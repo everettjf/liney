@@ -80,6 +80,14 @@ final class WorkspaceModel: ObservableObject, Identifiable {
 
     var isRemote: Bool { sshTarget != nil }
 
+    /// Reconnect the active worktree's remote sessions if their connection has
+    /// dropped. Called when the workspace is (re)selected so that clicking a
+    /// lingering SSH entry transparently re-establishes the connection instead
+    /// of leaving a dead terminal at the local home directory.
+    func reconnectExitedRemoteSessionsIfNeeded() {
+        sessionController.reconnectExitedRemoteSessions()
+    }
+
     private var worktreeStates: [String: WorktreeSessionStateRecord]
     private var worktreeControllers: [String: [UUID: WorkspaceSessionController]]
 

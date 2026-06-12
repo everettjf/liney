@@ -109,23 +109,38 @@ actor SFTPService {
     /// Unlike `listDirectories`, this returns both files and directories with an
     /// `isDirectory` flag, and honors `includesHidden` (always dropping `.`/`..`).
     /// Directories sort before files, then case-insensitively by name.
-    func listEntries(at path: String, includesHidden: Bool) async throws -> [SFTPFileEntry] {
+    ///
+    /// The command `cd`s first so a relative path (e.g. `.` before the remote
+    /// shell has reported its cwd) resolves against the SSH login directory,
+    /// and echoes `pwd` so entry paths can be rooted on the absolute directory.
+    func listEntries(at path: String, includesHidden: Bool) async throws -> SFTPDirectoryListing {
         let target = try currentTarget()
         // `-p` appends `/` to directories; `-L` dereferences symlinks so a link
         // pointing at a directory is also marked with `/` (not shown as a file);
         // `-a` adds hidden entries (omitting it lets `ls` exclude dotfiles).
-        let command = includesHidden ? "ls -1paL \(path.shellQuoted)" : "ls -1pL \(path.shellQuoted)"
+        let listCommand = includesHidden ? "ls -1paL" : "ls -1pL"
+        let command = "cd \(path.shellQuoted) && pwd && \(listCommand)"
         let result = try await executeRemoteCommand(command, target: target)
         // `ls` exits non-zero on partial errors (e.g. a broken symlink) while
         // still listing the rest on stdout. Only treat it as a hard failure
-        // when there is nothing to show.
-        guard result.exitCode == 0 || !result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        // when the `cd && pwd` preamble is missing or there is nothing to show.
+        guard let listing = Self.parseListing(from: result.stdout),
+              result.exitCode == 0 || !listing.entries.isEmpty else {
             throw SFTPServiceError.commandFailed(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
         }
+        return listing
+    }
 
-        let base = path.hasSuffix("/") ? path : path + "/"
-        return result.stdout
-            .components(separatedBy: "\n")
+    /// Parse the stdout of `cd <path> && pwd && ls -1p…`: the first line is the
+    /// resolved absolute directory, the rest are `ls` entries. Returns nil when
+    /// the `pwd` line is missing (the `cd` failed, so nothing was listed).
+    nonisolated static func parseListing(from stdout: String) -> SFTPDirectoryListing? {
+        var lines = stdout.components(separatedBy: "\n")
+        guard let directory = lines.first, directory.hasPrefix("/") else { return nil }
+        lines.removeFirst()
+
+        let base = directory.hasSuffix("/") ? directory : directory + "/"
+        let entries = lines
             .compactMap { line -> SFTPFileEntry? in
                 guard !line.isEmpty else { return nil }
                 let isDirectory = line.hasSuffix("/")
@@ -139,6 +154,7 @@ actor SFTPService {
                 }
                 return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
             }
+        return SFTPDirectoryListing(path: directory, entries: entries)
     }
 
     /// Return the home directory on the remote host.

@@ -24,7 +24,7 @@ actor RemoteDirectoryConnectionPool {
         config: SSHSessionConfiguration,
         path: String,
         includesHidden: Bool
-    ) async throws -> [SFTPFileEntry] {
+    ) async throws -> SFTPDirectoryListing {
         do {
             let service = try await service(for: config)
             return try await service.listEntries(at: path, includesHidden: includesHidden)
