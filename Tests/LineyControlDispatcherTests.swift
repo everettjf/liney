@@ -59,6 +59,54 @@ final class LineyControlDispatcherTests: XCTestCase {
         XCTAssertEqual(decoded.error, "invalid-envelope")
     }
 
+    // MARK: - status (no auth, fire-and-forget)
+
+    func testStatusFrameRoutesToHandleStatusWithoutAuth() {
+        // No token field at all — status must still route, like notify.
+        let frame = makeFrame([
+            "v": 1,
+            "cmd": "status",
+            "state": "waiting",
+            "pane": "p1",
+            "title": "Needs approval",
+        ])
+        let response = dispatcher.dispatch(frame: frame)
+        XCTAssertNil(response, "status is fire-and-forget; no response bytes")
+        XCTAssertEqual(host.statusCalls.count, 1)
+        XCTAssertEqual(host.statusCalls.first?.state, "waiting")
+        XCTAssertEqual(host.statusCalls.first?.pane, "p1")
+        XCTAssertEqual(host.statusCalls.first?.title, "Needs approval")
+    }
+
+    func testStatusRoutesEvenWhenControlTokenDisabled() {
+        // Even with the trust token disabled, status (like notify) still works
+        // because it is a self-report, not a control action.
+        dispatcher = LineyControlDispatcher(host: host, tokenResolver: { nil })
+        let frame = makeFrame(["cmd": "status", "state": "error"])
+        let response = dispatcher.dispatch(frame: frame)
+        XCTAssertNil(response)
+        XCTAssertEqual(host.statusCalls.count, 1)
+        XCTAssertEqual(host.statusCalls.first?.state, "error")
+    }
+
+    func testSessionListSurfacesReportedStatus() throws {
+        host.stubbedSessions = [
+            LineyControlSession(
+                workspaceID: "ws-1",
+                workspaceName: "demo",
+                paneID: "p-1",
+                cwd: "/tmp/x",
+                branch: "main",
+                listeningPorts: [],
+                status: "waiting"
+            )
+        ]
+        let frame = makeFrame(["cmd": "session-list", "token": "secret"])
+        let response = try XCTUnwrap(dispatcher.dispatch(frame: frame))
+        let decoded = try JSONDecoder().decode(LineyControlResponse.self, from: response)
+        XCTAssertEqual(decoded.sessions?.first?.status, "waiting")
+    }
+
     // MARK: - Auth gate
 
     func testTokenMismatchIsRejected() throws {
@@ -222,6 +270,7 @@ final class LineyControlDispatcherTests: XCTestCase {
 @MainActor
 private final class RecordingHost: LineyControlHost {
     var notifyCalls: [AgentNotifyRequest] = []
+    var statusCalls: [LineyStatusRequest] = []
     var openCalls: [LineyOpenRequest] = []
     var splitCalls: [LineySplitRequest] = []
     var sendKeysCalls: [LineySendKeysRequest] = []
@@ -230,6 +279,10 @@ private final class RecordingHost: LineyControlHost {
 
     func handleNotify(_ request: AgentNotifyRequest) {
         notifyCalls.append(request)
+    }
+
+    func handleStatus(_ request: LineyStatusRequest) {
+        statusCalls.append(request)
     }
 
     func handleOpen(_ request: LineyOpenRequest) -> LineyControlResponse {

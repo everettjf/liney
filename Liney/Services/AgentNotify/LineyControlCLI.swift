@@ -47,6 +47,18 @@ enum LineyControlCLI {
                   [--pane <uuid>] [--token <t>]
     """
 
+    static let usageStatus = """
+    liney status — report an agent's state for a pane (attention signal).
+
+    USAGE:
+      liney status <running|waiting|done|error> [--pane <uuid>]
+                   [--title <text>] [--agent <name>]
+
+    The pane defaults to $LINEY_PANE_ID (injected into every Liney pane), so
+    inside an agent hook you can just run `liney status waiting`. No token is
+    required — this is a self-report, the same trust level as `liney notify`.
+    """
+
     static let usageSendKeys = """
     liney send-keys — send literal text to a pane.
 
@@ -241,6 +253,70 @@ enum LineyControlCLI {
         return runDispatch(frame: frame, send: send, stdoutWriter: stdoutWriter, stderrWriter: stderrWriter)
     }
 
+    // MARK: - Status
+
+    static func runStatus(
+        arguments: [String],
+        send: (Data) throws -> LineyControlResponse? = { try LineyControlClient.send(frame: $0) },
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        stdoutWriter: (String) -> Void = { print($0) },
+        stderrWriter: (String) -> Void = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
+    ) -> ExitCode {
+        var state: String?
+        var pane: String?
+        var title: String?
+        var agent: String?
+        var index = 0
+        while index < arguments.count {
+            let argument = arguments[index]
+            switch argument {
+            case "--pane":
+                guard index + 1 < arguments.count else { return .usage }
+                pane = arguments[index + 1]; index += 1
+            case "--title":
+                guard index + 1 < arguments.count else { return .usage }
+                title = arguments[index + 1]; index += 1
+            case "--agent":
+                guard index + 1 < arguments.count else { return .usage }
+                agent = arguments[index + 1]; index += 1
+            case "-h", "--help":
+                stdoutWriter(usageStatus); return .ok
+            default:
+                if argument.hasPrefix("-") {
+                    stderrWriter("liney status: unknown flag '\(argument)'")
+                    return .usage
+                }
+                if state == nil {
+                    state = argument
+                } else {
+                    stderrWriter("liney status: unexpected positional '\(argument)'")
+                    return .usage
+                }
+            }
+            index += 1
+        }
+        guard let state, !state.isEmpty else {
+            stderrWriter(usageStatus)
+            return .usage
+        }
+        guard let normalized = AgentReportedState(cliValue: state) else {
+            stderrWriter("liney status: unknown state '\(state)' (use running|waiting|done|error)")
+            return .usage
+        }
+        // Pane is optional: when omitted the server falls back to the active
+        // workspace. $LINEY_PANE_ID is the common path inside an agent hook.
+        let resolvedPane = pane ?? environment[LineyAgentNotifyEnvironment.paneIDKey]
+
+        // No token: status is unauthenticated like notify.
+        let frame = encodeFrame(cmd: "status", token: nil, payload: [
+            "state": normalized.rawValue,
+            "pane": resolvedPane as Any?,
+            "title": title as Any?,
+            "agent": agent as Any?,
+        ])
+        return runDispatch(frame: frame, send: send, stdoutWriter: stdoutWriter, stderrWriter: stderrWriter)
+    }
+
     // MARK: - Session list
 
     static func runSessionList(
@@ -299,7 +375,8 @@ enum LineyControlCLI {
                         ? ""
                         : " ports=" + session.listeningPorts.map { ":\($0)" }.joined(separator: ",")
                     let branchText = session.branch.map { " [\($0)]" } ?? ""
-                    stdoutWriter("\(session.workspaceName)\(branchText) \(session.paneID) \(session.cwd)\(portText)")
+                    let statusText = session.status.map { " <\($0)>" } ?? ""
+                    stdoutWriter("\(session.workspaceName)\(branchText)\(statusText) \(session.paneID) \(session.cwd)\(portText)")
                 }
             }
             return .ok

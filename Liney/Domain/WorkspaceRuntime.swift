@@ -1257,6 +1257,50 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         IslandPanelController.shared.show()
     }
 
+    /// Records an agent's reported state for `paneID` and reflects it on the
+    /// dynamic island. The panel is only forced open for states that demand
+    /// the user's attention (`waiting` / `error` / `done`); a `running` ping
+    /// updates the row silently so progress chatter doesn't pop the island.
+    func postAgentStatus(
+        state: AgentReportedState,
+        title: String?,
+        paneID: UUID?,
+        agentName: String?
+    ) {
+        if let paneID {
+            AgentStatusStore.shared.update(pane: paneID, state: state, title: title)
+        }
+
+        let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle = (trimmedTitle?.isEmpty == false) ? trimmedTitle! : Self.defaultStatusTitle(for: state)
+        let terminalTag = paneID?.uuidString.lowercased()
+        let item = IslandNotificationItem(
+            id: UUID(),
+            workspaceID: id,
+            worktreePath: activeWorktreePath,
+            title: resolvedTitle,
+            agentName: agentName,
+            terminalTag: terminalTag,
+            status: state.islandStatus,
+            startedAt: Date(),
+            body: nil,
+            prompt: nil
+        )
+        IslandNotificationState.shared.post(item: item)
+        if state != .running {
+            IslandPanelController.shared.show()
+        }
+    }
+
+    private static func defaultStatusTitle(for state: AgentReportedState) -> String {
+        switch state {
+        case .running: return "Working…"
+        case .waiting: return "Waiting for input"
+        case .done: return "Done"
+        case .error: return "Error"
+        }
+    }
+
     // MARK: - Listening port discovery
 
     /// Idempotent: starts the periodic refresh loop the first time the

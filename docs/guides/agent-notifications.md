@@ -75,6 +75,55 @@ The notification is then posted to the dynamic island for that workspace
 with the pane recorded as `terminalTag` so click-through can navigate
 back to the originating pane.
 
+## `liney status` CLI (attention state)
+
+A notification is a one-shot event ("build done"). A *status* is a persistent
+state for the pane — `running`, `waiting`, `done`, or `error` — that Liney
+keeps until the agent reports a new one. This is what lets you glance at the
+dynamic island (or `liney session list`) and see *which* agent is blocked,
+the way cmux's attention ring does.
+
+Like `liney notify`, it is a self-report: no token is required, and the pane
+defaults to `$LINEY_PANE_ID`, so from inside an agent hook you can just run:
+
+```sh
+# Agent is now blocked on the user
+liney status waiting --title "Approve running the migration?"
+
+# Agent finished its task
+liney status done
+
+# Agent hit an error
+liney status error --title "build failed"
+```
+
+The state token is permissive — these all map to the four canonical states:
+
+| Canonical | Accepted synonyms |
+|---|---|
+| `running` | `busy`, `working`, `start`, `started` |
+| `waiting` | `wait`, `blocked`, `input`, `needs-input` |
+| `done`    | `complete`, `completed`, `finished`, `success`, `ok` |
+| `error`   | `failed`, `fail` |
+
+A `waiting`, `done`, or `error` report opens the dynamic island to draw
+attention; a `running` report updates the row silently so progress chatter
+doesn't keep popping the panel.
+
+### Options
+
+| Flag | Meaning |
+|---|---|
+| `<state>` (positional) | One of the states/synonyms above (required) |
+| `--pane <uuid>`  | Originating pane (defaults to `$LINEY_PANE_ID`) |
+| `--title <text>` | Optional label shown on the island row |
+| `--agent <name>` | Agent display name (e.g. `Claude`, `Codex`) |
+| `-h, --help`     | Show help and exit |
+
+The reported state shows up in `liney session list` per pane (`<waiting>` in
+the plain output, a `status` field in `--json`), so an external orchestrator
+can poll for blocked agents.
+
 ## Environment variables Liney injects
 
 Inside every pane Liney spawns, these are set:

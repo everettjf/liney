@@ -18,6 +18,8 @@ if let firstArgument = cliArguments.first {
     switch firstArgument {
     case "notify":
         exit(AgentNotifyCLI.run(arguments: rest).rawValue)
+    case "status":
+        exit(LineyControlCLI.runStatus(arguments: rest).rawValue)
     case "open":
         exit(LineyControlCLI.runOpen(arguments: rest).rawValue)
     case "split":

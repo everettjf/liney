@@ -19,6 +19,17 @@ extension LineyDesktopApplication: LineyControlHost {
         routeAgentNotification(request)
     }
 
+    func handleStatus(_ request: LineyStatusRequest) {
+        let state = AgentReportedState(cliValue: request.state) ?? .running
+        let paneID = request.pane.flatMap { UUID(uuidString: $0) }
+        routeAgentStatus(
+            state: state,
+            paneID: paneID,
+            title: request.title,
+            agentName: request.agentName
+        )
+    }
+
     func handleOpen(_ request: LineyOpenRequest) -> LineyControlResponse {
         guard let store = activeWorkspaceStore else {
             return .failure("no-active-window")
@@ -94,7 +105,8 @@ extension LineyDesktopApplication: LineyControlHost {
                             paneID: paneID.uuidString.lowercased(),
                             cwd: session.effectiveWorkingDirectory,
                             branch: workspace.supportsRepositoryFeatures ? workspace.currentBranch : nil,
-                            listeningPorts: workspace.listeningPorts
+                            listeningPorts: workspace.listeningPorts,
+                            status: AgentStatusStore.shared.state(for: paneID)?.rawValue
                         )
                     )
                 }

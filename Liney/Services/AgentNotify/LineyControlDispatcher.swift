@@ -17,6 +17,7 @@ import Foundation
 @MainActor
 protocol LineyControlHost: AnyObject {
     func handleNotify(_ request: AgentNotifyRequest)
+    func handleStatus(_ request: LineyStatusRequest)
     func handleOpen(_ request: LineyOpenRequest) -> LineyControlResponse
     func handleSplit(_ request: LineySplitRequest) -> LineyControlResponse
     func handleSendKeys(_ request: LineySendKeysRequest) -> LineyControlResponse
@@ -62,6 +63,17 @@ nonisolated final class LineyControlDispatcher {
             return nil
         }
 
+        if cmd == .status {
+            // Status is a sibling of notify: a pane reporting about itself.
+            // Same trust level, same fire-and-forget shape — no auth, no
+            // response. The aggregated states are read back through the
+            // authenticated `session-list`.
+            if let request = try? JSONDecoder().decode(LineyStatusRequest.self, from: trim(frame)) {
+                host?.handleStatus(request)
+            }
+            return nil
+        }
+
         // All other commands require auth.
         guard let expected = tokenResolver(), !expected.isEmpty else {
             return LineyControlEncoder.encodeResponse(.failure("control-disabled"))
@@ -75,8 +87,8 @@ nonisolated final class LineyControlDispatcher {
 
         let response: LineyControlResponse
         switch cmd {
-        case .notify:
-            // Already handled above.
+        case .notify, .status:
+            // Already handled above the auth gate.
             return nil
         case .open:
             guard let req = try? JSONDecoder().decode(LineyOpenRequest.self, from: trim(frame)) else {

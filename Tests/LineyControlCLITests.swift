@@ -282,6 +282,79 @@ final class LineyControlCLITests: XCTestCase {
     }
 }
 
+// MARK: - status tests
+
+extension LineyControlCLITests {
+    func testStatusEncodesCanonicalStateAndPaneFromEnv() throws {
+        let captured = FrameCollector()
+        let exit = LineyControlCLI.runStatus(
+            arguments: ["waiting", "--title", "Needs approval"],
+            send: captured.capture,
+            environment: ["LINEY_PANE_ID": "pane-7"],
+            stdoutWriter: { _ in },
+            stderrWriter: { _ in }
+        )
+        XCTAssertEqual(exit, .ok)
+        let json = try captured.decodedJSON()
+        XCTAssertEqual(json["cmd"] as? String, "status")
+        XCTAssertEqual(json["state"] as? String, "waiting")
+        XCTAssertEqual(json["pane"] as? String, "pane-7")
+        XCTAssertEqual(json["title"] as? String, "Needs approval")
+        XCTAssertNil(json["token"], "status must not carry a token; it is unauthenticated")
+    }
+
+    func testStatusNormalizesSynonymToCanonicalState() throws {
+        let captured = FrameCollector()
+        let exit = LineyControlCLI.runStatus(
+            arguments: ["blocked"],
+            send: captured.capture,
+            environment: [:],
+            stdoutWriter: { _ in },
+            stderrWriter: { _ in }
+        )
+        XCTAssertEqual(exit, .ok)
+        let json = try captured.decodedJSON()
+        XCTAssertEqual(json["state"] as? String, "waiting", "'blocked' is a synonym for waiting")
+    }
+
+    func testStatusRejectsUnknownState() {
+        let stderr = StreamCollector()
+        let exit = LineyControlCLI.runStatus(
+            arguments: ["banana"],
+            send: { _ in nil },
+            environment: [:],
+            stdoutWriter: { _ in },
+            stderrWriter: stderr.write
+        )
+        XCTAssertEqual(exit, .usage)
+        XCTAssertTrue(stderr.text.contains("unknown state"))
+    }
+
+    func testStatusRequiresStatePositional() {
+        let exit = LineyControlCLI.runStatus(
+            arguments: [],
+            send: { _ in nil },
+            environment: [:],
+            stdoutWriter: { _ in },
+            stderrWriter: { _ in }
+        )
+        XCTAssertEqual(exit, .usage)
+    }
+
+    func testStatusReportsUnavailableWhenSocketDown() {
+        let stderr = StreamCollector()
+        let exit = LineyControlCLI.runStatus(
+            arguments: ["done"],
+            send: { _ in throw AgentNotifyError.socketUnavailable },
+            environment: ["LINEY_PANE_ID": "p1"],
+            stdoutWriter: { _ in },
+            stderrWriter: stderr.write
+        )
+        XCTAssertEqual(exit, .unavailable)
+        XCTAssertTrue(stderr.text.contains("not running"))
+    }
+}
+
 // MARK: - Test fixtures
 
 // `nonisolated` opt-out: the project sets SWIFT_APPROACHABLE_CONCURRENCY,
