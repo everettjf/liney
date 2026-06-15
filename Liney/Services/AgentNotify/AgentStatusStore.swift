@@ -21,6 +21,7 @@ final class AgentStatusStore {
     struct Entry: Equatable {
         var state: AgentReportedState
         var title: String?
+        var agentName: String?
         var updatedAt: Date
     }
 
@@ -33,8 +34,8 @@ final class AgentStatusStore {
         self.now = now
     }
 
-    func update(pane: UUID, state: AgentReportedState, title: String?) {
-        entries[pane] = Entry(state: state, title: title, updatedAt: now())
+    func update(pane: UUID, state: AgentReportedState, title: String?, agentName: String? = nil) {
+        entries[pane] = Entry(state: state, title: title, agentName: agentName, updatedAt: now())
     }
 
     func state(for pane: UUID) -> AgentReportedState? {

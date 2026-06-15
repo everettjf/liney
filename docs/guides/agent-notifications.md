@@ -124,6 +124,35 @@ The reported state shows up in `liney session list` per pane (`<waiting>` in
 the plain output, a `status` field in `--json`), so an external orchestrator
 can poll for blocked agents.
 
+## Driving and reading other panes (`read` / `agents`)
+
+The control socket also lets an agent inspect and coordinate its **sibling**
+agents — the loop that makes a Liney workspace self-driving. These commands are
+token-gated (see "Wire format"); export `LINEY_CONTROL_TOKEN` once.
+
+```sh
+# Which panes currently host an agent, and what state are they in?
+liney agents --json    # [{pane,type,name,status,reported,cwd,branch,focused}, ...]
+
+# Read a sibling pane's rendered terminal text (last 80 lines)
+liney read --pane <uuid> --last 80 --json | jq -r '.text'
+
+# Wait until the pane's TUI stops streaming before reading
+liney read --pane <uuid> --last 200 --wait-stable --json | jq -r '.text'
+
+# Then act on it
+liney send-keys <uuid> 'npm test\n'
+```
+
+`liney agents` combines two signals: passive detection from the pane's process
+tree (so an agent that never calls `liney status` is still listed, with
+`reported: false`) and the authoritative `liney status` self-reports
+(`reported: true`). `liney read` pulls the text straight from the Ghostty
+surface buffer; `--scrollback` includes history beyond the visible viewport.
+
+The bundled **`liney-cli` skill** (`skills/liney-cli/SKILL.md`) packages this
+loop so a coding agent knows when and how to use it.
+
 ## Environment variables Liney injects
 
 Inside every pane Liney spawns, these are set:

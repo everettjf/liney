@@ -1268,7 +1268,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         agentName: String?
     ) {
         if let paneID {
-            AgentStatusStore.shared.update(pane: paneID, state: state, title: title)
+            AgentStatusStore.shared.update(pane: paneID, state: state, title: title, agentName: agentName)
         }
 
         let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -305,6 +305,13 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.selectedText()
     }
 
+    /// Rendered terminal text for this pane. `scrollback == false` is the
+    /// visible viewport; `true` includes history. Returns nil for backends
+    /// that can't expose buffer text.
+    func readScreenText(scrollback: Bool) -> String? {
+        surfaceController.readScreenText(scrollback: scrollback)
+    }
+
     func beginSearch() {
         let initialText = surfaceController.selectedText()
             ?? surfaceStatus.searchQuery

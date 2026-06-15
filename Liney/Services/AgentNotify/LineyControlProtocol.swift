@@ -25,6 +25,8 @@ enum LineyControlCommand: String, Codable {
     case split
     case sendKeys = "send-keys"
     case sessionList = "session-list"
+    case read
+    case agents
 }
 
 /// State an agent reports about its pane. Mirrors `IslandItemStatus` but is
@@ -124,6 +126,51 @@ struct LineySessionListRequest: Decodable {
     // Reserved for filtering options; intentionally empty for v1.
 }
 
+/// Read the rendered terminal text of a pane.
+struct LineyReadRequest: Decodable {
+    var pane: String?       // defaults to the focused pane
+    var lines: Int?         // keep only the last N non-empty lines
+    var scrollback: Bool?   // include history beyond the viewport
+}
+
+/// List panes that currently have a detected or self-reported agent.
+struct LineyAgentsRequest: Decodable {
+    // Reserved for filtering options; intentionally empty for v1.
+}
+
+/// One detected agent pane in the `agents` response.
+struct LineyAgentInfo: Codable, Equatable {
+    var workspaceID: String
+    var workspaceName: String
+    var paneID: String
+    /// Normalized agent type, e.g. "claude-code", "codex" (nil if only known
+    /// via a self-report that didn't name the agent).
+    var type: String?
+    /// Human-facing name, e.g. "Claude Code".
+    var name: String?
+    /// "running" | "waiting" | "done" | "error".
+    var status: String
+    /// True when `status` came from a `liney status` self-report rather than
+    /// passive process detection.
+    var reported: Bool
+    var cwd: String
+    var branch: String?
+    var focused: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceID = "workspace"
+        case workspaceName = "workspaceName"
+        case paneID = "pane"
+        case type
+        case name
+        case status
+        case reported
+        case cwd
+        case branch
+        case focused
+    }
+}
+
 /// Response shape for a single pane in `session-list`.
 struct LineyControlSession: Codable, Equatable {
     var workspaceID: String
@@ -151,6 +198,12 @@ struct LineyControlResponse: Codable, Equatable {
     var ok: Bool
     var error: String?
     var sessions: [LineyControlSession]?
+    /// Rendered terminal text for `read`.
+    var text: String?
+    /// Number of lines in `text` for `read`.
+    var lineCount: Int?
+    /// Detected agent panes for `agents`.
+    var agents: [LineyAgentInfo]?
 
     static let success = LineyControlResponse(ok: true)
 

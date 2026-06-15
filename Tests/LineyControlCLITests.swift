@@ -355,6 +355,128 @@ extension LineyControlCLITests {
     }
 }
 
+// MARK: - read / agents tests
+
+extension LineyControlCLITests {
+    func testReadRequiresToken() {
+        let exit = LineyControlCLI.runRead(
+            arguments: ["--pane", "p1"],
+            send: { _ in nil },
+            environment: [:],
+            stdoutWriter: { _ in },
+            stderrWriter: { _ in }
+        )
+        XCTAssertEqual(exit, .authRequired)
+    }
+
+    func testReadEncodesPaneLinesScrollback() throws {
+        let captured = FrameCollector()
+        let exit = LineyControlCLI.runRead(
+            arguments: ["--last", "50", "--scrollback"],
+            send: captured.capture,
+            environment: ["LINEY_CONTROL_TOKEN": "secret", "LINEY_PANE_ID": "pane-9"],
+            stdoutWriter: { _ in },
+            stderrWriter: { _ in }
+        )
+        XCTAssertEqual(exit, .ok)
+        let json = try captured.decodedJSON()
+        XCTAssertEqual(json["cmd"] as? String, "read")
+        XCTAssertEqual(json["pane"] as? String, "pane-9")
+        XCTAssertEqual(json["lines"] as? Int, 50)
+        XCTAssertEqual(json["scrollback"] as? Bool, true)
+    }
+
+    func testReadRejectsNonIntegerLast() {
+        let exit = LineyControlCLI.runRead(
+            arguments: ["--last", "abc"],
+            send: { _ in nil },
+            environment: ["LINEY_CONTROL_TOKEN": "secret"],
+            stdoutWriter: { _ in },
+            stderrWriter: { _ in }
+        )
+        XCTAssertEqual(exit, .usage)
+    }
+
+    func testReadPrintsText() {
+        let out = StreamCollector()
+        let exit = LineyControlCLI.runRead(
+            arguments: ["--pane", "p1"],
+            send: { _ in LineyControlResponse(ok: true, text: "hello\nworld", lineCount: 2) },
+            environment: ["LINEY_CONTROL_TOKEN": "secret"],
+            stdoutWriter: out.write,
+            stderrWriter: { _ in }
+        )
+        XCTAssertEqual(exit, .ok)
+        XCTAssertTrue(out.text.contains("hello\nworld"))
+    }
+
+    func testReadWaitStableStopsWhenTextStabilizes() {
+        // Sequence: "a", "ab", "ab" — should stop on the second identical read.
+        let texts = ["a", "ab", "ab", "abc"]
+        let counter = CallCounter()
+        let exit = LineyControlCLI.runRead(
+            arguments: ["--pane", "p1", "--wait-stable"],
+            send: { _ in
+                let i = min(counter.next(), texts.count - 1)
+                return LineyControlResponse(ok: true, text: texts[i], lineCount: 1)
+            },
+            environment: ["LINEY_CONTROL_TOKEN": "secret"],
+            stdoutWriter: { _ in },
+            stderrWriter: { _ in },
+            sleeper: { _ in }
+        )
+        XCTAssertEqual(exit, .ok)
+        // reads: #0 "a", #1 "ab", #2 "ab" (== previous) → stop. 3 calls total.
+        XCTAssertEqual(counter.count, 3)
+    }
+
+    func testAgentsRequiresToken() {
+        let exit = LineyControlCLI.runAgents(
+            arguments: [],
+            send: { _ in nil },
+            environment: [:],
+            stdoutWriter: { _ in },
+            stderrWriter: { _ in }
+        )
+        XCTAssertEqual(exit, .authRequired)
+    }
+
+    func testAgentsJSONShape() throws {
+        let out = StreamCollector()
+        let agents = [
+            LineyAgentInfo(workspaceID: "w", workspaceName: "demo", paneID: "p", type: "codex", name: "Codex", status: "working", reported: false, cwd: "/tmp", branch: "main", focused: true)
+        ]
+        let exit = LineyControlCLI.runAgents(
+            arguments: ["--json"],
+            send: { _ in LineyControlResponse(ok: true, agents: agents) },
+            environment: ["LINEY_CONTROL_TOKEN": "secret"],
+            stdoutWriter: out.write,
+            stderrWriter: { _ in }
+        )
+        XCTAssertEqual(exit, .ok)
+        XCTAssertTrue(out.text.contains("\"type\" : \"codex\""))
+        XCTAssertTrue(out.text.contains("\"status\" : \"working\""))
+    }
+}
+
+@MainActor
+final class ScreenTextTrimTests: XCTestCase {
+    func testDropsTrailingBlankLines() {
+        let trimmed = LineyDesktopApplication.trimScreenText("a\nb\n\n   \n", lastLines: nil)
+        XCTAssertEqual(trimmed, "a\nb")
+    }
+
+    func testKeepsOnlyLastNLines() {
+        let trimmed = LineyDesktopApplication.trimScreenText("1\n2\n3\n4\n5", lastLines: 2)
+        XCTAssertEqual(trimmed, "4\n5")
+    }
+
+    func testLastLargerThanContentReturnsAll() {
+        let trimmed = LineyDesktopApplication.trimScreenText("1\n2", lastLines: 10)
+        XCTAssertEqual(trimmed, "1\n2")
+    }
+}
+
 // MARK: - Test fixtures
 
 // `nonisolated` opt-out: the project sets SWIFT_APPROACHABLE_CONCURRENCY,
@@ -365,6 +487,13 @@ extension LineyControlCLITests {
 nonisolated private final class StreamCollector {
     private(set) var text: String = ""
     func write(_ line: String) { text += line + "\n" }
+}
+
+/// Counts and indexes successive `send` invocations so wait-stable polling can
+/// be driven with a deterministic response sequence.
+nonisolated private final class CallCounter {
+    private(set) var count = 0
+    func next() -> Int { defer { count += 1 }; return count }
 }
 
 nonisolated private final class FrameCollector {

@@ -248,6 +248,69 @@ final class LineyControlDispatcherTests: XCTestCase {
         XCTAssertEqual(decoded.sessions?.first?.listeningPorts, [3000])
     }
 
+    // MARK: - Read
+
+    func testReadRequiresAuth() throws {
+        let frame = makeFrame(["cmd": "read", "pane": "p1"]) // no token
+        let response = try XCTUnwrap(dispatcher.dispatch(frame: frame))
+        let decoded = try JSONDecoder().decode(LineyControlResponse.self, from: response)
+        XCTAssertEqual(decoded.error, "token-mismatch")
+        XCTAssertTrue(host.readCalls.isEmpty)
+    }
+
+    func testReadRoutesPayloadAndReturnsText() throws {
+        host.stubbedText = "line1\nline2"
+        let frame = makeFrame([
+            "cmd": "read",
+            "token": "secret",
+            "pane": "p1",
+            "lines": 40,
+            "scrollback": true,
+        ])
+        let response = try XCTUnwrap(dispatcher.dispatch(frame: frame))
+        let decoded = try JSONDecoder().decode(LineyControlResponse.self, from: response)
+        XCTAssertTrue(decoded.ok)
+        XCTAssertEqual(decoded.text, "line1\nline2")
+        XCTAssertEqual(decoded.lineCount, 2)
+        XCTAssertEqual(host.readCalls.first?.pane, "p1")
+        XCTAssertEqual(host.readCalls.first?.lines, 40)
+        XCTAssertEqual(host.readCalls.first?.scrollback, true)
+    }
+
+    // MARK: - Agents
+
+    func testAgentsRequiresAuth() throws {
+        let frame = makeFrame(["cmd": "agents"]) // no token
+        let response = try XCTUnwrap(dispatcher.dispatch(frame: frame))
+        let decoded = try JSONDecoder().decode(LineyControlResponse.self, from: response)
+        XCTAssertEqual(decoded.error, "token-mismatch")
+        XCTAssertEqual(host.agentsCalls, 0)
+    }
+
+    func testAgentsReturnsRoster() throws {
+        host.stubbedAgents = [
+            LineyAgentInfo(
+                workspaceID: "ws-1",
+                workspaceName: "demo",
+                paneID: "p-1",
+                type: "claude-code",
+                name: "Claude Code",
+                status: "waiting",
+                reported: true,
+                cwd: "/tmp/x",
+                branch: "main",
+                focused: false
+            )
+        ]
+        let frame = makeFrame(["cmd": "agents", "token": "secret"])
+        let response = try XCTUnwrap(dispatcher.dispatch(frame: frame))
+        let decoded = try JSONDecoder().decode(LineyControlResponse.self, from: response)
+        XCTAssertEqual(decoded.agents?.count, 1)
+        XCTAssertEqual(decoded.agents?.first?.type, "claude-code")
+        XCTAssertEqual(decoded.agents?.first?.status, "waiting")
+        XCTAssertEqual(decoded.agents?.first?.reported, true)
+    }
+
     // MARK: - Trailing newline tolerance
 
     func testTrailingNewlineIsStrippedBeforeDecoding() throws {
@@ -276,6 +339,10 @@ private final class RecordingHost: LineyControlHost {
     var sendKeysCalls: [LineySendKeysRequest] = []
     var sessionListCalls = 0
     var stubbedSessions: [LineyControlSession] = []
+    var readCalls: [LineyReadRequest] = []
+    var stubbedText: String = ""
+    var agentsCalls = 0
+    var stubbedAgents: [LineyAgentInfo] = []
 
     func handleNotify(_ request: AgentNotifyRequest) {
         notifyCalls.append(request)
@@ -303,5 +370,15 @@ private final class RecordingHost: LineyControlHost {
     func handleSessionList(_ request: LineySessionListRequest) -> LineyControlResponse {
         sessionListCalls += 1
         return LineyControlResponse(ok: true, error: nil, sessions: stubbedSessions)
+    }
+
+    func handleRead(_ request: LineyReadRequest) -> LineyControlResponse {
+        readCalls.append(request)
+        return LineyControlResponse(ok: true, text: stubbedText, lineCount: stubbedText.isEmpty ? 0 : stubbedText.split(separator: "\n", omittingEmptySubsequences: false).count)
+    }
+
+    func handleAgents(_ request: LineyAgentsRequest) -> LineyControlResponse {
+        agentsCalls += 1
+        return LineyControlResponse(ok: true, agents: stubbedAgents)
     }
 }

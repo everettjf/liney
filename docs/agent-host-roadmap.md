@@ -65,6 +65,15 @@ The `agent-notify.sock` server is now a general control plane
   `session list`. This is the missing piece versus cmux's attention ring:
   Liney already had the `IslandItemStatus.waitingForInput` model but no IPC
   path for an agent to set it.
+- `liney read [--pane] [--last N] [--scrollback] [--wait-stable]` — read a
+  pane's rendered terminal text via `ghostty_surface_read_text`. `--wait-stable`
+  polls (client-side) until the screen stops changing, so an agent can read a
+  sibling's TUI output without catching a half-painted frame.
+- `liney agents` — the roster of panes that currently host an agent, detected
+  passively from the process tree (`AgentProcessDetector`, argv-based so
+  node-wrapped CLIs like Claude Code are caught) and merged with the
+  `liney status` self-reports. This is what lets a coding agent inspect and
+  coordinate its sibling agents (the Prowl `prowl agents` / self-driving model).
 
 Control actions (`open` / `split` / `send-keys` / `session list`) are
 authenticated with the existing URL-scheme token model; the two self-report

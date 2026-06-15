@@ -22,6 +22,8 @@ protocol LineyControlHost: AnyObject {
     func handleSplit(_ request: LineySplitRequest) -> LineyControlResponse
     func handleSendKeys(_ request: LineySendKeysRequest) -> LineyControlResponse
     func handleSessionList(_ request: LineySessionListRequest) -> LineyControlResponse
+    func handleRead(_ request: LineyReadRequest) -> LineyControlResponse
+    func handleAgents(_ request: LineyAgentsRequest) -> LineyControlResponse
 }
 
 /// Note: this class is explicitly `nonisolated`. The project enables
@@ -108,6 +110,12 @@ nonisolated final class LineyControlDispatcher {
         case .sessionList:
             let req = (try? JSONDecoder().decode(LineySessionListRequest.self, from: trim(frame))) ?? LineySessionListRequest()
             response = host.handleSessionList(req)
+        case .read:
+            let req = (try? JSONDecoder().decode(LineyReadRequest.self, from: trim(frame))) ?? LineyReadRequest()
+            response = host.handleRead(req)
+        case .agents:
+            let req = (try? JSONDecoder().decode(LineyAgentsRequest.self, from: trim(frame))) ?? LineyAgentsRequest()
+            response = host.handleAgents(req)
         }
         return LineyControlEncoder.encodeResponse(response)
     }
