@@ -41,6 +41,13 @@ xcodebuild \
 open ~/Library/Developer/Xcode/DerivedData/Liney-*/Build/Products/Debug/Liney.app
 ```
 
+## Smoke-test the agent control CLI
+
+With a freshly built Liney running and at least one terminal pane open, run
+`scripts/smoke-liney-cli.sh` — it exercises the `liney` control commands
+(`session list` / `read` / `agents` / `status`) and asserts the auth model
+(read-only commands need no token; `send-keys` still does).
+
 ## Project Layout
 
 ```text
