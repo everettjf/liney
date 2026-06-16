@@ -53,6 +53,14 @@ protocol TerminalSurfaceController: AnyObject {
     func resetTerminal()
 }
 
+extension TerminalSurfaceController {
+    /// Reads the rendered terminal text. `scrollback == false` returns the
+    /// current viewport; `true` returns the full screen including scrollback.
+    /// Default is `nil` for backends that can't expose buffer text (e.g. the
+    /// placeholder surface); the Ghostty controller overrides it.
+    func readScreenText(scrollback: Bool) -> String? { nil }
+}
+
 @MainActor
 protocol ManagedTerminalSessionSurfaceController: TerminalSurfaceController {
     var managedPID: Int32? { get }

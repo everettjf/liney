@@ -17,10 +17,13 @@ import Foundation
 @MainActor
 protocol LineyControlHost: AnyObject {
     func handleNotify(_ request: AgentNotifyRequest)
+    func handleStatus(_ request: LineyStatusRequest)
     func handleOpen(_ request: LineyOpenRequest) -> LineyControlResponse
     func handleSplit(_ request: LineySplitRequest) -> LineyControlResponse
     func handleSendKeys(_ request: LineySendKeysRequest) -> LineyControlResponse
     func handleSessionList(_ request: LineySessionListRequest) -> LineyControlResponse
+    func handleRead(_ request: LineyReadRequest) -> LineyControlResponse
+    func handleAgents(_ request: LineyAgentsRequest) -> LineyControlResponse
 }
 
 /// Note: this class is explicitly `nonisolated`. The project enables
@@ -62,12 +65,28 @@ nonisolated final class LineyControlDispatcher {
             return nil
         }
 
-        // All other commands require auth.
-        guard let expected = tokenResolver(), !expected.isEmpty else {
-            return LineyControlEncoder.encodeResponse(.failure("control-disabled"))
+        if cmd == .status {
+            // Status is a sibling of notify: a pane reporting about itself.
+            // Same trust level, same fire-and-forget shape — no auth, no
+            // response. The aggregated states are read back through the
+            // authenticated `session-list`.
+            if let request = try? JSONDecoder().decode(LineyStatusRequest.self, from: trim(frame)) {
+                host?.handleStatus(request)
+            }
+            return nil
         }
-        guard let provided = envelope.token, provided == expected else {
-            return LineyControlEncoder.encodeResponse(.failure("token-mismatch"))
+
+        // Mutating control commands require the trust token. Read-only
+        // inspection (`read` / `agents`) skips the gate: it changes nothing and
+        // the socket is owner-only, so any of the user's own processes — agent
+        // hooks included — can inspect without a token.
+        if cmd.requiresControlToken {
+            guard let expected = tokenResolver(), !expected.isEmpty else {
+                return LineyControlEncoder.encodeResponse(.failure("control-disabled"))
+            }
+            guard let provided = envelope.token, provided == expected else {
+                return LineyControlEncoder.encodeResponse(.failure("token-mismatch"))
+            }
         }
         guard let host else {
             return LineyControlEncoder.encodeResponse(.failure("app-not-ready"))
@@ -75,8 +94,8 @@ nonisolated final class LineyControlDispatcher {
 
         let response: LineyControlResponse
         switch cmd {
-        case .notify:
-            // Already handled above.
+        case .notify, .status:
+            // Already handled above the auth gate.
             return nil
         case .open:
             guard let req = try? JSONDecoder().decode(LineyOpenRequest.self, from: trim(frame)) else {
@@ -96,6 +115,12 @@ nonisolated final class LineyControlDispatcher {
         case .sessionList:
             let req = (try? JSONDecoder().decode(LineySessionListRequest.self, from: trim(frame))) ?? LineySessionListRequest()
             response = host.handleSessionList(req)
+        case .read:
+            let req = (try? JSONDecoder().decode(LineyReadRequest.self, from: trim(frame))) ?? LineyReadRequest()
+            response = host.handleRead(req)
+        case .agents:
+            let req = (try? JSONDecoder().decode(LineyAgentsRequest.self, from: trim(frame))) ?? LineyAgentsRequest()
+            response = host.handleAgents(req)
         }
         return LineyControlEncoder.encodeResponse(response)
     }

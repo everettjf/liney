@@ -84,6 +84,10 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         terminalView.currentSelectionText()
     }
 
+    func readScreenText(scrollback: Bool) -> String? {
+        terminalView.currentScreenText(scrollback: scrollback)
+    }
+
     func toggleReadOnly() {
         focus()
         _ = terminalView.performBindingAction("toggle_readonly")
@@ -1616,6 +1620,26 @@ private final class LineyGhosttySurfaceView: NSView {
         guard ghostty_surface_read_selection(surface, &text) else { return nil }
         defer { ghostty_surface_free_text(surface, &text) }
         return String(cString: text.text)
+    }
+
+    /// Reads the rendered terminal text via libghostty. `scrollback == false`
+    /// selects the visible viewport; `true` selects the whole screen including
+    /// history. Uses `text_len` (not NUL-termination) so embedded NULs or
+    /// non-terminated buffers decode correctly.
+    func currentScreenText(scrollback: Bool) -> String? {
+        guard let surface else { return nil }
+        let tag = scrollback ? GHOSTTY_POINT_SCREEN : GHOSTTY_POINT_VIEWPORT
+        let selection = ghostty_selection_s(
+            top_left: ghostty_point_s(tag: tag, coord: GHOSTTY_POINT_COORD_TOP_LEFT, x: 0, y: 0),
+            bottom_right: ghostty_point_s(tag: tag, coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT, x: 0, y: 0),
+            rectangle: false
+        )
+        var text = ghostty_text_s()
+        guard ghostty_surface_read_text(surface, selection, &text) else { return nil }
+        defer { ghostty_surface_free_text(surface, &text) }
+        guard let ptr = text.text, text.text_len > 0 else { return "" }
+        let buffer = UnsafeRawBufferPointer(start: ptr, count: Int(text.text_len))
+        return String(decoding: buffer, as: UTF8.self)
     }
 
     private func applyCursor() {

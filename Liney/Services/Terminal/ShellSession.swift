@@ -305,6 +305,13 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.selectedText()
     }
 
+    /// Rendered terminal text for this pane. `scrollback == false` is the
+    /// visible viewport; `true` includes history. Returns nil for backends
+    /// that can't expose buffer text.
+    func readScreenText(scrollback: Bool) -> String? {
+        surfaceController.readScreenText(scrollback: scrollback)
+    }
+
     func beginSearch() {
         let initialText = surfaceController.selectedText()
             ?? surfaceStatus.searchQuery
@@ -415,6 +422,17 @@ final class ShellSession: ObservableObject, Identifiable {
     ) -> TerminalLaunchConfiguration {
         var baseEnvironment = LineyTerminalManagedProcessReaper.prepareEnvironment(defaultEnvironment())
         baseEnvironment[LineyAgentNotifyEnvironment.paneIDKey] = paneID.uuidString.lowercased()
+        // Inject the control token so an agent in this pane can drive Liney
+        // (send-keys/open/split/session list) without the user exporting it.
+        // Present only when URL-scheme control is enabled; any process in the
+        // pane can then issue control actions — acceptable because the control
+        // socket is already owner-only. Panes launched before the user enables
+        // URL Scheme pick the token up on their next restart.
+        if LineyURLScheme.isEnabled(),
+           let controlToken = LineyURLScheme.storedToken(),
+           !controlToken.isEmpty {
+            baseEnvironment[LineyAgentNotifyEnvironment.controlTokenKey] = controlToken
+        }
         return backendConfiguration.makeLaunchConfiguration(
             preferredWorkingDirectory: preferredWorkingDirectory,
             baseEnvironment: baseEnvironment

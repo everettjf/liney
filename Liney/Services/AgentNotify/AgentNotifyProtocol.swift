@@ -12,6 +12,13 @@ import Foundation
 /// the originating pane.
 enum LineyAgentNotifyEnvironment {
     static let paneIDKey = "LINEY_PANE_ID"
+
+    /// Control token Liney injects into a pane (when URL-scheme control is
+    /// enabled) so an agent running there can issue the token-gated control
+    /// commands — `send-keys`, `open`, `split`, `session list` — without the
+    /// user exporting it by hand. The read-only commands (`read`, `agents`)
+    /// need no token at all.
+    static let controlTokenKey = "LINEY_CONTROL_TOKEN"
 }
 
 /// Wire format for a single agent notification.

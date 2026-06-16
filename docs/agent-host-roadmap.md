@@ -36,7 +36,7 @@ further than cmux because Liney owns the worktree model end-to-end.
 
 ### 2. Sidebar metadata for live sessions
 
-**Status:** not started.
+**Status:** partially shipped.
 
 Make every workspace row in the sidebar carry agent-relevant context at a
 glance:
@@ -44,23 +44,43 @@ glance:
 - Active branch and PR number/state (already partially via
   `WorkspaceGitHubCoordinator`).
 - Resolved working directory.
-- Listening ports owned by the pane's process tree (`lsof`-based).
+- Listening ports owned by the pane's process tree (`lsof`-based). **Shipped**
+  — `ListeningPortInspector` + the `:3000` sidebar badge.
 - Latest unread notification title.
 
 ### 3. Socket / IPC control API
 
-**Status:** not started.
+**Status:** shipped.
 
-Generalize the `agent-notify.sock` server into a control plane:
+The `agent-notify.sock` server is now a general control plane
+(`LineyControlProtocol` / `LineyControlDispatcher`):
 
 - `liney open <repo> [--worktree <path>]`.
 - `liney split [--axis vertical|horizontal]`.
 - `liney send-keys <pane> <text>`.
 - `liney session list`.
+- `liney status <running|waiting|done|error>` — the agent attention signal.
+  Unauthenticated and fire-and-forget like `notify` (a pane reporting about
+  itself), it sets a per-pane state surfaced in the dynamic island and
+  `session list`. This is the missing piece versus cmux's attention ring:
+  Liney already had the `IslandItemStatus.waitingForInput` model but no IPC
+  path for an agent to set it.
+- `liney read [--pane] [--last N] [--scrollback] [--wait-stable]` — read a
+  pane's rendered terminal text via `ghostty_surface_read_text`. `--wait-stable`
+  polls (client-side) until the screen stops changing, so an agent can read a
+  sibling's TUI output without catching a half-painted frame.
+- `liney agents` — the roster of panes that currently host an agent, detected
+  passively from the process tree (`AgentProcessDetector`, argv-based so
+  node-wrapped CLIs like Claude Code are caught) and merged with the
+  `liney status` self-reports. This is what lets a coding agent inspect and
+  coordinate its sibling agents (the Prowl `prowl agents` / self-driving model).
 
-This is what turns Liney into an agent's environment, not just an agent's
-viewer. cmux ships a similar surface; Liney's version should be scoped per
-workspace and authenticated with the existing URL-scheme token model.
+Mutating actions (`open` / `split` / `send-keys`) are authenticated with the
+existing URL-scheme token model — and Liney injects that token into every pane
+as `LINEY_CONTROL_TOKEN` so an in-pane agent can use them without manual setup.
+The self-reports (`notify` / `status`) and the read-only inspection commands
+(`session list` / `read` / `agents`) require no token: they mutate nothing and
+the control socket is already owner-only.
 
 ### 4. Agent-session resume tokens
 
@@ -91,6 +111,10 @@ The user lands here, sees who is blocked, jumps directly to the right pane.
 This becomes possible only after items 1 + 2 ship: the notification stream
 populates the rows, the sidebar metadata fills the columns. cmux has the
 pane-level attention ring; Liney's lever is the *worktree × agent matrix*.
+
+The per-agent status column already has its data source: `liney status`
+records state into `AgentStatusStore` keyed by pane (item 3). What remains is
+the aggregating surface itself and wiring pane-close eviction.
 
 ## Sequencing
 

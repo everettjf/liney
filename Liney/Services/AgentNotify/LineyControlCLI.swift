@@ -47,6 +47,18 @@ enum LineyControlCLI {
                   [--pane <uuid>] [--token <t>]
     """
 
+    static let usageStatus = """
+    liney status — report an agent's state for a pane (attention signal).
+
+    USAGE:
+      liney status <running|waiting|done|error> [--pane <uuid>]
+                   [--title <text>] [--agent <name>]
+
+    The pane defaults to $LINEY_PANE_ID (injected into every Liney pane), so
+    inside an agent hook you can just run `liney status waiting`. No token is
+    required — this is a self-report, the same trust level as `liney notify`.
+    """
+
     static let usageSendKeys = """
     liney send-keys — send literal text to a pane.
 
@@ -241,6 +253,70 @@ enum LineyControlCLI {
         return runDispatch(frame: frame, send: send, stdoutWriter: stdoutWriter, stderrWriter: stderrWriter)
     }
 
+    // MARK: - Status
+
+    static func runStatus(
+        arguments: [String],
+        send: (Data) throws -> LineyControlResponse? = { try LineyControlClient.send(frame: $0) },
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        stdoutWriter: (String) -> Void = { print($0) },
+        stderrWriter: (String) -> Void = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
+    ) -> ExitCode {
+        var state: String?
+        var pane: String?
+        var title: String?
+        var agent: String?
+        var index = 0
+        while index < arguments.count {
+            let argument = arguments[index]
+            switch argument {
+            case "--pane":
+                guard index + 1 < arguments.count else { return .usage }
+                pane = arguments[index + 1]; index += 1
+            case "--title":
+                guard index + 1 < arguments.count else { return .usage }
+                title = arguments[index + 1]; index += 1
+            case "--agent":
+                guard index + 1 < arguments.count else { return .usage }
+                agent = arguments[index + 1]; index += 1
+            case "-h", "--help":
+                stdoutWriter(usageStatus); return .ok
+            default:
+                if argument.hasPrefix("-") {
+                    stderrWriter("liney status: unknown flag '\(argument)'")
+                    return .usage
+                }
+                if state == nil {
+                    state = argument
+                } else {
+                    stderrWriter("liney status: unexpected positional '\(argument)'")
+                    return .usage
+                }
+            }
+            index += 1
+        }
+        guard let state, !state.isEmpty else {
+            stderrWriter(usageStatus)
+            return .usage
+        }
+        guard let normalized = AgentReportedState(cliValue: state) else {
+            stderrWriter("liney status: unknown state '\(state)' (use running|waiting|done|error)")
+            return .usage
+        }
+        // Pane is optional: when omitted the server falls back to the active
+        // workspace. $LINEY_PANE_ID is the common path inside an agent hook.
+        let resolvedPane = pane ?? environment[LineyAgentNotifyEnvironment.paneIDKey]
+
+        // No token: status is unauthenticated like notify.
+        let frame = encodeFrame(cmd: "status", token: nil, payload: [
+            "state": normalized.rawValue,
+            "pane": resolvedPane as Any?,
+            "title": title as Any?,
+            "agent": agent as Any?,
+        ])
+        return runDispatch(frame: frame, send: send, stdoutWriter: stdoutWriter, stderrWriter: stderrWriter)
+    }
+
     // MARK: - Session list
 
     static func runSessionList(
@@ -271,11 +347,8 @@ enum LineyControlCLI {
             }
             index += 1
         }
+        // session list is unauthenticated; pass a token only if one is set.
         let resolvedToken = token ?? environment["LINEY_CONTROL_TOKEN"]
-        guard let resolvedToken, !resolvedToken.isEmpty else {
-            stderrWriter("liney session list: --token (or LINEY_CONTROL_TOKEN) is required")
-            return .authRequired
-        }
         let frame = encodeFrame(cmd: "session-list", token: resolvedToken, payload: [:])
         do {
             let response = try send(frame)
@@ -299,7 +372,8 @@ enum LineyControlCLI {
                         ? ""
                         : " ports=" + session.listeningPorts.map { ":\($0)" }.joined(separator: ",")
                     let branchText = session.branch.map { " [\($0)]" } ?? ""
-                    stdoutWriter("\(session.workspaceName)\(branchText) \(session.paneID) \(session.cwd)\(portText)")
+                    let statusText = session.status.map { " <\($0)>" } ?? ""
+                    stdoutWriter("\(session.workspaceName)\(branchText)\(statusText) \(session.paneID) \(session.cwd)\(portText)")
                 }
             }
             return .ok
@@ -308,6 +382,201 @@ enum LineyControlCLI {
             return .unavailable
         } catch {
             stderrWriter("liney session list: \(error)")
+            return .ioError
+        }
+    }
+
+    static let usageRead = """
+    liney read — read the rendered terminal text of a pane.
+
+    USAGE:
+      liney read [--pane <uuid>] [--last <n>] [--scrollback]
+                 [--wait-stable] [--token <t>] [--json]
+
+    --wait-stable re-reads until the screen stops changing (good for letting an
+    agent's TUI finish painting). The pane defaults to $LINEY_PANE_ID.
+    """
+
+    static let usageAgents = """
+    liney agents — list panes with a detected or self-reported agent.
+
+    USAGE:
+      liney agents [--token <t>] [--json] [--no-color]
+    """
+
+    // MARK: - Read
+
+    static func runRead(
+        arguments: [String],
+        send: (Data) throws -> LineyControlResponse? = { try LineyControlClient.send(frame: $0) },
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        stdoutWriter: (String) -> Void = { print($0) },
+        stderrWriter: (String) -> Void = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) },
+        sleeper: (UInt32) -> Void = { usleep($0) }
+    ) -> ExitCode {
+        var pane: String?
+        var lastLines: Int?
+        var scrollback = false
+        var waitStable = false
+        var token: String?
+        var emitJSON = false
+        var index = 0
+        while index < arguments.count {
+            let argument = arguments[index]
+            switch argument {
+            case "--pane":
+                guard index + 1 < arguments.count else { return .usage }
+                pane = arguments[index + 1]; index += 1
+            case "--last":
+                guard index + 1 < arguments.count, let n = Int(arguments[index + 1]) else {
+                    stderrWriter("liney read: --last requires an integer")
+                    return .usage
+                }
+                lastLines = n; index += 1
+            case "--scrollback":
+                scrollback = true
+            case "--wait-stable":
+                waitStable = true
+            case "--token":
+                guard index + 1 < arguments.count else { return .usage }
+                token = arguments[index + 1]; index += 1
+            case "--json":
+                emitJSON = true
+            case "-h", "--help":
+                stdoutWriter(usageRead); return .ok
+            default:
+                if argument.hasPrefix("-") {
+                    stderrWriter("liney read: unknown flag '\(argument)'")
+                    return .usage
+                }
+            }
+            index += 1
+        }
+        // read is unauthenticated; pass a token only if one happens to be set.
+        let resolvedToken = token ?? environment["LINEY_CONTROL_TOKEN"]
+        let resolvedPane = pane ?? environment[LineyAgentNotifyEnvironment.paneIDKey]
+
+        func readOnce() throws -> LineyControlResponse? {
+            let frame = encodeFrame(cmd: "read", token: resolvedToken, payload: [
+                "pane": resolvedPane as Any?,
+                "lines": lastLines as Any?,
+                "scrollback": scrollback ? true : nil as Any?,
+            ])
+            return try send(frame)
+        }
+
+        do {
+            var response = try readOnce()
+            if waitStable {
+                // Poll until two consecutive reads return identical text, or we
+                // exhaust the attempt budget. Polling lives in the CLI so the
+                // app handler stays a fast, non-blocking snapshot.
+                var previous = response?.text
+                var attempts = 0
+                let maxAttempts = 25
+                while attempts < maxAttempts {
+                    sleeper(200_000) // 200ms
+                    let next = try readOnce()
+                    if next?.text == previous { response = next; break }
+                    previous = next?.text
+                    response = next
+                    attempts += 1
+                }
+            }
+            guard let response else {
+                stderrWriter("liney read: server returned no response")
+                return .ioError
+            }
+            if !response.ok {
+                stderrWriter("liney read: \(response.error ?? "unknown error")")
+                return response.error == "token-mismatch" || response.error == "control-disabled"
+                    ? .authRequired
+                    : .ioError
+            }
+            if emitJSON {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let data = (try? encoder.encode(response)) ?? Data("{}".utf8)
+                stdoutWriter(String(decoding: data, as: UTF8.self))
+            } else {
+                stdoutWriter(response.text ?? "")
+            }
+            return .ok
+        } catch AgentNotifyError.socketUnavailable {
+            stderrWriter("liney: Liney is not running")
+            return .unavailable
+        } catch {
+            stderrWriter("liney read: \(error)")
+            return .ioError
+        }
+    }
+
+    // MARK: - Agents
+
+    static func runAgents(
+        arguments: [String],
+        send: (Data) throws -> LineyControlResponse? = { try LineyControlClient.send(frame: $0) },
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        stdoutWriter: (String) -> Void = { print($0) },
+        stderrWriter: (String) -> Void = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
+    ) -> ExitCode {
+        var token: String?
+        var emitJSON = false
+        var index = 0
+        while index < arguments.count {
+            let argument = arguments[index]
+            switch argument {
+            case "--token":
+                guard index + 1 < arguments.count else { return .usage }
+                token = arguments[index + 1]; index += 1
+            case "--json":
+                emitJSON = true
+            case "--no-color":
+                break // accepted for parity; text output is already plain
+            case "-h", "--help":
+                stdoutWriter(usageAgents); return .ok
+            default:
+                if argument.hasPrefix("-") {
+                    stderrWriter("liney agents: unknown flag '\(argument)'")
+                    return .usage
+                }
+            }
+            index += 1
+        }
+        // agents is unauthenticated; pass a token only if one happens to be set.
+        let resolvedToken = token ?? environment["LINEY_CONTROL_TOKEN"]
+        let frame = encodeFrame(cmd: "agents", token: resolvedToken, payload: [:])
+        do {
+            let response = try send(frame)
+            guard let response else {
+                stderrWriter("liney agents: server returned no response")
+                return .ioError
+            }
+            if !response.ok {
+                stderrWriter("liney agents: \(response.error ?? "unknown error")")
+                return .ioError
+            }
+            let agents = response.agents ?? []
+            if emitJSON {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let data = (try? encoder.encode(agents)) ?? Data("[]".utf8)
+                stdoutWriter(String(decoding: data, as: UTF8.self))
+            } else {
+                for agent in agents {
+                    let typeText = agent.name ?? agent.type ?? "agent"
+                    let branchText = agent.branch.map { ":\($0)" } ?? ""
+                    let focusedText = agent.focused ? " *" : ""
+                    let reportedText = agent.reported ? "" : " ~"
+                    stdoutWriter("\(agent.status)\t\(typeText)\t\(agent.workspaceName)\(branchText)\t\(agent.paneID)\(focusedText)\(reportedText)")
+                }
+            }
+            return .ok
+        } catch AgentNotifyError.socketUnavailable {
+            stderrWriter("liney: Liney is not running")
+            return .unavailable
+        } catch {
+            stderrWriter("liney agents: \(error)")
             return .ioError
         }
     }

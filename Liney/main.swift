@@ -18,12 +18,18 @@ if let firstArgument = cliArguments.first {
     switch firstArgument {
     case "notify":
         exit(AgentNotifyCLI.run(arguments: rest).rawValue)
+    case "status":
+        exit(LineyControlCLI.runStatus(arguments: rest).rawValue)
     case "open":
         exit(LineyControlCLI.runOpen(arguments: rest).rawValue)
     case "split":
         exit(LineyControlCLI.runSplit(arguments: rest).rawValue)
     case "send-keys":
         exit(LineyControlCLI.runSendKeys(arguments: rest).rawValue)
+    case "read":
+        exit(LineyControlCLI.runRead(arguments: rest).rawValue)
+    case "agents":
+        exit(LineyControlCLI.runAgents(arguments: rest).rawValue)
     case "session":
         // `liney session list ...` — second token routes to the subcommand.
         let session = Array(rest.dropFirst())
