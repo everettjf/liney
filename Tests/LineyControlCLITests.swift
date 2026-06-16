@@ -189,16 +189,19 @@ final class LineyControlCLITests: XCTestCase {
 
     // MARK: - session list
 
-    func testSessionListRequiresToken() {
-        let stderr = StreamCollector()
+    func testSessionListWorksWithoutToken() throws {
+        let captured = FrameCollector()
         let exit = LineyControlCLI.runSessionList(
             arguments: [],
-            send: { _ in nil },
-            environment: [:],
+            send: captured.capture,
+            environment: [:], // no token
             stdoutWriter: { _ in },
-            stderrWriter: stderr.write
+            stderrWriter: { _ in }
         )
-        XCTAssertEqual(exit, .authRequired)
+        XCTAssertEqual(exit, .ok)
+        let json = try captured.decodedJSON()
+        XCTAssertEqual(json["cmd"] as? String, "session-list")
+        XCTAssertNil(json["token"], "session list must not require or carry a token when none is set")
     }
 
     func testSessionListPrintsHumanLines() {

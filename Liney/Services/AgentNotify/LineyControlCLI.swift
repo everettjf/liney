@@ -347,11 +347,8 @@ enum LineyControlCLI {
             }
             index += 1
         }
+        // session list is unauthenticated; pass a token only if one is set.
         let resolvedToken = token ?? environment["LINEY_CONTROL_TOKEN"]
-        guard let resolvedToken, !resolvedToken.isEmpty else {
-            stderrWriter("liney session list: --token (or LINEY_CONTROL_TOKEN) is required")
-            return .authRequired
-        }
         let frame = encodeFrame(cmd: "session-list", token: resolvedToken, payload: [:])
         do {
             let response = try send(frame)

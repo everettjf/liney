@@ -25,12 +25,12 @@ status. Do not use it merely because the current shell is inside the Liney repo.
 Most of the time you need to do nothing. When **Settings → URL Scheme** is
 enabled, Liney injects `LINEY_CONTROL_TOKEN` into every pane's environment, so
 an agent running in a Liney pane can call the mutating commands (`open`,
-`split`, `send-keys`, `session list`) with no setup.
+`split`, `send-keys`) with no setup.
 
-- **No token at all:** `read`, `agents` (read-only inspection) and `notify`,
-  `status` (self-reports). These always work.
+- **No token at all:** `session list`, `read`, `agents` (read-only inspection)
+  and `notify`, `status` (self-reports). These always work.
 - **Token (auto-injected, or `export LINEY_CONTROL_TOKEN=<token>` if you run
-  from outside a Liney pane):** `open`, `split`, `send-keys`, `session list`.
+  from outside a Liney pane):** `open`, `split`, `send-keys`.
 
 ## Identify a pane before acting
 

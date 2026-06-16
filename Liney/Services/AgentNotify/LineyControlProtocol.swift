@@ -30,13 +30,14 @@ enum LineyControlCommand: String, Codable {
 
     /// Whether the command must carry the trust token. The self-reports
     /// (`notify` / `status`) and the read-only inspection commands
-    /// (`read` / `agents`) do not — they mutate no app state and the control
-    /// socket is already owner-only. The mutating control commands do.
+    /// (`read` / `agents` / `session list`) do not — they mutate no app state
+    /// and the control socket is already owner-only. The mutating control
+    /// commands do.
     var requiresControlToken: Bool {
         switch self {
-        case .notify, .status, .read, .agents:
+        case .notify, .status, .read, .agents, .sessionList:
             return false
-        case .open, .split, .sendKeys, .sessionList:
+        case .open, .split, .sendKeys:
             return true
         }
     }

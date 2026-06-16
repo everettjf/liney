@@ -127,10 +127,10 @@ can poll for blocked agents.
 ## Driving and reading other panes (`read` / `agents`)
 
 The control socket also lets an agent inspect and coordinate its **sibling**
-agents — the loop that makes a Liney workspace self-driving. `read` and
-`agents` are read-only and need **no token** (the control socket is already
-owner-only). The mutating commands (`send-keys`, `open`, `split`,
-`session list`) still need the token, but Liney injects it into every pane as
+agents — the loop that makes a Liney workspace self-driving. The read-only
+commands (`session list`, `read`, `agents`) need **no token** (the control
+socket is already owner-only). The mutating commands (`send-keys`, `open`,
+`split`) still need the token, but Liney injects it into every pane as
 `LINEY_CONTROL_TOKEN` when URL-scheme control is enabled, so an agent running
 in a pane needs no manual setup.
 
@@ -170,8 +170,7 @@ Inside every pane Liney spawns, these are set:
 | `TERM_PROGRAM_VERSION` | The current Liney version |
 
 `LINEY_PANE_ID` is the one to use from agents and scripts; `LINEY_CONTROL_TOKEN`
-is picked up automatically by `liney send-keys` / `open` / `split` /
-`session list`.
+is picked up automatically by `liney send-keys` / `open` / `split`.
 
 ## Installing the CLI shim
 
