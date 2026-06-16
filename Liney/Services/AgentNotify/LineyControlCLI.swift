@@ -455,11 +455,8 @@ enum LineyControlCLI {
             }
             index += 1
         }
+        // read is unauthenticated; pass a token only if one happens to be set.
         let resolvedToken = token ?? environment["LINEY_CONTROL_TOKEN"]
-        guard let resolvedToken, !resolvedToken.isEmpty else {
-            stderrWriter("liney read: --token (or LINEY_CONTROL_TOKEN) is required")
-            return .authRequired
-        }
         let resolvedPane = pane ?? environment[LineyAgentNotifyEnvironment.paneIDKey]
 
         func readOnce() throws -> LineyControlResponse? {
@@ -549,11 +546,8 @@ enum LineyControlCLI {
             }
             index += 1
         }
+        // agents is unauthenticated; pass a token only if one happens to be set.
         let resolvedToken = token ?? environment["LINEY_CONTROL_TOKEN"]
-        guard let resolvedToken, !resolvedToken.isEmpty else {
-            stderrWriter("liney agents: --token (or LINEY_CONTROL_TOKEN) is required")
-            return .authRequired
-        }
         let frame = encodeFrame(cmd: "agents", token: resolvedToken, payload: [:])
         do {
             let response = try send(frame)

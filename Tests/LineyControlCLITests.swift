@@ -358,15 +358,19 @@ extension LineyControlCLITests {
 // MARK: - read / agents tests
 
 extension LineyControlCLITests {
-    func testReadRequiresToken() {
+    func testReadWorksWithoutToken() throws {
+        let captured = FrameCollector()
         let exit = LineyControlCLI.runRead(
             arguments: ["--pane", "p1"],
-            send: { _ in nil },
-            environment: [:],
+            send: captured.capture,
+            environment: [:], // no token
             stdoutWriter: { _ in },
             stderrWriter: { _ in }
         )
-        XCTAssertEqual(exit, .authRequired)
+        XCTAssertEqual(exit, .ok)
+        let json = try captured.decodedJSON()
+        XCTAssertEqual(json["cmd"] as? String, "read")
+        XCTAssertNil(json["token"], "read must not require or carry a token when none is set")
     }
 
     func testReadEncodesPaneLinesScrollback() throws {
@@ -430,15 +434,19 @@ extension LineyControlCLITests {
         XCTAssertEqual(counter.count, 3)
     }
 
-    func testAgentsRequiresToken() {
+    func testAgentsWorkWithoutToken() throws {
+        let captured = FrameCollector()
         let exit = LineyControlCLI.runAgents(
             arguments: [],
-            send: { _ in nil },
-            environment: [:],
+            send: captured.capture,
+            environment: [:], // no token
             stdoutWriter: { _ in },
             stderrWriter: { _ in }
         )
-        XCTAssertEqual(exit, .authRequired)
+        XCTAssertEqual(exit, .ok)
+        let json = try captured.decodedJSON()
+        XCTAssertEqual(json["cmd"] as? String, "agents")
+        XCTAssertNil(json["token"], "agents must not require or carry a token when none is set")
     }
 
     func testAgentsJSONShape() throws {

@@ -27,6 +27,19 @@ enum LineyControlCommand: String, Codable {
     case sessionList = "session-list"
     case read
     case agents
+
+    /// Whether the command must carry the trust token. The self-reports
+    /// (`notify` / `status`) and the read-only inspection commands
+    /// (`read` / `agents`) do not — they mutate no app state and the control
+    /// socket is already owner-only. The mutating control commands do.
+    var requiresControlToken: Bool {
+        switch self {
+        case .notify, .status, .read, .agents:
+            return false
+        case .open, .split, .sendKeys, .sessionList:
+            return true
+        }
+    }
 }
 
 /// State an agent reports about its pane. Mirrors `IslandItemStatus` but is

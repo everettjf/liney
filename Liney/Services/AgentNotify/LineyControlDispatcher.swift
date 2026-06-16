@@ -76,12 +76,17 @@ nonisolated final class LineyControlDispatcher {
             return nil
         }
 
-        // All other commands require auth.
-        guard let expected = tokenResolver(), !expected.isEmpty else {
-            return LineyControlEncoder.encodeResponse(.failure("control-disabled"))
-        }
-        guard let provided = envelope.token, provided == expected else {
-            return LineyControlEncoder.encodeResponse(.failure("token-mismatch"))
+        // Mutating control commands require the trust token. Read-only
+        // inspection (`read` / `agents`) skips the gate: it changes nothing and
+        // the socket is owner-only, so any of the user's own processes — agent
+        // hooks included — can inspect without a token.
+        if cmd.requiresControlToken {
+            guard let expected = tokenResolver(), !expected.isEmpty else {
+                return LineyControlEncoder.encodeResponse(.failure("control-disabled"))
+            }
+            guard let provided = envelope.token, provided == expected else {
+                return LineyControlEncoder.encodeResponse(.failure("token-mismatch"))
+            }
         }
         guard let host else {
             return LineyControlEncoder.encodeResponse(.failure("app-not-ready"))

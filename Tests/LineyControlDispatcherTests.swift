@@ -250,12 +250,23 @@ final class LineyControlDispatcherTests: XCTestCase {
 
     // MARK: - Read
 
-    func testReadRequiresAuth() throws {
+    func testReadWorksWithoutToken() throws {
+        host.stubbedText = "hi"
         let frame = makeFrame(["cmd": "read", "pane": "p1"]) // no token
         let response = try XCTUnwrap(dispatcher.dispatch(frame: frame))
         let decoded = try JSONDecoder().decode(LineyControlResponse.self, from: response)
-        XCTAssertEqual(decoded.error, "token-mismatch")
-        XCTAssertTrue(host.readCalls.isEmpty)
+        XCTAssertTrue(decoded.ok)
+        XCTAssertEqual(decoded.text, "hi")
+        XCTAssertEqual(host.readCalls.count, 1)
+    }
+
+    func testReadWorksEvenWhenControlTokenDisabled() throws {
+        dispatcher = LineyControlDispatcher(host: host, tokenResolver: { nil })
+        let frame = makeFrame(["cmd": "read", "pane": "p1"])
+        let response = try XCTUnwrap(dispatcher.dispatch(frame: frame))
+        let decoded = try JSONDecoder().decode(LineyControlResponse.self, from: response)
+        XCTAssertTrue(decoded.ok)
+        XCTAssertEqual(host.readCalls.count, 1)
     }
 
     func testReadRoutesPayloadAndReturnsText() throws {
@@ -279,12 +290,22 @@ final class LineyControlDispatcherTests: XCTestCase {
 
     // MARK: - Agents
 
-    func testAgentsRequiresAuth() throws {
+    func testAgentsWorkWithoutToken() throws {
         let frame = makeFrame(["cmd": "agents"]) // no token
         let response = try XCTUnwrap(dispatcher.dispatch(frame: frame))
         let decoded = try JSONDecoder().decode(LineyControlResponse.self, from: response)
+        XCTAssertTrue(decoded.ok)
+        XCTAssertEqual(host.agentsCalls, 1)
+    }
+
+    func testSendKeysStillRequiresTokenAfterReadFreed() throws {
+        // Guard against over-broadening: freeing read/agents must not free the
+        // mutating commands.
+        let frame = makeFrame(["cmd": "send-keys", "pane": "p1", "text": "x"]) // no token
+        let response = try XCTUnwrap(dispatcher.dispatch(frame: frame))
+        let decoded = try JSONDecoder().decode(LineyControlResponse.self, from: response)
         XCTAssertEqual(decoded.error, "token-mismatch")
-        XCTAssertEqual(host.agentsCalls, 0)
+        XCTAssertTrue(host.sendKeysCalls.isEmpty)
     }
 
     func testAgentsReturnsRoster() throws {

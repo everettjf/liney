@@ -22,16 +22,15 @@ status. Do not use it merely because the current shell is inside the Liney repo.
 
 ## Auth
 
-Control commands (`open`, `split`, `send-keys`, `read`, `session list`,
-`agents`) require a token — the value from **Settings → URL Scheme**. Export it
-once so every command can read it:
+Most of the time you need to do nothing. When **Settings → URL Scheme** is
+enabled, Liney injects `LINEY_CONTROL_TOKEN` into every pane's environment, so
+an agent running in a Liney pane can call the mutating commands (`open`,
+`split`, `send-keys`, `session list`) with no setup.
 
-```bash
-export LINEY_CONTROL_TOKEN="<your-token>"
-```
-
-The two self-report commands (`notify`, `status`) need no token: they are a pane
-reporting about itself, the same trust level as printing to stdout.
+- **No token at all:** `read`, `agents` (read-only inspection) and `notify`,
+  `status` (self-reports). These always work.
+- **Token (auto-injected, or `export LINEY_CONTROL_TOKEN=<token>` if you run
+  from outside a Liney pane):** `open`, `split`, `send-keys`, `session list`.
 
 ## Identify a pane before acting
 

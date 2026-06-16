@@ -127,8 +127,12 @@ can poll for blocked agents.
 ## Driving and reading other panes (`read` / `agents`)
 
 The control socket also lets an agent inspect and coordinate its **sibling**
-agents — the loop that makes a Liney workspace self-driving. These commands are
-token-gated (see "Wire format"); export `LINEY_CONTROL_TOKEN` once.
+agents — the loop that makes a Liney workspace self-driving. `read` and
+`agents` are read-only and need **no token** (the control socket is already
+owner-only). The mutating commands (`send-keys`, `open`, `split`,
+`session list`) still need the token, but Liney injects it into every pane as
+`LINEY_CONTROL_TOKEN` when URL-scheme control is enabled, so an agent running
+in a pane needs no manual setup.
 
 ```sh
 # Which panes currently host an agent, and what state are they in?
@@ -161,10 +165,13 @@ Inside every pane Liney spawns, these are set:
 |---|---|
 | `LINEY_PANE_ID` | UUID of the owning pane — used by `liney notify` for routing |
 | `LINEY_SESSION_ID` | UUID of the current process-launch attempt — used by Liney's process-reaper |
+| `LINEY_CONTROL_TOKEN` | Trust token for the mutating control commands — injected only when URL-scheme control is enabled |
 | `TERM_PROGRAM` | `Liney` |
 | `TERM_PROGRAM_VERSION` | The current Liney version |
 
-`LINEY_PANE_ID` is the one to use from agents and scripts.
+`LINEY_PANE_ID` is the one to use from agents and scripts; `LINEY_CONTROL_TOKEN`
+is picked up automatically by `liney send-keys` / `open` / `split` /
+`session list`.
 
 ## Installing the CLI shim
 

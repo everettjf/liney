@@ -75,9 +75,12 @@ The `agent-notify.sock` server is now a general control plane
   `liney status` self-reports. This is what lets a coding agent inspect and
   coordinate its sibling agents (the Prowl `prowl agents` / self-driving model).
 
-Control actions (`open` / `split` / `send-keys` / `session list`) are
-authenticated with the existing URL-scheme token model; the two self-report
-commands (`notify` / `status`) are not, matching their trust level.
+Mutating actions (`open` / `split` / `send-keys` / `session list`) are
+authenticated with the existing URL-scheme token model — and Liney injects that
+token into every pane as `LINEY_CONTROL_TOKEN` so an in-pane agent can use them
+without manual setup. The self-reports (`notify` / `status`) and the read-only
+inspection commands (`read` / `agents`) require no token: they mutate nothing
+and the control socket is already owner-only.
 
 ### 4. Agent-session resume tokens
 
