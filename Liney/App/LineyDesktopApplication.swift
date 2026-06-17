@@ -517,6 +517,30 @@ public final class LineyDesktopApplication: NSObject {
         )
     }
 
+    /// Opens the cross-worktree agent orchestration panel (roadmap item 5): a
+    /// top-level surface aggregating every running agent across all workspaces.
+    func openOrchestrationPanel() {
+        AgentOrchestrationWindowManager.shared.show(
+            storesProvider: { [weak self] in self?.allWorkspaceStores ?? [] },
+            onReveal: { [weak self] row in
+                self?.revealAgentPane(workspaceID: row.workspaceID, paneID: row.paneID)
+            }
+        )
+    }
+
+    /// Brings the workspace owning `paneID` to front and focuses that pane.
+    /// The pane is always in the workspace's active worktree (that is what the
+    /// orchestration panel enumerates), so no worktree switch is needed.
+    func revealAgentPane(workspaceID: UUID, paneID: UUID) {
+        navigateToWorkspace(id: workspaceID)
+        for context in windowContexts {
+            if let workspace = context.store.workspaces.first(where: { $0.id == workspaceID }) {
+                workspace.focusPane(paneID)
+                return
+            }
+        }
+    }
+
     public var hasSelectedWorkspace: Bool {
         activeStore?.selectedWorkspace != nil
     }
