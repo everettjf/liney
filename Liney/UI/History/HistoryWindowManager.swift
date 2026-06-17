@@ -35,6 +35,9 @@ final class HistoryWindowManager: NSObject, NSWindowDelegate {
         let contentView = HistoryWindowContentView(state: state)
             .preferredColorScheme(.dark)
         let hostingController = NSHostingController(rootView: contentView)
+        // Window owns its frame; don't let the SwiftUI content's fitting size
+        // drive window resizing (the default on recent macOS SDKs).
+        hostingController.sizingOptions = []
 
         let newWindow = NSWindow(contentViewController: hostingController)
         newWindow.title = windowTitle(branchName: branchName)

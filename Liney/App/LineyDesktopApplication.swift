@@ -43,6 +43,13 @@ public final class LineyDesktopApplication: NSObject {
                     .environmentObject(store)
                     .preferredColorScheme(.dark)
             )
+            // Decouple the window's frame from the SwiftUI content's fitting
+            // size. Otherwise the hosting controller drives the window size from
+            // the content (the default tightened on recent macOS SDKs), so a
+            // transient layout change — e.g. the status banner animating in with
+            // a `.move(edge: .top)` transition — grows the content height and the
+            // window visibly shifts/resizes. The window owns its own frame here.
+            host.sizingOptions = []
 
             let window = NSWindow(contentViewController: host)
             window.title = "Liney"

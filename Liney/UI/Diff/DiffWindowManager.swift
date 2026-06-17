@@ -36,6 +36,9 @@ final class DiffWindowManager: NSObject, NSWindowDelegate {
         let contentView = DiffWindowContentView(state: state)
             .preferredColorScheme(.dark)
         let hostingController = NSHostingController(rootView: contentView)
+        // Window owns its frame; don't let the SwiftUI content's fitting size
+        // drive window resizing (the default on recent macOS SDKs).
+        hostingController.sizingOptions = []
 
         let newWindow = NSWindow(contentViewController: hostingController)
         newWindow.title = windowTitle(branchName: branchName)

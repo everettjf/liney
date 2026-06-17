@@ -47,6 +47,9 @@ final class AgentOrchestrationWindowManager: NSObject, NSWindowDelegate {
         .preferredColorScheme(.dark)
 
         let hostingController = NSHostingController(rootView: contentView)
+        // Keep the window's frame independent of the SwiftUI content's fitting
+        // size, so the panel doesn't resize as agent rows come and go.
+        hostingController.sizingOptions = []
         let newWindow = NSWindow(contentViewController: hostingController)
         newWindow.title = "Agents"
         newWindow.identifier = NSUserInterfaceItemIdentifier("liney.orchestration")
