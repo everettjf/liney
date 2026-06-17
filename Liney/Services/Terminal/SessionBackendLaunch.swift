@@ -30,7 +30,8 @@ struct TerminalLaunchConfiguration: Hashable {
 extension SessionBackendConfiguration {
     func makeLaunchConfiguration(
         preferredWorkingDirectory: String,
-        baseEnvironment: [String: String]
+        baseEnvironment: [String: String],
+        resumeAgent: Bool = false
     ) -> TerminalLaunchConfiguration {
         switch kind {
         case .localShell:
@@ -92,9 +93,18 @@ extension SessionBackendConfiguration {
             for (key, value) in configuration.environment {
                 environment[key] = value
             }
+            // On a restore-after-relaunch, rewrite the launch to resume the
+            // agent's most recent conversation for this cwd (e.g. append
+            // `--continue` for Claude Code). No-op for unknown agents.
+            let arguments = resumeAgent
+                ? (AgentResumeRegistry.resumedArguments(
+                    executablePath: configuration.launchPath,
+                    arguments: configuration.arguments
+                ) ?? configuration.arguments)
+                : configuration.arguments
             let command = TerminalCommandDefinition(
                 executablePath: configuration.launchPath,
-                arguments: configuration.arguments,
+                arguments: arguments,
                 displayName: configuration.name
             )
             let prepared = LineyGhosttyShellIntegration.prepare(

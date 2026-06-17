@@ -978,6 +978,14 @@ struct PaneSnapshot: Codable, Hashable, Identifiable {
     var backendConfiguration: SessionBackendConfiguration
     var detectedTmuxSession: String?
 
+    /// True when this snapshot was decoded from the on-disk workspace state,
+    /// i.e. it is being restored after an app relaunch. Transient: it is never
+    /// encoded, and snapshots built in memory (fresh panes, worktree switches)
+    /// leave it `false`. The agent launch path uses it to resume an agent's
+    /// conversation instead of starting cold. Excluded from Equatable/Hashable
+    /// so it never affects snapshot identity or change detection.
+    var restoredFromDisk: Bool = false
+
     private enum CodingKeys: String, CodingKey {
         case id
         case preferredWorkingDirectory
@@ -1030,6 +1038,24 @@ struct PaneSnapshot: Codable, Hashable, Identifiable {
             backendConfiguration = .local(shellPath: shellPath, shellArguments: shellArguments)
         }
         detectedTmuxSession = try container.decodeIfPresent(String.self, forKey: .detectedTmuxSession)
+        // Decoding only happens when loading persisted state at relaunch.
+        restoredFromDisk = true
+    }
+
+    static func == (lhs: PaneSnapshot, rhs: PaneSnapshot) -> Bool {
+        lhs.id == rhs.id
+            && lhs.preferredWorkingDirectory == rhs.preferredWorkingDirectory
+            && lhs.preferredEngine == rhs.preferredEngine
+            && lhs.backendConfiguration == rhs.backendConfiguration
+            && lhs.detectedTmuxSession == rhs.detectedTmuxSession
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(preferredWorkingDirectory)
+        hasher.combine(preferredEngine)
+        hasher.combine(backendConfiguration)
+        hasher.combine(detectedTmuxSession)
     }
 
     func encode(to encoder: Encoder) throws {
