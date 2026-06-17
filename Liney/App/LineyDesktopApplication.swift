@@ -531,6 +531,16 @@ public final class LineyDesktopApplication: NSObject {
             storesProvider: { [weak self] in self?.allWorkspaceStores ?? [] },
             onReveal: { [weak self] row in
                 self?.revealAgentPane(workspaceID: row.workspaceID, paneID: row.paneID)
+            },
+            onReviewDiff: { row in
+                // Borrowed from Lody's in-context diff: review an agent's
+                // changes without leaving the panel. Opens Liney's diff window
+                // scoped to that agent's worktree.
+                DiffWindowManager.shared.show(
+                    worktreePath: row.worktreePath,
+                    branchName: row.branch ?? "",
+                    emptyStateMessage: "No changes to review in this worktree."
+                )
             }
         )
     }
