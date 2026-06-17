@@ -84,17 +84,31 @@ the control socket is already owner-only.
 
 ### 4. Agent-session resume tokens
 
-**Status:** not started.
+**Status:** shipped.
 
-When a workspace is restored after relaunch, identify the agent CLI that was
-running in each pane (Claude Code, Codex, Aider, etc.) and re-attach to its
-on-disk session/conversation token rather than starting a fresh process.
-Liney already restores tmux sessions and worktree layouts; restoring the
-agent's *conversation* is the step cmux explicitly markets and the one users
-actually feel.
+When a workspace is restored after relaunch, an agent pane re-attaches to its
+most recent conversation for that working directory instead of starting cold —
+the step cmux explicitly markets and the one users actually feel.
 
-Per-agent integration is small (a few JSON paths each); the generic part is
-the registry and the launch hook.
+Rather than capture each agent's internal session id (fragile, per-agent JSON
+paths), Liney leans on the agents' own cwd-scoped "continue last" conventions,
+which gives the same result with no bookkeeping:
+
+- claude → `--continue`
+- codex → `resume --last`
+- aider → `--restore-chat-history`
+
+Implementation:
+
+- `AgentResumeRegistry` (the generic registry) rewrites an agent launch's
+  arguments to resume. Conservative: only verified agents, idempotent (won't
+  double-add), unknown/already-resuming launches pass through untouched.
+- The launch hook fires only on a true restore-after-relaunch: `PaneSnapshot`
+  carries a transient `restoredFromDisk` flag set solely when decoded from the
+  on-disk workspace state (fresh panes and in-memory worktree switches leave it
+  false), threaded through `ShellSession` into the `.agent` launch builder.
+
+Default-on; a user toggle is the obvious follow-up if needed.
 
 ### 5. Cross-worktree orchestration panel
 

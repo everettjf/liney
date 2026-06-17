@@ -100,7 +100,8 @@ final class ShellSession: ObservableObject, Identifiable {
         let launchConfiguration = Self.makeLaunchConfiguration(
             backendConfiguration: snapshot.backendConfiguration,
             preferredWorkingDirectory: snapshot.preferredWorkingDirectory,
-            paneID: snapshot.id
+            paneID: snapshot.id,
+            resumeAgent: snapshot.restoredFromDisk
         )
 
         let surface = TerminalSurfaceFactory.make(
@@ -418,7 +419,8 @@ final class ShellSession: ObservableObject, Identifiable {
     private static func makeLaunchConfiguration(
         backendConfiguration: SessionBackendConfiguration,
         preferredWorkingDirectory: String,
-        paneID: UUID
+        paneID: UUID,
+        resumeAgent: Bool = false
     ) -> TerminalLaunchConfiguration {
         var baseEnvironment = LineyTerminalManagedProcessReaper.prepareEnvironment(defaultEnvironment())
         baseEnvironment[LineyAgentNotifyEnvironment.paneIDKey] = paneID.uuidString.lowercased()
@@ -435,7 +437,8 @@ final class ShellSession: ObservableObject, Identifiable {
         }
         return backendConfiguration.makeLaunchConfiguration(
             preferredWorkingDirectory: preferredWorkingDirectory,
-            baseEnvironment: baseEnvironment
+            baseEnvironment: baseEnvironment,
+            resumeAgent: resumeAgent
         )
     }
 
