@@ -477,7 +477,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                  .toggleSidebar,
                  .toggleOverview,
                  .openDiff,
-                 .openHistory:
+                 .openHistory,
+                 .openOrchestration:
                 return true
             case .undo:
                 return canPerformResponderAction(Selector(("undo:")), sender: menuItem)
@@ -596,6 +597,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         case .openHistory:
             desktopApplication?.openHistoryWindow()
+
+        case .openOrchestration:
+            desktopApplication?.openOrchestrationPanel()
 
         case .refreshSelectedWorkspace:
             desktopApplication?.refreshSelectedWorkspace()

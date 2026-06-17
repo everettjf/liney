@@ -43,6 +43,13 @@ public final class LineyDesktopApplication: NSObject {
                     .environmentObject(store)
                     .preferredColorScheme(.dark)
             )
+            // Decouple the window's frame from the SwiftUI content's fitting
+            // size. Otherwise the hosting controller drives the window size from
+            // the content (the default tightened on recent macOS SDKs), so a
+            // transient layout change — e.g. the status banner animating in with
+            // a `.move(edge: .top)` transition — grows the content height and the
+            // window visibly shifts/resizes. The window owns its own frame here.
+            host.sizingOptions = []
 
             let window = NSWindow(contentViewController: host)
             window.title = "Liney"
@@ -515,6 +522,30 @@ public final class LineyDesktopApplication: NSObject {
             branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
             emptyStateMessage: historyEmptyStateMessage(for: workspace, supportsHistory: supportsHistory)
         )
+    }
+
+    /// Opens the cross-worktree agent orchestration panel (roadmap item 5): a
+    /// top-level surface aggregating every running agent across all workspaces.
+    func openOrchestrationPanel() {
+        AgentOrchestrationWindowManager.shared.show(
+            storesProvider: { [weak self] in self?.allWorkspaceStores ?? [] },
+            onReveal: { [weak self] row in
+                self?.revealAgentPane(workspaceID: row.workspaceID, paneID: row.paneID)
+            }
+        )
+    }
+
+    /// Brings the workspace owning `paneID` to front and focuses that pane.
+    /// The pane is always in the workspace's active worktree (that is what the
+    /// orchestration panel enumerates), so no worktree switch is needed.
+    func revealAgentPane(workspaceID: UUID, paneID: UUID) {
+        navigateToWorkspace(id: workspaceID)
+        for context in windowContexts {
+            if let workspace = context.store.workspaces.first(where: { $0.id == workspaceID }) {
+                workspace.focusPane(paneID)
+                return
+            }
+        }
     }
 
     public var hasSelectedWorkspace: Bool {

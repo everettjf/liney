@@ -526,6 +526,10 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     }
 
     func closePane(_ paneID: UUID) {
+        // The pane is going away; drop any agent status it reported so the
+        // orchestration panel / `liney agents` don't show a stale row.
+        AgentStatusStore.shared.clear(pane: paneID)
+
         guard var layout else {
             sessionController.closePane(paneID)
             return

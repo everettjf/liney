@@ -894,6 +894,7 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
     case toggleOverview
     case openDiff
     case openHistory
+    case openOrchestration
     case refreshSelectedWorkspace
     case refreshAllRepositories
     case nextWorkspace
@@ -939,7 +940,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
              .toggleSidebar,
              .toggleOverview,
              .openDiff,
-             .openHistory:
+             .openHistory,
+             .openOrchestration:
             return .general
         case .refreshSelectedWorkspace,
              .refreshAllRepositories,
@@ -1013,6 +1015,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.openDiff.title")
         case .openHistory:
             return lineyLocalizedSettingsString("settings.shortcuts.action.openHistory.title")
+        case .openOrchestration:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.openOrchestration.title")
         case .refreshSelectedWorkspace:
             return lineyLocalizedSettingsString("settings.shortcuts.action.refreshSelectedWorkspace.title")
         case .refreshAllRepositories:
@@ -1102,6 +1106,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.openDiff.subtitle")
         case .openHistory:
             return lineyLocalizedSettingsString("settings.shortcuts.action.openHistory.subtitle")
+        case .openOrchestration:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.openOrchestration.subtitle")
         case .refreshSelectedWorkspace:
             return lineyLocalizedSettingsString("settings.shortcuts.action.refreshSelectedWorkspace.subtitle")
         case .refreshAllRepositories:
@@ -1191,6 +1197,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return StoredShortcut(key: ".", command: true, shift: true, option: false, control: false)
         case .openHistory:
             return StoredShortcut(key: "h", command: true, shift: true, option: false, control: false)
+        case .openOrchestration:
+            return StoredShortcut(key: "a", command: true, shift: true, option: false, control: false)
         case .refreshSelectedWorkspace:
             return StoredShortcut(key: "r", command: true, shift: false, option: false, control: false)
         case .refreshAllRepositories:

@@ -98,14 +98,22 @@ the registry and the launch hook.
 
 ### 5. Cross-worktree orchestration panel
 
-**Status:** not started.
+**Status:** shipped.
 
-A new top-level surface (separate from the dynamic island) that aggregates,
-across every open workspace and worktree:
+A top-level surface (separate from the dynamic island), opened from **View →
+Agents Panel** (`⌘⇧A`), that aggregates across every open workspace:
 
-- Each running agent: name, pane, status (`idle / running / waiting / error`).
+- Each running agent: name, type, pane, status (`running / waiting / done /
+  error`), attention-first so a blocked agent floats to the top.
+- Branch / PR state and listening ports per worktree.
 - Recent notifications.
-- Branch / PR state per worktree.
+
+Implemented as `AgentOrchestrationStore` (aggregation, reusing the
+`AgentProcessDetector` + `AgentStatusStore` signals behind `liney agents`),
+`AgentOrchestrationView`, and `AgentOrchestrationWindowManager` (modeled on
+`HistoryWindowManager`, with a 2.5s refresh while open). Clicking a row reveals
+the backing pane via `LineyDesktopApplication.revealAgentPane`. Pane close now
+evicts the pane's `AgentStatusStore` entry so rows don't go stale.
 
 The user lands here, sees who is blocked, jumps directly to the right pane.
 This becomes possible only after items 1 + 2 ship: the notification stream

@@ -218,15 +218,18 @@ struct MainWindowView: View {
                     .zIndex(3)
             }
 
-            VStack {
-                if let statusMessage = store.statusMessage {
-                    StatusBanner(message: statusMessage)
-                        .padding(.top, 10)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                Spacer()
+        }
+        // Float the status banner as a size-neutral overlay rather than a
+        // ZStack sibling: a ZStack measures its children, so a banner animating
+        // in from the top (`.move(edge: .top)`) transiently grows the content
+        // height and the host window resizes/shifts downward. An overlay never
+        // affects the host's measured size, so the window stays put.
+        .overlay(alignment: .top) {
+            if let statusMessage = store.statusMessage {
+                StatusBanner(message: statusMessage)
+                    .padding(.top, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .zIndex(2)
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
