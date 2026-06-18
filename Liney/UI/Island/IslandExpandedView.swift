@@ -401,7 +401,7 @@ private struct IslandNotificationRow: View {
                         .lineLimit(1)
 
                     if item.status == .done {
-                        Text("Done — click to jump")
+                        Text(item.changedFileCount.map { "Done · \($0) changed — click to jump" } ?? "Done — click to jump")
                             .font(.system(size: 11))
                             .foregroundStyle(.green)
                     } else if let body = item.body {
@@ -415,6 +415,9 @@ private struct IslandNotificationRow: View {
                 Spacer(minLength: 4)
 
                 HStack(spacing: 5) {
+                    if item.status == .done, (item.changedFileCount ?? 0) > 0 {
+                        IslandReviewButton { controller.reviewItem(item) }
+                    }
                     if let agentName = item.agentName {
                         IslandTagPill(text: agentName)
                     }
@@ -435,6 +438,24 @@ private struct IslandNotificationRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct IslandReviewButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Review", systemImage: "eye")
+                .labelStyle(.titleAndIcon)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.green)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(.green.opacity(0.15)))
+        }
+        .buttonStyle(.plain)
+        .help("Review the changed files in this worktree")
     }
 }
 

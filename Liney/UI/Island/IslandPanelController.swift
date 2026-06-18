@@ -152,6 +152,17 @@ final class IslandPanelController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// Opens the diff window scoped to a finished agent's worktree, so the user
+    /// can review what it produced straight from the island (proposal item 2 of
+    /// #130, borrowed from Lody's review-on-done).
+    func reviewItem(_ item: IslandNotificationItem) {
+        DiffWindowManager.shared.show(
+            worktreePath: item.worktreePath,
+            branchName: "",
+            emptyStateMessage: "No changes to review in this worktree."
+        )
+    }
+
     func navigateToWorkspace(_ workspace: WorkspaceModel) {
         WorkspaceNotificationCenter.shared.onNotificationTapped?(workspace.id, nil)
         state.isExpanded = false
