@@ -25,6 +25,9 @@ struct IslandNotificationItem: Identifiable {
     let startedAt: Date
     var body: String?
     var prompt: IslandPrompt?
+    /// Uncommitted changed-file count in the item's worktree, attached when an
+    /// agent reports `done` so the island can offer a one-click diff review.
+    var changedFileCount: Int? = nil
 }
 
 struct IslandPrompt {

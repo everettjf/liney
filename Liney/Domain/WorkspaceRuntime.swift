@@ -1278,6 +1278,11 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedTitle = (trimmedTitle?.isEmpty == false) ? trimmedTitle! : Self.defaultStatusTitle(for: state)
         let terminalTag = paneID?.uuidString.lowercased()
+        // When an agent finishes, attach the worktree's changed-file count so
+        // the island can offer "N changed · Review" (proposal item 2 of #130).
+        let changedFiles: Int? = (state == .done && supportsRepositoryFeatures && changedFileCount > 0)
+            ? changedFileCount
+            : nil
         let item = IslandNotificationItem(
             id: UUID(),
             workspaceID: id,
@@ -1288,7 +1293,8 @@ final class WorkspaceModel: ObservableObject, Identifiable {
             status: state.islandStatus,
             startedAt: Date(),
             body: nil,
-            prompt: nil
+            prompt: nil,
+            changedFileCount: changedFiles
         )
         IslandNotificationState.shared.post(item: item)
         if state != .running {
