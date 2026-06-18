@@ -56,10 +56,115 @@ struct WorkspaceSidebarView: View {
                     .frame(height: 1)
             }
 
+            SidebarRunningProjectsStrip()
+                .environmentObject(store)
+
             WorkspaceOutlineSidebar(query: query, onOpenRepository: store.addWorkspaceFromOpenPanel, onConnectSSH: { store.presentConnectSSH() })
                 .environmentObject(store)
         }
         .background(LineyTheme.sidebarBackground)
+    }
+}
+
+/// A compact, always-on list of every project that currently has a running
+/// task (the same orange "working" signal shown on each sidebar row). Lets you
+/// jump straight to an active project without scanning a long sidebar. Hidden
+/// entirely when nothing is running, so it adds no clutter at rest.
+private struct SidebarRunningProjectsStrip: View {
+    @EnvironmentObject private var store: WorkspaceStore
+    @ObservedObject private var localization = LocalizationManager.shared
+    @State private var isCollapsed = false
+
+    private var uiScale: CGFloat { CGFloat(store.appSettings.uiScale) }
+    private func localized(_ key: String) -> String { localization.string(key) }
+
+    private var runningWorkspaces: [WorkspaceModel] {
+        store.sidebarWorkspaces.filter { $0.quitConfirmationSessionCount > 0 }
+    }
+
+    var body: some View {
+        let running = runningWorkspaces
+        if !running.isEmpty {
+            VStack(spacing: 0) {
+                header(count: running.count)
+                if !isCollapsed {
+                    ForEach(running) { workspace in
+                        row(for: workspace)
+                    }
+                    .padding(.bottom, 4 * uiScale)
+                }
+            }
+            .background(LineyTheme.sidebarBackground)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(LineyTheme.border).frame(height: 1)
+            }
+        }
+    }
+
+    private func header(count: Int) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) { isCollapsed.toggle() }
+        } label: {
+            HStack(spacing: 6 * uiScale) {
+                Circle()
+                    .fill(Color.orange)
+                    .frame(width: 6 * uiScale, height: 6 * uiScale)
+                Text(localized("sidebar.running.title").uppercased())
+                    .font(.system(size: 10 * uiScale, weight: .semibold))
+                    .foregroundStyle(LineyTheme.mutedText)
+                Text("\(count)")
+                    .font(.system(size: 10 * uiScale, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(LineyTheme.mutedText.opacity(0.75))
+                Spacer()
+                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 9 * uiScale, weight: .semibold))
+                    .foregroundStyle(LineyTheme.mutedText.opacity(0.7))
+            }
+            .padding(.horizontal, 12 * uiScale)
+            .padding(.top, 7 * uiScale)
+            .padding(.bottom, 5 * uiScale)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func row(for workspace: WorkspaceModel) -> some View {
+        let isSelected = workspace.id == store.selectedWorkspaceID
+        return Button {
+            store.selectWorkspace(workspace)
+        } label: {
+            HStack(spacing: 7 * uiScale) {
+                Circle()
+                    .fill(Color.orange)
+                    .frame(width: 5 * uiScale, height: 5 * uiScale)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(workspace.name)
+                        .font(.system(size: 12 * uiScale, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    if workspace.supportsRepositoryFeatures {
+                        Text(workspace.currentBranch)
+                            .font(.system(size: 10 * uiScale))
+                            .foregroundStyle(LineyTheme.mutedText)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 4)
+                Text("\(workspace.quitConfirmationSessionCount)")
+                    .font(.system(size: 10 * uiScale, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(LineyTheme.mutedText)
+            }
+            .padding(.horizontal, 10 * uiScale)
+            .padding(.vertical, 4 * uiScale)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(isSelected ? Color(nsColor: LineyTheme.sidebarSelectionFill) : Color.clear)
+            )
+            .padding(.horizontal, 6 * uiScale)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
