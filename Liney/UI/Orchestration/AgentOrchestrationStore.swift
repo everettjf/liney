@@ -68,7 +68,8 @@ final class AgentOrchestrationStore: ObservableObject {
                             reported: entry != nil,
                             cwd: session.effectiveWorkingDirectory,
                             focused: paneID == focusedPane,
-                            listeningPorts: workspace.listeningPorts
+                            listeningPorts: workspace.listeningPorts,
+                            changedFileCount: workspace.supportsRepositoryFeatures ? workspace.changedFileCount : 0
                         )
                     )
                 }

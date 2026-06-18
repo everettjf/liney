@@ -25,7 +25,8 @@ final class AgentOrchestrationWindowManager: NSObject, NSWindowDelegate {
     /// workspace stores; `onReveal` jumps to the pane backing a row.
     func show(
         storesProvider: @escaping () -> [WorkspaceStore],
-        onReveal: @escaping (AgentOrchestrationRow) -> Void
+        onReveal: @escaping (AgentOrchestrationRow) -> Void,
+        onReviewDiff: @escaping (AgentOrchestrationRow) -> Void
     ) {
         if let window {
             store?.refresh()
@@ -42,6 +43,7 @@ final class AgentOrchestrationWindowManager: NSObject, NSWindowDelegate {
         let contentView = AgentOrchestrationView(
             store: store,
             onReveal: onReveal,
+            onReviewDiff: onReviewDiff,
             onRefresh: { [weak store] in store?.refresh() }
         )
         .preferredColorScheme(.dark)

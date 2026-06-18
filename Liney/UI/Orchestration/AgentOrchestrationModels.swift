@@ -26,12 +26,20 @@ struct AgentOrchestrationRow: Identifiable, Equatable {
     let cwd: String
     let focused: Bool
     let listeningPorts: [Int]
+    /// Uncommitted changed-file count in the agent's worktree (0 when the
+    /// workspace isn't a git repo).
+    let changedFileCount: Int
 
     var id: UUID { paneID }
 
     /// Best label for the agent, falling back through name → type → "agent".
     var displayName: String {
         agentName ?? agentType ?? "agent"
+    }
+
+    /// Whether there's something to review — drives the row's "Review" action.
+    var canReviewDiff: Bool {
+        changedFileCount > 0
     }
 }
 

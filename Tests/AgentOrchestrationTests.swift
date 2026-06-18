@@ -14,7 +14,8 @@ final class AgentOrchestrationOrderingTests: XCTestCase {
         ws: UUID = UUID(),
         pane: UUID = UUID(),
         status: AgentReportedState,
-        reported: Bool = true
+        reported: Bool = true,
+        changedFileCount: Int = 0
     ) -> AgentOrchestrationRow {
         AgentOrchestrationRow(
             workspaceID: ws,
@@ -30,8 +31,14 @@ final class AgentOrchestrationOrderingTests: XCTestCase {
             reported: reported,
             cwd: "/repo/\(workspace)",
             focused: false,
-            listeningPorts: []
+            listeningPorts: [],
+            changedFileCount: changedFileCount
         )
+    }
+
+    func testCanReviewDiffReflectsChangedFiles() {
+        XCTAssertFalse(row(workspace: "a", status: .running, changedFileCount: 0).canReviewDiff)
+        XCTAssertTrue(row(workspace: "a", status: .running, changedFileCount: 3).canReviewDiff)
     }
 
     func testStatusPriorityIsAttentionFirst() {

@@ -12,6 +12,7 @@ import SwiftUI
 struct AgentOrchestrationView: View {
     @ObservedObject var store: AgentOrchestrationStore
     var onReveal: (AgentOrchestrationRow) -> Void
+    var onReviewDiff: (AgentOrchestrationRow) -> Void
     var onRefresh: () -> Void
 
     var body: some View {
@@ -57,7 +58,11 @@ struct AgentOrchestrationView: View {
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 14)
                         ForEach(group.rows) { row in
-                            AgentRowView(row: row) { onReveal(row) }
+                            AgentRowView(
+                                row: row,
+                                onReveal: { onReveal(row) },
+                                onReviewDiff: { onReviewDiff(row) }
+                            )
                         }
                     }
                 }
@@ -109,6 +114,7 @@ struct AgentOrchestrationView: View {
 private struct AgentRowView: View {
     let row: AgentOrchestrationRow
     var onReveal: () -> Void
+    var onReviewDiff: () -> Void
     @State private var hovering = false
 
     var body: some View {
@@ -143,6 +149,10 @@ private struct AgentRowView: View {
                         if !row.listeningPorts.isEmpty {
                             Text(row.listeningPorts.map { ":\($0)" }.joined(separator: " "))
                         }
+                        if row.changedFileCount > 0 {
+                            Label("\(row.changedFileCount)", systemImage: "plus.forwardslash.minus")
+                                .labelStyle(.titleAndIcon)
+                        }
                     }
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -154,6 +164,15 @@ private struct AgentRowView: View {
                         .truncationMode(.middle)
                 }
                 Spacer()
+                if row.canReviewDiff {
+                    Button(action: onReviewDiff) {
+                        Label("Review", systemImage: "eye")
+                            .labelStyle(.titleAndIcon)
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Review the \(row.changedFileCount) changed file(s) in this worktree")
+                }
                 Image(systemName: "arrow.right.circle")
                     .foregroundStyle(.tertiary)
                     .opacity(hovering ? 1 : 0)
