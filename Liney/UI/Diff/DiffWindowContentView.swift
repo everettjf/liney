@@ -99,6 +99,30 @@ struct DiffWindowContentView: View {
             }
 
             ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    if state.availableTargets.isEmpty {
+                        Text("No other worktrees")
+                    } else {
+                        ForEach(state.availableTargets) { target in
+                            Button {
+                                state.beginApply(to: target)
+                            } label: {
+                                if let branch = target.branch, !branch.isEmpty {
+                                    Text("\(target.displayName) — \(branch)")
+                                } else {
+                                    Text(target.displayName)
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.turn.down.right")
+                }
+                .help("Apply these changes to another worktree")
+                .disabled(state.changedFiles.isEmpty || state.availableTargets.isEmpty)
+            }
+
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     state.refresh()
                 } label: {
@@ -107,6 +131,18 @@ struct DiffWindowContentView: View {
                 .help("Refresh Diff")
             }
         }
+        .sheet(isPresented: applySheetBinding) {
+            DiffApplySheet(state: state)
+        }
+    }
+
+    private var applySheetBinding: Binding<Bool> {
+        Binding(
+            get: { state.applyPhase != .idle },
+            set: { presented in
+                if !presented { state.cancelApply() }
+            }
+        )
     }
 
     private var fileListSidebar: some View {
@@ -301,6 +337,123 @@ private struct DiffYiTongDocumentView: View {
             inlineChangeStyle: .wordAlt,
             allowsSelection: true
         )
+    }
+}
+
+private struct DiffApplySheet: View {
+    @ObservedObject var state: DiffWindowState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            switch state.applyPhase {
+            case .idle:
+                EmptyView()
+            case .working:
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Preparing changes…")
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 12)
+            case .preview(let preview):
+                previewBody(preview)
+            case .result(let result):
+                resultBody(result)
+            }
+        }
+        .padding(24)
+        .frame(width: 440)
+    }
+
+    @ViewBuilder
+    private func previewBody(_ preview: WorktreeApplyPreview) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Apply to \(preview.target.displayName)", systemImage: "arrow.turn.down.right")
+                .font(.headline)
+
+            if let branch = preview.target.branch, !branch.isEmpty {
+                Text(branch)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(LineyTheme.mutedText)
+            }
+
+            Text("\(preview.fileCount) changed file(s) will be applied.")
+                .font(.callout)
+
+            if preview.appliesCleanly {
+                Label("Applies cleanly", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(LineyTheme.success)
+                    .font(.callout)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Conflicts detected", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(LineyTheme.warning)
+                        .font(.callout)
+                    if !preview.detail.isEmpty {
+                        ScrollView {
+                            Text(preview.detail)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(LineyTheme.mutedText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                        }
+                        .frame(maxHeight: 120)
+                    }
+                }
+            }
+
+            HStack {
+                Button("Cancel", role: .cancel) {
+                    state.cancelApply()
+                }
+                Spacer()
+                if preview.appliesCleanly {
+                    Button("Apply") {
+                        state.confirmApply(threeWay: false)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                } else {
+                    Button("Apply with 3-way merge") {
+                        state.confirmApply(threeWay: true)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    @ViewBuilder
+    private func resultBody(_ result: DiffApplyResult) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if result.success {
+                Label("Changes applied", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(LineyTheme.success)
+                    .font(.headline)
+            } else {
+                Label("Apply failed", systemImage: "xmark.octagon.fill")
+                    .foregroundStyle(LineyTheme.danger)
+                    .font(.headline)
+            }
+
+            if !result.message.isEmpty {
+                ScrollView {
+                    Text(result.message)
+                        .font(.system(size: 12))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .frame(maxHeight: 140)
+            }
+
+            HStack {
+                Spacer()
+                Button("Done") {
+                    state.cancelApply()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
     }
 }
 

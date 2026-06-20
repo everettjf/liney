@@ -55,6 +55,14 @@ struct RemoteWorktreeStatus {
     var behindCount: Int
 }
 
+/// Result of dry-running a patch against a target worktree with `git apply --check`.
+struct WorktreeApplyPrecheck {
+    /// Whether `git apply --check` reported the patch applies without conflicts.
+    var appliesCleanly: Bool
+    /// Git's diagnostic output when the patch does not apply cleanly.
+    var message: String
+}
+
 actor GitRepositoryService {
     private let runner = ShellCommandRunner()
 
@@ -654,13 +662,106 @@ actor GitRepositoryService {
         }
     }
 
-    private func git(arguments: [String], currentDirectory: String, timeout: TimeInterval? = nil) async throws -> ShellCommandResult {
+    // MARK: - Cross-Worktree Apply
+
+    /// The well-known SHA-1 of git's empty tree object, used to diff against when
+    /// HEAD is unborn (a repository with no commits yet).
+    private static let emptyTreeObject = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+    /// Produces a single unified patch capturing the entire working-tree state of
+    /// `worktreePath` relative to HEAD, including untracked files. The repository's
+    /// real index is left untouched: we stage into a throwaway temp index file via
+    /// `GIT_INDEX_FILE` so `git add -A` never mutates the user's staging area.
+    func workingTreePatch(for worktreePath: String) async throws -> String {
+        let tempIndexPath = NSTemporaryDirectory() + "liney-apply-index-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tempIndexPath) }
+
+        let env = ["GIT_INDEX_FILE": tempIndexPath]
+
+        // Snapshot the full worktree (tracked + untracked) into the temp index.
+        let addResult = try await git(
+            arguments: ["add", "-A"],
+            currentDirectory: worktreePath,
+            extraEnvironment: env
+        )
+        guard addResult.exitCode == 0 else {
+            throw GitServiceError.commandFailed(addResult.stderr.nonEmptyOrFallback("Unable to stage changes for patch."))
+        }
+
+        // Diff the snapshot against HEAD so new/deleted files are represented too.
+        let base: String
+        let headResult = try await git(arguments: ["rev-parse", "--verify", "--quiet", "HEAD"], currentDirectory: worktreePath)
+        base = headResult.exitCode == 0 ? "HEAD" : Self.emptyTreeObject
+
+        let diffResult = try await git(
+            arguments: ["diff", "--binary", "--no-color", "--cached", base],
+            currentDirectory: worktreePath,
+            extraEnvironment: env
+        )
+        guard diffResult.exitCode == 0 else {
+            throw GitServiceError.commandFailed(diffResult.stderr.nonEmptyOrFallback("Unable to build patch from working tree."))
+        }
+        return diffResult.stdout
+    }
+
+    /// Dry-runs `patch` against `targetWorktreePath` using `git apply --check`,
+    /// surfacing whether it would apply cleanly without touching the worktree.
+    func precheckApplyPatch(_ patch: String, to targetWorktreePath: String) async throws -> WorktreeApplyPrecheck {
+        let patchFile = try Self.writeTempPatch(patch)
+        defer { try? FileManager.default.removeItem(atPath: patchFile) }
+
+        let result = try await git(
+            arguments: ["apply", "--check", "--whitespace=nowarn", patchFile],
+            currentDirectory: targetWorktreePath
+        )
+        if result.exitCode == 0 {
+            return WorktreeApplyPrecheck(appliesCleanly: true, message: "")
+        }
+        return WorktreeApplyPrecheck(
+            appliesCleanly: false,
+            message: result.stderr.nonEmptyOrFallback("Patch does not apply cleanly.")
+        )
+    }
+
+    /// Applies `patch` to `targetWorktreePath`. When `threeWay` is set, falls back
+    /// to a 3-way merge (leaving conflict markers) for patches that don't apply
+    /// cleanly; otherwise a failure throws.
+    func applyPatch(_ patch: String, to targetWorktreePath: String, threeWay: Bool) async throws {
+        let patchFile = try Self.writeTempPatch(patch)
+        defer { try? FileManager.default.removeItem(atPath: patchFile) }
+
+        var arguments = ["apply", "--whitespace=nowarn"]
+        if threeWay {
+            arguments.append("--3way")
+        }
+        arguments.append(patchFile)
+
+        let result = try await git(arguments: arguments, currentDirectory: targetWorktreePath)
+        guard result.exitCode == 0 else {
+            throw GitServiceError.commandFailed(result.stderr.nonEmptyOrFallback("Unable to apply patch."))
+        }
+    }
+
+    nonisolated private static func writeTempPatch(_ patch: String) throws -> String {
+        let path = NSTemporaryDirectory() + "liney-apply-\(UUID().uuidString).patch"
+        try patch.write(toFile: path, atomically: true, encoding: .utf8)
+        return path
+    }
+
+    private func git(
+        arguments: [String],
+        currentDirectory: String,
+        timeout: TimeInterval? = nil,
+        extraEnvironment: [String: String] = [:]
+    ) async throws -> ShellCommandResult {
+        var environment = ["LC_ALL": "en_US.UTF-8"]
+        environment.merge(extraEnvironment) { _, new in new }
         if let timeout {
             return try await runner.run(
                 executable: "/usr/bin/env",
                 arguments: ["git"] + arguments,
                 currentDirectory: currentDirectory,
-                environment: ["LC_ALL": "en_US.UTF-8"],
+                environment: environment,
                 timeout: timeout
             )
         }
@@ -668,7 +769,7 @@ actor GitRepositoryService {
             executable: "/usr/bin/env",
             arguments: ["git"] + arguments,
             currentDirectory: currentDirectory,
-            environment: ["LC_ALL": "en_US.UTF-8"]
+            environment: environment
         )
     }
 

@@ -13,6 +13,38 @@ struct DiffFileDocument: Sendable {
     let unifiedPatch: String
 }
 
+/// A sibling worktree the current changes can be applied to.
+struct WorktreeApplyTarget: Identifiable, Hashable {
+    let path: String
+    let displayName: String
+    let branch: String?
+
+    var id: String { path }
+}
+
+/// Outcome of the `git apply --check` dry-run shown before the user commits to
+/// applying changes to another worktree.
+struct WorktreeApplyPreview: Equatable {
+    let target: WorktreeApplyTarget
+    let fileCount: Int
+    let appliesCleanly: Bool
+    let detail: String
+}
+
+/// Final result of an apply attempt.
+struct DiffApplyResult: Equatable {
+    let success: Bool
+    let message: String
+}
+
+/// Drives the "apply to another worktree" flow surfaced as a sheet.
+enum DiffApplyPhase: Equatable {
+    case idle
+    case working
+    case preview(WorktreeApplyPreview)
+    case result(DiffApplyResult)
+}
+
 enum DiffDiagnostics {
     nonisolated static func log(_ message: String) {
 #if DEBUG
@@ -60,10 +92,19 @@ final class DiffWindowState: ObservableObject {
     @Published var isLoadingDocument = false
     @Published var loadErrorMessage: String?
 
+    /// Sibling worktrees the current changes can be applied to.
+    @Published var availableTargets: [WorktreeApplyTarget] = []
+    /// State of the "apply to another worktree" flow.
+    @Published var applyPhase: DiffApplyPhase = .idle
+
     private let gitRepositoryService = GitRepositoryService()
     private var documentCache: [String: DiffFileDocument] = [:]
     private var fileListTask: Task<Void, Never>?
     private var documentTask: Task<Void, Never>?
+    private var targetsTask: Task<Void, Never>?
+    private var applyTask: Task<Void, Never>?
+    private var pendingPatch: String?
+    private var pendingTarget: WorktreeApplyTarget?
 
     func load(worktreePath: String?, branchName: String, emptyStateMessage: String) {
         DiffDiagnostics.log("Loading diff window state for branch \(branchName) at \(worktreePath ?? "<nil>")")
@@ -75,6 +116,8 @@ final class DiffWindowState: ObservableObject {
         document = nil
         loadErrorMessage = nil
         documentCache = [:]
+        availableTargets = []
+        resetApplyFlow()
         fileListTask?.cancel()
         documentTask?.cancel()
         guard let worktreePath else {
@@ -83,6 +126,7 @@ final class DiffWindowState: ObservableObject {
             return
         }
         fileListTask = Task { await reloadFileList(for: worktreePath) }
+        reloadTargets(for: worktreePath)
     }
 
     func refresh() {
@@ -92,6 +136,7 @@ final class DiffWindowState: ObservableObject {
         fileListTask?.cancel()
         documentTask?.cancel()
         fileListTask = Task { await reloadFileList(for: worktreePath) }
+        reloadTargets(for: worktreePath)
     }
 
     func updateDocumentSelection(for id: String?) {
@@ -142,6 +187,95 @@ final class DiffWindowState: ObservableObject {
                 isLoadingDocument = false
             }
         }
+    }
+
+    // MARK: - Apply To Worktree
+
+    private func reloadTargets(for worktreePath: String) {
+        targetsTask?.cancel()
+        targetsTask = Task {
+            let worktrees = (try? await gitRepositoryService.listWorktrees(for: worktreePath)) ?? []
+            guard !Task.isCancelled else { return }
+            availableTargets = worktrees
+                .filter { $0.path != worktreePath }
+                .map { WorktreeApplyTarget(path: $0.path, displayName: $0.displayName, branch: $0.branch) }
+        }
+    }
+
+    /// Builds a patch from the current worktree's changes and dry-runs it against
+    /// `target`, transitioning the flow into a preview the user can confirm.
+    func beginApply(to target: WorktreeApplyTarget) {
+        guard let worktreePath else { return }
+        guard !changedFiles.isEmpty else {
+            applyPhase = .result(DiffApplyResult(success: false, message: "There are no changes to apply."))
+            return
+        }
+        applyTask?.cancel()
+        applyPhase = .working
+        applyTask = Task {
+            do {
+                let patch = try await gitRepositoryService.workingTreePatch(for: worktreePath)
+                guard !Task.isCancelled else { return }
+                guard let patch = patch.nilIfEmpty else {
+                    applyPhase = .result(DiffApplyResult(success: false, message: "There are no changes to apply."))
+                    return
+                }
+                let precheck = try await gitRepositoryService.precheckApplyPatch(patch, to: target.path)
+                guard !Task.isCancelled else { return }
+                pendingPatch = patch
+                pendingTarget = target
+                applyPhase = .preview(
+                    WorktreeApplyPreview(
+                        target: target,
+                        fileCount: changedFiles.count,
+                        appliesCleanly: precheck.appliesCleanly,
+                        detail: precheck.message
+                    )
+                )
+            } catch {
+                guard !Task.isCancelled else { return }
+                applyPhase = .result(DiffApplyResult(success: false, message: error.localizedDescription))
+            }
+        }
+    }
+
+    /// Applies the previously-built patch to the pending target. Pass `threeWay`
+    /// to fall back to a 3-way merge for patches that don't apply cleanly.
+    func confirmApply(threeWay: Bool) {
+        guard let patch = pendingPatch, let target = pendingTarget else { return }
+        applyTask?.cancel()
+        applyPhase = .working
+        let appliedFileCount = changedFiles.count
+        applyTask = Task {
+            do {
+                try await gitRepositoryService.applyPatch(patch, to: target.path, threeWay: threeWay)
+                guard !Task.isCancelled else { return }
+                let suffix = threeWay ? " (3-way merge — check for conflict markers)" : ""
+                applyPhase = .result(
+                    DiffApplyResult(
+                        success: true,
+                        message: "Applied \(appliedFileCount) file(s) to \(target.displayName).\(suffix)"
+                    )
+                )
+                pendingPatch = nil
+                pendingTarget = nil
+            } catch {
+                guard !Task.isCancelled else { return }
+                applyPhase = .result(DiffApplyResult(success: false, message: error.localizedDescription))
+            }
+        }
+    }
+
+    func cancelApply() {
+        resetApplyFlow()
+    }
+
+    private func resetApplyFlow() {
+        applyTask?.cancel()
+        applyTask = nil
+        pendingPatch = nil
+        pendingTarget = nil
+        applyPhase = .idle
     }
 
     private func reloadFileList(for worktreePath: String) async {

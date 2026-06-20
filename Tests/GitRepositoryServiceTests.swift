@@ -125,6 +125,85 @@ final class GitRepositoryServiceTests: XCTestCase {
         XCTAssertEqual(output.trimmingCharacters(in: .whitespacesAndNewlines), "A\tstaged.txt")
     }
 
+    func testWorkingTreePatchAppliesToSiblingWorktree() async throws {
+        let directoryURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let repo = directoryURL.appendingPathComponent("repo", isDirectory: true)
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "init", "-b", "main"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.email", "test@example.com"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.name", "Test"], currentDirectory: repo.path)
+
+        try Data("hello\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "add", "."], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "commit", "-m", "init"], currentDirectory: repo.path)
+
+        // A sibling worktree pinned to the same commit becomes the apply target.
+        let worktree = directoryURL.appendingPathComponent("wt", isDirectory: true)
+        try runProcess(
+            executable: "/usr/bin/env",
+            arguments: ["git", "worktree", "add", worktree.path, "HEAD"],
+            currentDirectory: repo.path
+        )
+
+        // Modify a tracked file and add an untracked one in the source worktree.
+        try Data("hello world\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
+        try Data("brand new\n".utf8).write(to: repo.appendingPathComponent("b.txt"))
+
+        let service = GitRepositoryService()
+        let patch = try await service.workingTreePatch(for: repo.path)
+        XCTAssertFalse(patch.isEmpty)
+        // The untracked file must be captured in the patch.
+        XCTAssertTrue(patch.contains("b.txt"))
+
+        let precheck = try await service.precheckApplyPatch(patch, to: worktree.path)
+        XCTAssertTrue(precheck.appliesCleanly, precheck.message)
+
+        try await service.applyPatch(patch, to: worktree.path, threeWay: false)
+
+        let appliedA = try String(contentsOf: worktree.appendingPathComponent("a.txt"), encoding: .utf8)
+        let appliedB = try String(contentsOf: worktree.appendingPathComponent("b.txt"), encoding: .utf8)
+        XCTAssertEqual(appliedA, "hello world\n")
+        XCTAssertEqual(appliedB, "brand new\n")
+    }
+
+    func testPrecheckDetectsConflictingPatch() async throws {
+        let directoryURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let repo = directoryURL.appendingPathComponent("repo", isDirectory: true)
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "init", "-b", "main"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.email", "test@example.com"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.name", "Test"], currentDirectory: repo.path)
+
+        try Data("line one\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "add", "."], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "commit", "-m", "init"], currentDirectory: repo.path)
+
+        let worktree = directoryURL.appendingPathComponent("wt", isDirectory: true)
+        try runProcess(
+            executable: "/usr/bin/env",
+            arguments: ["git", "worktree", "add", worktree.path, "HEAD"],
+            currentDirectory: repo.path
+        )
+
+        // Source changes a.txt; the target diverges on the same line so the patch
+        // can no longer apply cleanly.
+        try Data("line one changed by agent\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
+        try Data("line one changed in target\n".utf8).write(to: worktree.appendingPathComponent("a.txt"))
+
+        let service = GitRepositoryService()
+        let patch = try await service.workingTreePatch(for: repo.path)
+        let precheck = try await service.precheckApplyPatch(patch, to: worktree.path)
+
+        XCTAssertFalse(precheck.appliesCleanly)
+        XCTAssertFalse(precheck.message.isEmpty)
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let root = FileManager.default.temporaryDirectory
         let directoryURL = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
