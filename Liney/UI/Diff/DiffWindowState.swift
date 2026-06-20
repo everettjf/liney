@@ -96,6 +96,9 @@ final class DiffWindowState: ObservableObject {
     @Published var availableTargets: [WorktreeApplyTarget] = []
     /// State of the "apply to another worktree" flow.
     @Published var applyPhase: DiffApplyPhase = .idle
+    /// IDs of the changed files selected for the current apply (file-level
+    /// cherry-pick). Defaults to all changed files when the flow opens.
+    @Published var applySelection: Set<String> = []
 
     private let gitRepositoryService = GitRepositoryService()
     private var documentCache: [String: DiffFileDocument] = [:]
@@ -202,32 +205,71 @@ final class DiffWindowState: ObservableObject {
         }
     }
 
-    /// Builds a patch from the current worktree's changes and dry-runs it against
-    /// `target`, transitioning the flow into a preview the user can confirm.
+    /// Opens the apply flow targeting `target`, selecting all changed files by
+    /// default, then dry-runs the resulting patch.
     func beginApply(to target: WorktreeApplyTarget) {
-        guard let worktreePath else { return }
+        guard worktreePath != nil else { return }
         guard !changedFiles.isEmpty else {
             applyPhase = .result(DiffApplyResult(success: false, message: "There are no changes to apply."))
             return
         }
+        pendingTarget = target
+        applySelection = Set(changedFiles.map(\.id))
+        runPrecheck()
+    }
+
+    /// Toggles a file in the apply selection and re-runs the precheck so the
+    /// preview reflects only the chosen subset.
+    func toggleApplyFile(_ id: String) {
+        if applySelection.contains(id) {
+            applySelection.remove(id)
+        } else {
+            applySelection.insert(id)
+        }
+        switch applyPhase {
+        case .preview, .working:
+            runPrecheck()
+        default:
+            break
+        }
+    }
+
+    /// Builds a patch scoped to the current selection and dry-runs it against the
+    /// pending target, transitioning the flow into a preview the user can confirm.
+    private func runPrecheck() {
+        guard let worktreePath, let target = pendingTarget else { return }
         applyTask?.cancel()
         applyPhase = .working
+
+        let selectedFiles = changedFiles.filter { applySelection.contains($0.id) }
+        let count = selectedFiles.count
+        let paths = Self.pathspec(for: selectedFiles)
+
         applyTask = Task {
             do {
-                let patch = try await gitRepositoryService.workingTreePatch(for: worktreePath)
+                guard count > 0 else {
+                    pendingPatch = nil
+                    applyPhase = .preview(
+                        WorktreeApplyPreview(target: target, fileCount: 0, appliesCleanly: false, detail: "Select at least one file to apply.")
+                    )
+                    return
+                }
+                let patch = try await gitRepositoryService.workingTreePatch(for: worktreePath, paths: paths)
                 guard !Task.isCancelled else { return }
                 guard let patch = patch.nilIfEmpty else {
-                    applyPhase = .result(DiffApplyResult(success: false, message: "There are no changes to apply."))
+                    pendingPatch = nil
+                    applyPhase = .preview(
+                        WorktreeApplyPreview(target: target, fileCount: 0, appliesCleanly: false, detail: "No changes to apply for the selected files.")
+                    )
                     return
                 }
                 let precheck = try await gitRepositoryService.precheckApplyPatch(patch, to: target.path)
                 guard !Task.isCancelled else { return }
                 pendingPatch = patch
-                pendingTarget = target
                 applyPhase = .preview(
                     WorktreeApplyPreview(
                         target: target,
-                        fileCount: changedFiles.count,
+                        fileCount: count,
                         appliesCleanly: precheck.appliesCleanly,
                         detail: precheck.message
                     )
@@ -245,7 +287,7 @@ final class DiffWindowState: ObservableObject {
         guard let patch = pendingPatch, let target = pendingTarget else { return }
         applyTask?.cancel()
         applyPhase = .working
-        let appliedFileCount = changedFiles.count
+        let appliedFileCount = applySelection.count
         applyTask = Task {
             do {
                 try await gitRepositoryService.applyPatch(patch, to: target.path, threeWay: threeWay)
@@ -270,11 +312,23 @@ final class DiffWindowState: ObservableObject {
         resetApplyFlow()
     }
 
+    /// Collects the git pathspecs (old + new path) for the given changed files so
+    /// renames and deletions are scoped correctly.
+    nonisolated private static func pathspec(for files: [DiffChangedFile]) -> [String] {
+        var paths: [String] = []
+        for file in files {
+            if let oldPath = file.oldPath { paths.append(oldPath) }
+            if let newPath = file.newPath { paths.append(newPath) }
+        }
+        return Array(Set(paths))
+    }
+
     private func resetApplyFlow() {
         applyTask?.cancel()
         applyTask = nil
         pendingPatch = nil
         pendingTarget = nil
+        applySelection = []
         applyPhase = .idle
     }
 

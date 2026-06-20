@@ -672,7 +672,10 @@ actor GitRepositoryService {
     /// `worktreePath` relative to HEAD, including untracked files. The repository's
     /// real index is left untouched: we stage into a throwaway temp index file via
     /// `GIT_INDEX_FILE` so `git add -A` never mutates the user's staging area.
-    func workingTreePatch(for worktreePath: String) async throws -> String {
+    ///
+    /// When `paths` is non-empty the resulting patch is scoped to those pathspecs,
+    /// enabling a file-level cherry-pick of a worktree's changes.
+    func workingTreePatch(for worktreePath: String, paths: [String] = []) async throws -> String {
         let tempIndexPath = NSTemporaryDirectory() + "liney-apply-index-\(UUID().uuidString)"
         defer { try? FileManager.default.removeItem(atPath: tempIndexPath) }
 
@@ -693,8 +696,13 @@ actor GitRepositoryService {
         let headResult = try await git(arguments: ["rev-parse", "--verify", "--quiet", "HEAD"], currentDirectory: worktreePath)
         base = headResult.exitCode == 0 ? "HEAD" : Self.emptyTreeObject
 
+        var diffArguments = ["diff", "--binary", "--no-color", "--cached", base]
+        if !paths.isEmpty {
+            diffArguments.append("--")
+            diffArguments.append(contentsOf: paths)
+        }
         let diffResult = try await git(
-            arguments: ["diff", "--binary", "--no-color", "--cached", base],
+            arguments: diffArguments,
             currentDirectory: worktreePath,
             extraEnvironment: env
         )

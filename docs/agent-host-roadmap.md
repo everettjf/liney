@@ -160,9 +160,14 @@ from the diff window.
   leaves conflict markers when the patch doesn't apply cleanly.
 - The diff window gains an "apply to another worktree" menu (target = sibling
   worktrees) and a confirmation sheet showing the precheck verdict.
+- File-level cherry-pick: the confirmation sheet lists every changed file with a
+  checkbox (all selected by default); `workingTreePatch(for:paths:)` scopes the
+  patch to the chosen subset and the precheck re-runs as the selection changes,
+  so you can pick exactly which files merge into the target.
 
 Follow-ups (not yet done): side-by-side multi-worktree diff (A/B compare),
-per-hunk cherry-pick, and an interactive conflict-resolution UI.
+per-hunk cherry-pick (sub-file granularity), and an interactive
+conflict-resolution UI.
 
 ## Sequencing
 

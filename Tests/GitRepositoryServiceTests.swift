@@ -169,6 +169,42 @@ final class GitRepositoryServiceTests: XCTestCase {
         XCTAssertEqual(appliedB, "brand new\n")
     }
 
+    func testWorkingTreePatchScopesToSelectedPaths() async throws {
+        let directoryURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let repo = directoryURL.appendingPathComponent("repo", isDirectory: true)
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "init", "-b", "main"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.email", "test@example.com"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.name", "Test"], currentDirectory: repo.path)
+
+        try Data("a\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "add", "."], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "commit", "-m", "init"], currentDirectory: repo.path)
+
+        let worktree = directoryURL.appendingPathComponent("wt", isDirectory: true)
+        try runProcess(
+            executable: "/usr/bin/env",
+            arguments: ["git", "worktree", "add", worktree.path, "HEAD"],
+            currentDirectory: repo.path
+        )
+
+        // Two new untracked files; only one is selected for apply.
+        try Data("keep\n".utf8).write(to: repo.appendingPathComponent("keep.txt"))
+        try Data("skip\n".utf8).write(to: repo.appendingPathComponent("skip.txt"))
+
+        let service = GitRepositoryService()
+        let patch = try await service.workingTreePatch(for: repo.path, paths: ["keep.txt"])
+        XCTAssertTrue(patch.contains("keep.txt"))
+        XCTAssertFalse(patch.contains("skip.txt"))
+
+        try await service.applyPatch(patch, to: worktree.path, threeWay: false)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: worktree.appendingPathComponent("keep.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktree.appendingPathComponent("skip.txt").path))
+    }
+
     func testPrecheckDetectsConflictingPatch() async throws {
         let directoryURL = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directoryURL) }

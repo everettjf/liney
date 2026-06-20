@@ -377,10 +377,16 @@ private struct DiffApplySheet: View {
                     .foregroundStyle(LineyTheme.mutedText)
             }
 
-            Text("\(preview.fileCount) changed file(s) will be applied.")
+            Text("\(preview.fileCount) of \(state.changedFiles.count) changed file(s) selected.")
                 .font(.callout)
 
-            if preview.appliesCleanly {
+            fileSelectionList
+
+            if preview.fileCount == 0 {
+                Text(preview.detail.isEmpty ? "Select at least one file to apply." : preview.detail)
+                    .font(.callout)
+                    .foregroundStyle(LineyTheme.mutedText)
+            } else if preview.appliesCleanly {
                 Label("Applies cleanly", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(LineyTheme.success)
                     .font(.callout)
@@ -407,7 +413,10 @@ private struct DiffApplySheet: View {
                     state.cancelApply()
                 }
                 Spacer()
-                if preview.appliesCleanly {
+                if preview.fileCount == 0 {
+                    Button("Apply") {}
+                        .disabled(true)
+                } else if preview.appliesCleanly {
                     Button("Apply") {
                         state.confirmApply(threeWay: false)
                     }
@@ -421,6 +430,35 @@ private struct DiffApplySheet: View {
             }
             .padding(.top, 4)
         }
+    }
+
+    private var fileSelectionList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(state.changedFiles) { file in
+                    Toggle(isOn: Binding(
+                        get: { state.applySelection.contains(file.id) },
+                        set: { _ in state.toggleApplyFile(file.id) }
+                    )) {
+                        HStack(spacing: 8) {
+                            Text(file.statusSymbol)
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundStyle(file.status.color)
+                                .frame(width: 14)
+                            Text(file.displayPath)
+                                .font(.system(size: 11, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: 160)
+        .padding(8)
+        .background(LineyTheme.canvasBackground, in: RoundedRectangle(cornerRadius: 6))
     }
 
     @ViewBuilder
