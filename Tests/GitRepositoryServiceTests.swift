@@ -240,6 +240,89 @@ final class GitRepositoryServiceTests: XCTestCase {
         XCTAssertFalse(precheck.message.isEmpty)
     }
 
+    func testWorktreeContentTreeComparesTwoWorktrees() async throws {
+        let directoryURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let repo = directoryURL.appendingPathComponent("repo", isDirectory: true)
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "init", "-b", "main"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.email", "test@example.com"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.name", "Test"], currentDirectory: repo.path)
+
+        try Data("shared\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "add", "."], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "commit", "-m", "init"], currentDirectory: repo.path)
+
+        let worktree = directoryURL.appendingPathComponent("wt", isDirectory: true)
+        try runProcess(
+            executable: "/usr/bin/env",
+            arguments: ["git", "worktree", "add", worktree.path, "HEAD"],
+            currentDirectory: repo.path
+        )
+
+        // Diverge the two worktrees with uncommitted changes.
+        try Data("base side\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
+        try Data("target side\n".utf8).write(to: worktree.appendingPathComponent("a.txt"))
+        try Data("only in target\n".utf8).write(to: worktree.appendingPathComponent("extra.txt"))
+
+        let service = GitRepositoryService()
+        let baseTree = try await service.worktreeContentTree(for: repo.path)
+        let targetTree = try await service.worktreeContentTree(for: worktree.path)
+        XCTAssertNotEqual(baseTree, targetTree)
+
+        let nameStatus = try await service.diffNameStatusBetweenCommits(
+            for: repo.path,
+            fromCommit: baseTree,
+            toCommit: targetTree
+        )
+        XCTAssertTrue(nameStatus.contains("a.txt"))
+        XCTAssertTrue(nameStatus.contains("extra.txt"))
+    }
+
+    func testApplyPatchThreeWayReportsAndResolvesConflicts() async throws {
+        let directoryURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let repo = directoryURL.appendingPathComponent("repo", isDirectory: true)
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "init", "-b", "main"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.email", "test@example.com"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.name", "Test"], currentDirectory: repo.path)
+
+        try Data("base\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "add", "."], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "commit", "-m", "init"], currentDirectory: repo.path)
+
+        let worktree = directoryURL.appendingPathComponent("wt", isDirectory: true)
+        try runProcess(
+            executable: "/usr/bin/env",
+            arguments: ["git", "worktree", "add", worktree.path, "HEAD"],
+            currentDirectory: repo.path
+        )
+
+        // Both sides change the same line → 3-way merge conflicts.
+        try Data("source change\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
+        try Data("target change\n".utf8).write(to: worktree.appendingPathComponent("a.txt"))
+
+        let service = GitRepositoryService()
+        let patch = try await service.workingTreePatch(for: repo.path)
+
+        let outcome = try await service.applyPatch(patch, to: worktree.path, threeWay: true)
+        XCTAssertTrue(outcome.hasConflicts)
+        XCTAssertTrue(outcome.conflictedFiles.contains("a.txt"))
+
+        // Taking "theirs" keeps the incoming (source) content.
+        try await service.resolveConflict(file: "a.txt", in: worktree.path, useTheirs: true)
+        let resolved = try String(contentsOf: worktree.appendingPathComponent("a.txt"), encoding: .utf8)
+        XCTAssertEqual(resolved, "source change\n")
+
+        let remaining = try await service.conflictedFiles(in: worktree.path)
+        XCTAssertTrue(remaining.isEmpty)
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let root = FileManager.default.temporaryDirectory
         let directoryURL = root.appendingPathComponent(UUID().uuidString, isDirectory: true)

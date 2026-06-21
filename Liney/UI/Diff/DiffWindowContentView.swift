@@ -37,6 +37,23 @@ struct DiffWindowContentView: View {
             diffDetail
         }
         .background(LineyTheme.appBackground)
+        .safeAreaInset(edge: .top) {
+            if let compareTarget = state.compareTarget {
+                HStack(spacing: 8) {
+                    Image(systemName: "rectangle.split.2x1")
+                    Text("Comparing this worktree against \(compareTargetLabel(compareTarget))")
+                        .font(.system(size: 11, weight: .medium))
+                    Spacer()
+                }
+                .foregroundStyle(LineyTheme.secondaryText)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .background(LineyTheme.chromeBackground)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(LineyTheme.border).frame(height: 1)
+                }
+            }
+        }
         .onChange(of: listSelection) { _, newValue in
             guard state.selectedFileID != newValue else { return }
             state.selectedFileID = newValue
@@ -99,6 +116,35 @@ struct DiffWindowContentView: View {
             }
 
             ToolbarItem(placement: .primaryAction) {
+                if state.compareTarget != nil {
+                    Button {
+                        state.endCompare()
+                    } label: {
+                        Label("Exit Compare", systemImage: "xmark.circle")
+                    }
+                    .help("Exit A/B compare and show changes vs HEAD")
+                } else {
+                    Menu {
+                        if state.availableTargets.isEmpty {
+                            Text("No other worktrees")
+                        } else {
+                            ForEach(state.availableTargets) { target in
+                                Button {
+                                    state.startCompare(with: target)
+                                } label: {
+                                    Text(compareTargetLabel(target))
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "rectangle.split.2x1")
+                    }
+                    .help("Compare this worktree against another (A/B)")
+                    .disabled(state.availableTargets.isEmpty)
+                }
+            }
+
+            ToolbarItem(placement: .primaryAction) {
                 Menu {
                     if state.availableTargets.isEmpty {
                         Text("No other worktrees")
@@ -107,11 +153,7 @@ struct DiffWindowContentView: View {
                             Button {
                                 state.beginApply(to: target)
                             } label: {
-                                if let branch = target.branch, !branch.isEmpty {
-                                    Text("\(target.displayName) — \(branch)")
-                                } else {
-                                    Text(target.displayName)
-                                }
+                                Text(compareTargetLabel(target))
                             }
                         }
                     }
@@ -119,7 +161,7 @@ struct DiffWindowContentView: View {
                     Image(systemName: "arrow.turn.down.right")
                 }
                 .help("Apply these changes to another worktree")
-                .disabled(state.changedFiles.isEmpty || state.availableTargets.isEmpty)
+                .disabled(state.compareTarget != nil || state.changedFiles.isEmpty || state.availableTargets.isEmpty)
             }
 
             ToolbarItem(placement: .primaryAction) {
@@ -143,6 +185,13 @@ struct DiffWindowContentView: View {
                 if !presented { state.cancelApply() }
             }
         )
+    }
+
+    private func compareTargetLabel(_ target: WorktreeApplyTarget) -> String {
+        if let branch = target.branch, !branch.isEmpty {
+            return "\(target.displayName) — \(branch)"
+        }
+        return target.displayName
     }
 
     private var fileListSidebar: some View {
@@ -357,12 +406,14 @@ private struct DiffApplySheet: View {
                 .padding(.vertical, 12)
             case .preview(let preview):
                 previewBody(preview)
+            case .conflicts(let conflictState):
+                conflictsBody(conflictState)
             case .result(let result):
                 resultBody(result)
             }
         }
         .padding(24)
-        .frame(width: 440)
+        .frame(width: 480)
     }
 
     @ViewBuilder
@@ -377,13 +428,13 @@ private struct DiffApplySheet: View {
                     .foregroundStyle(LineyTheme.mutedText)
             }
 
-            Text("\(preview.fileCount) of \(state.changedFiles.count) changed file(s) selected.")
+            Text("\(preview.fileCount) file(s) selected. Pick the hunks to apply:")
                 .font(.callout)
 
-            fileSelectionList
+            hunkSelectionList
 
             if preview.fileCount == 0 {
-                Text(preview.detail.isEmpty ? "Select at least one file to apply." : preview.detail)
+                Text(preview.detail.isEmpty ? "Select at least one hunk to apply." : preview.detail)
                     .font(.callout)
                     .foregroundStyle(LineyTheme.mutedText)
             } else if preview.appliesCleanly {
@@ -392,7 +443,7 @@ private struct DiffApplySheet: View {
                     .font(.callout)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("Conflicts detected", systemImage: "exclamationmark.triangle.fill")
+                    Label("Conflicts detected — a 3-way merge will be attempted", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(LineyTheme.warning)
                         .font(.callout)
                     if !preview.detail.isEmpty {
@@ -403,7 +454,7 @@ private struct DiffApplySheet: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .textSelection(.enabled)
                         }
-                        .frame(maxHeight: 120)
+                        .frame(maxHeight: 100)
                     }
                 }
             }
@@ -432,33 +483,98 @@ private struct DiffApplySheet: View {
         }
     }
 
-    private var fileSelectionList: some View {
+    private var hunkSelectionList: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(state.changedFiles) { file in
-                    Toggle(isOn: Binding(
-                        get: { state.applySelection.contains(file.id) },
-                        set: { _ in state.toggleApplyFile(file.id) }
-                    )) {
-                        HStack(spacing: 8) {
-                            Text(file.statusSymbol)
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                .foregroundStyle(file.status.color)
-                                .frame(width: 14)
-                            Text(file.displayPath)
-                                .font(.system(size: 11, design: .monospaced))
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(state.patchSections) { section in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Toggle(isOn: Binding(
+                            get: { state.isSectionFullySelected(section) },
+                            set: { _ in state.toggleSection(section) }
+                        )) {
+                            Text(section.path)
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
+                        .toggleStyle(.checkbox)
+
+                        ForEach(section.hunks) { hunk in
+                            Toggle(isOn: Binding(
+                                get: { state.selectedHunkIDs.contains(hunk.id) },
+                                set: { _ in state.toggleHunk(hunk.id) }
+                            )) {
+                                Text(hunkLabel(hunk))
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(LineyTheme.mutedText)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                            .toggleStyle(.checkbox)
+                            .padding(.leading, 18)
+                        }
                     }
-                    .toggleStyle(.checkbox)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxHeight: 160)
+        .frame(maxHeight: 200)
         .padding(8)
         .background(LineyTheme.canvasBackground, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func hunkLabel(_ hunk: PatchHunk) -> String {
+        if hunk.isWholeFile {
+            return hunk.header
+        }
+        return "\(hunk.header)  +\(hunk.addedCount) -\(hunk.removedCount)"
+    }
+
+    @ViewBuilder
+    private func conflictsBody(_ conflictState: WorktreeConflictState) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Resolve conflicts in \(conflictState.target.displayName)", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(LineyTheme.warning)
+                .font(.headline)
+
+            Text("The 3-way merge left \(conflictState.files.count) file(s) conflicted. Choose a side per file, or open the worktree to edit the conflict markers directly.")
+                .font(.callout)
+                .foregroundStyle(LineyTheme.mutedText)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(conflictState.files, id: \.self) { file in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(file)
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            HStack(spacing: 8) {
+                                Button("Use incoming") {
+                                    state.resolveConflict(file: file, useTheirs: true)
+                                }
+                                Button("Keep target") {
+                                    state.resolveConflict(file: file, useTheirs: false)
+                                }
+                            }
+                            .controlSize(.small)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+            .frame(maxHeight: 200)
+            .padding(8)
+            .background(LineyTheme.canvasBackground, in: RoundedRectangle(cornerRadius: 6))
+
+            HStack {
+                Spacer()
+                Button("Leave markers & close") {
+                    state.cancelApply()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
     }
 
     @ViewBuilder

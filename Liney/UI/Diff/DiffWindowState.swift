@@ -37,11 +37,18 @@ struct DiffApplyResult: Equatable {
     let message: String
 }
 
+/// Conflicts left in the target worktree after a 3-way apply, pending resolution.
+struct WorktreeConflictState: Equatable {
+    let target: WorktreeApplyTarget
+    var files: [String]
+}
+
 /// Drives the "apply to another worktree" flow surfaced as a sheet.
 enum DiffApplyPhase: Equatable {
     case idle
     case working
     case preview(WorktreeApplyPreview)
+    case conflicts(WorktreeConflictState)
     case result(DiffApplyResult)
 }
 
@@ -92,13 +99,19 @@ final class DiffWindowState: ObservableObject {
     @Published var isLoadingDocument = false
     @Published var loadErrorMessage: String?
 
-    /// Sibling worktrees the current changes can be applied to.
+    /// Sibling worktrees the current changes can be applied to / compared against.
     @Published var availableTargets: [WorktreeApplyTarget] = []
     /// State of the "apply to another worktree" flow.
     @Published var applyPhase: DiffApplyPhase = .idle
-    /// IDs of the changed files selected for the current apply (file-level
-    /// cherry-pick). Defaults to all changed files when the flow opens.
-    @Published var applySelection: Set<String> = []
+
+    /// Parsed sections/hunks of the apply patch, for hunk-level cherry-pick.
+    @Published var patchSections: [PatchFileSection] = []
+    /// IDs of the hunks selected for the current apply. Defaults to every hunk.
+    @Published var selectedHunkIDs: Set<String> = []
+
+    /// When set, the window compares the base worktree against this target
+    /// (A/B compare) instead of showing changes vs HEAD.
+    @Published var compareTarget: WorktreeApplyTarget?
 
     private let gitRepositoryService = GitRepositoryService()
     private var documentCache: [String: DiffFileDocument] = [:]
@@ -106,8 +119,10 @@ final class DiffWindowState: ObservableObject {
     private var documentTask: Task<Void, Never>?
     private var targetsTask: Task<Void, Never>?
     private var applyTask: Task<Void, Never>?
-    private var pendingPatch: String?
     private var pendingTarget: WorktreeApplyTarget?
+    // Resolved tree snapshots for the active compare (base vs target).
+    private var compareBaseTree: String?
+    private var compareTargetTree: String?
 
     func load(worktreePath: String?, branchName: String, emptyStateMessage: String) {
         DiffDiagnostics.log("Loading diff window state for branch \(branchName) at \(worktreePath ?? "<nil>")")
@@ -120,6 +135,9 @@ final class DiffWindowState: ObservableObject {
         loadErrorMessage = nil
         documentCache = [:]
         availableTargets = []
+        compareTarget = nil
+        compareBaseTree = nil
+        compareTargetTree = nil
         resetApplyFlow()
         fileListTask?.cancel()
         documentTask?.cancel()
@@ -138,7 +156,11 @@ final class DiffWindowState: ObservableObject {
         documentCache = [:]
         fileListTask?.cancel()
         documentTask?.cancel()
-        fileListTask = Task { await reloadFileList(for: worktreePath) }
+        if compareTarget != nil {
+            fileListTask = Task { await reloadCompareFileList() }
+        } else {
+            fileListTask = Task { await reloadFileList(for: worktreePath) }
+        }
         reloadTargets(for: worktreePath)
     }
 
@@ -162,6 +184,13 @@ final class DiffWindowState: ObservableObject {
             return
         }
 
+        let compareTrees: (base: String, target: String)?
+        if let compareBaseTree, let compareTargetTree {
+            compareTrees = (compareBaseTree, compareTargetTree)
+        } else {
+            compareTrees = nil
+        }
+
         document = nil
         isLoadingDocument = true
         documentTask = Task {
@@ -169,7 +198,15 @@ final class DiffWindowState: ObservableObject {
             DiffDiagnostics.log("Starting diff load for \(file.displayPath)")
             do {
                 let loadedDocument = try await Task.detached(priority: .userInitiated) {
-                    try await Self.loadDocument(for: file, worktreePath: worktreePath)
+                    if let compareTrees {
+                        return try await Self.loadCompareDocument(
+                            for: file,
+                            repoPath: worktreePath,
+                            base: compareTrees.base,
+                            target: compareTrees.target
+                        )
+                    }
+                    return try await Self.loadDocument(for: file, worktreePath: worktreePath)
                 }.value
                 guard !Task.isCancelled else { return }
                 documentCache[file.id] = loadedDocument
@@ -205,75 +242,26 @@ final class DiffWindowState: ObservableObject {
         }
     }
 
-    /// Opens the apply flow targeting `target`, selecting all changed files by
-    /// default, then dry-runs the resulting patch.
+    /// Opens the apply flow targeting `target`. Builds the full patch of the base
+    /// worktree's changes, parses it into hunks (all selected by default), then
+    /// dry-runs the result.
     func beginApply(to target: WorktreeApplyTarget) {
-        guard worktreePath != nil else { return }
+        guard let worktreePath else { return }
         guard !changedFiles.isEmpty else {
             applyPhase = .result(DiffApplyResult(success: false, message: "There are no changes to apply."))
             return
         }
         pendingTarget = target
-        applySelection = Set(changedFiles.map(\.id))
-        runPrecheck()
-    }
-
-    /// Toggles a file in the apply selection and re-runs the precheck so the
-    /// preview reflects only the chosen subset.
-    func toggleApplyFile(_ id: String) {
-        if applySelection.contains(id) {
-            applySelection.remove(id)
-        } else {
-            applySelection.insert(id)
-        }
-        switch applyPhase {
-        case .preview, .working:
-            runPrecheck()
-        default:
-            break
-        }
-    }
-
-    /// Builds a patch scoped to the current selection and dry-runs it against the
-    /// pending target, transitioning the flow into a preview the user can confirm.
-    private func runPrecheck() {
-        guard let worktreePath, let target = pendingTarget else { return }
         applyTask?.cancel()
         applyPhase = .working
-
-        let selectedFiles = changedFiles.filter { applySelection.contains($0.id) }
-        let count = selectedFiles.count
-        let paths = Self.pathspec(for: selectedFiles)
-
         applyTask = Task {
             do {
-                guard count > 0 else {
-                    pendingPatch = nil
-                    applyPhase = .preview(
-                        WorktreeApplyPreview(target: target, fileCount: 0, appliesCleanly: false, detail: "Select at least one file to apply.")
-                    )
-                    return
-                }
-                let patch = try await gitRepositoryService.workingTreePatch(for: worktreePath, paths: paths)
+                let patch = try await gitRepositoryService.workingTreePatch(for: worktreePath)
                 guard !Task.isCancelled else { return }
-                guard let patch = patch.nilIfEmpty else {
-                    pendingPatch = nil
-                    applyPhase = .preview(
-                        WorktreeApplyPreview(target: target, fileCount: 0, appliesCleanly: false, detail: "No changes to apply for the selected files.")
-                    )
-                    return
-                }
-                let precheck = try await gitRepositoryService.precheckApplyPatch(patch, to: target.path)
-                guard !Task.isCancelled else { return }
-                pendingPatch = patch
-                applyPhase = .preview(
-                    WorktreeApplyPreview(
-                        target: target,
-                        fileCount: count,
-                        appliesCleanly: precheck.appliesCleanly,
-                        detail: precheck.message
-                    )
-                )
+                let sections = UnifiedPatch.parse(patch)
+                patchSections = sections
+                selectedHunkIDs = Set(sections.flatMap { $0.hunks.map(\.id) })
+                await runPrecheck()
             } catch {
                 guard !Task.isCancelled else { return }
                 applyPhase = .result(DiffApplyResult(success: false, message: error.localizedDescription))
@@ -281,26 +269,126 @@ final class DiffWindowState: ObservableObject {
         }
     }
 
-    /// Applies the previously-built patch to the pending target. Pass `threeWay`
-    /// to fall back to a 3-way merge for patches that don't apply cleanly.
+    /// Toggles a single hunk and re-runs the precheck.
+    func toggleHunk(_ id: String) {
+        if selectedHunkIDs.contains(id) {
+            selectedHunkIDs.remove(id)
+        } else {
+            selectedHunkIDs.insert(id)
+        }
+        rerunPrecheckIfPreviewing()
+    }
+
+    /// Toggles every hunk of a file section at once and re-runs the precheck.
+    func toggleSection(_ section: PatchFileSection) {
+        let ids = section.hunks.map(\.id)
+        if ids.allSatisfy({ selectedHunkIDs.contains($0) }) {
+            ids.forEach { selectedHunkIDs.remove($0) }
+        } else {
+            ids.forEach { selectedHunkIDs.insert($0) }
+        }
+        rerunPrecheckIfPreviewing()
+    }
+
+    func isSectionFullySelected(_ section: PatchFileSection) -> Bool {
+        !section.hunks.isEmpty && section.hunks.allSatisfy { selectedHunkIDs.contains($0.id) }
+    }
+
+    private func rerunPrecheckIfPreviewing() {
+        switch applyPhase {
+        case .preview, .working:
+            applyTask?.cancel()
+            applyTask = Task { await runPrecheck() }
+        default:
+            break
+        }
+    }
+
+    /// Reassembles the selected hunks into a patch and dry-runs it against the
+    /// pending target, moving the flow into a preview the user can confirm.
+    private func runPrecheck() async {
+        guard let target = pendingTarget else { return }
+        applyPhase = .working
+
+        let patch = UnifiedPatch.reassemble(selectedHunkIDs: selectedHunkIDs, from: patchSections)
+        let fileCount = patchSections.filter { section in
+            section.hunks.contains { selectedHunkIDs.contains($0.id) }
+        }.count
+
+        do {
+            guard let patch = patch.nilIfEmpty else {
+                applyPhase = .preview(
+                    WorktreeApplyPreview(target: target, fileCount: 0, appliesCleanly: false, detail: "Select at least one hunk to apply.")
+                )
+                return
+            }
+            let precheck = try await gitRepositoryService.precheckApplyPatch(patch, to: target.path)
+            guard !Task.isCancelled else { return }
+            applyPhase = .preview(
+                WorktreeApplyPreview(
+                    target: target,
+                    fileCount: fileCount,
+                    appliesCleanly: precheck.appliesCleanly,
+                    detail: precheck.message
+                )
+            )
+        } catch {
+            guard !Task.isCancelled else { return }
+            applyPhase = .result(DiffApplyResult(success: false, message: error.localizedDescription))
+        }
+    }
+
+    /// Applies the selected hunks to the pending target. Pass `threeWay` to fall
+    /// back to a 3-way merge for patches that don't apply cleanly; if that leaves
+    /// conflicts, the flow moves to interactive resolution.
     func confirmApply(threeWay: Bool) {
-        guard let patch = pendingPatch, let target = pendingTarget else { return }
+        guard let target = pendingTarget else { return }
+        let patch = UnifiedPatch.reassemble(selectedHunkIDs: selectedHunkIDs, from: patchSections)
+        guard let patch = patch.nilIfEmpty else { return }
+        let fileCount = patchSections.filter { section in
+            section.hunks.contains { selectedHunkIDs.contains($0.id) }
+        }.count
+
         applyTask?.cancel()
         applyPhase = .working
-        let appliedFileCount = applySelection.count
         applyTask = Task {
             do {
-                try await gitRepositoryService.applyPatch(patch, to: target.path, threeWay: threeWay)
+                let outcome = try await gitRepositoryService.applyPatch(patch, to: target.path, threeWay: threeWay)
                 guard !Task.isCancelled else { return }
-                let suffix = threeWay ? " (3-way merge — check for conflict markers)" : ""
-                applyPhase = .result(
-                    DiffApplyResult(
-                        success: true,
-                        message: "Applied \(appliedFileCount) file(s) to \(target.displayName).\(suffix)"
+                if outcome.hasConflicts {
+                    applyPhase = .conflicts(WorktreeConflictState(target: target, files: outcome.conflictedFiles))
+                } else {
+                    applyPhase = .result(
+                        DiffApplyResult(success: true, message: "Applied \(fileCount) file(s) to \(target.displayName).")
                     )
-                )
-                pendingPatch = nil
-                pendingTarget = nil
+                    pendingTarget = nil
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                applyPhase = .result(DiffApplyResult(success: false, message: error.localizedDescription))
+            }
+        }
+    }
+
+    /// Resolves one conflicted file by taking the incoming (theirs) or target
+    /// (ours) side. When the last conflict is resolved the flow reports success.
+    func resolveConflict(file: String, useTheirs: Bool) {
+        guard case .conflicts(var conflictState) = applyPhase else { return }
+        let target = conflictState.target
+        applyTask?.cancel()
+        applyTask = Task {
+            do {
+                try await gitRepositoryService.resolveConflict(file: file, in: target.path, useTheirs: useTheirs)
+                guard !Task.isCancelled else { return }
+                conflictState.files.removeAll { $0 == file }
+                if conflictState.files.isEmpty {
+                    applyPhase = .result(
+                        DiffApplyResult(success: true, message: "Resolved all conflicts in \(target.displayName).")
+                    )
+                    pendingTarget = nil
+                } else {
+                    applyPhase = .conflicts(conflictState)
+                }
             } catch {
                 guard !Task.isCancelled else { return }
                 applyPhase = .result(DiffApplyResult(success: false, message: error.localizedDescription))
@@ -312,24 +400,83 @@ final class DiffWindowState: ObservableObject {
         resetApplyFlow()
     }
 
-    /// Collects the git pathspecs (old + new path) for the given changed files so
-    /// renames and deletions are scoped correctly.
-    nonisolated private static func pathspec(for files: [DiffChangedFile]) -> [String] {
-        var paths: [String] = []
-        for file in files {
-            if let oldPath = file.oldPath { paths.append(oldPath) }
-            if let newPath = file.newPath { paths.append(newPath) }
-        }
-        return Array(Set(paths))
-    }
-
     private func resetApplyFlow() {
         applyTask?.cancel()
         applyTask = nil
-        pendingPatch = nil
         pendingTarget = nil
-        applySelection = []
+        patchSections = []
+        selectedHunkIDs = []
         applyPhase = .idle
+    }
+
+    // MARK: - Compare Worktrees (A/B)
+
+    /// Switches the window into A/B compare mode against `target`.
+    func startCompare(with target: WorktreeApplyTarget) {
+        guard worktreePath != nil else { return }
+        resetApplyFlow()
+        compareTarget = target
+        compareBaseTree = nil
+        compareTargetTree = nil
+        documentCache = [:]
+        changedFiles = []
+        selectedFileID = nil
+        document = nil
+        fileListTask?.cancel()
+        documentTask?.cancel()
+        fileListTask = Task { await reloadCompareFileList() }
+    }
+
+    /// Leaves compare mode and returns to showing changes vs HEAD.
+    func endCompare() {
+        guard let worktreePath else { return }
+        compareTarget = nil
+        compareBaseTree = nil
+        compareTargetTree = nil
+        documentCache = [:]
+        changedFiles = []
+        selectedFileID = nil
+        document = nil
+        fileListTask?.cancel()
+        documentTask?.cancel()
+        fileListTask = Task { await reloadFileList(for: worktreePath) }
+    }
+
+    private func reloadCompareFileList() async {
+        guard let worktreePath, let compareTarget else { return }
+        isLoadingFiles = true
+        loadErrorMessage = nil
+        do {
+            let base = try await gitRepositoryService.worktreeContentTree(for: worktreePath)
+            let target = try await gitRepositoryService.worktreeContentTree(for: compareTarget.path)
+            guard !Task.isCancelled else { return }
+            compareBaseTree = base
+            compareTargetTree = target
+
+            let nameStatus = try await gitRepositoryService.diffNameStatusBetweenCommits(
+                for: worktreePath,
+                fromCommit: base,
+                toCommit: target
+            )
+            let files = DiffChangedFile.parseNameStatus(nameStatus).sorted {
+                $0.displayPath.localizedStandardCompare($1.displayPath) == .orderedAscending
+            }
+            guard !Task.isCancelled else { return }
+            changedFiles = files
+            isLoadingFiles = false
+
+            let nextSelectionID = files.first?.id
+            selectedFileID = nextSelectionID
+            updateDocumentSelection(for: nextSelectionID)
+        } catch {
+            guard !Task.isCancelled else { return }
+            changedFiles = []
+            document = nil
+            selectedFileID = nil
+            isLoadingFiles = false
+            isLoadingDocument = false
+            loadErrorMessage = error.localizedDescription.nonEmptyOrFallback("Unable to load comparison.")
+        }
     }
 
     private func reloadFileList(for worktreePath: String) async {
@@ -382,6 +529,29 @@ final class DiffWindowState: ObservableObject {
     }
 
     private static let maxPatchBytes = 1_000_000
+
+    /// Loads a per-file diff document for A/B compare mode, diffing the two
+    /// resolved tree snapshots.
+    nonisolated private static func loadCompareDocument(
+        for file: DiffChangedFile,
+        repoPath: String,
+        base: String,
+        target: String
+    ) async throws -> DiffFileDocument {
+        let gitRepositoryService = GitRepositoryService()
+        let diffPath = file.newPath ?? file.oldPath ?? file.displayPath
+        let patch = try await gitRepositoryService.diffPatchBetweenCommits(
+            for: repoPath,
+            filePath: diffPath,
+            fromCommit: base,
+            toCommit: target
+        )
+        let unifiedPatch = patch.nilIfEmpty ?? "No unified patch available for \(file.displayPath)."
+        if unifiedPatch.utf8.count > maxPatchBytes {
+            return makeDocument(file: file, unifiedPatch: truncatePatch(unifiedPatch, maxBytes: maxPatchBytes))
+        }
+        return makeDocument(file: file, unifiedPatch: unifiedPatch)
+    }
 
     nonisolated private static func loadDocument(for file: DiffChangedFile, worktreePath: String) async throws -> DiffFileDocument {
         let start = DiffDiagnostics.now()

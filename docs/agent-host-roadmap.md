@@ -165,9 +165,23 @@ from the diff window.
   patch to the chosen subset and the precheck re-runs as the selection changes,
   so you can pick exactly which files merge into the target.
 
-Follow-ups (not yet done): side-by-side multi-worktree diff (A/B compare),
-per-hunk cherry-pick (sub-file granularity), and an interactive
-conflict-resolution UI.
+Second slice (shipped): the rest of the loop.
+
+- **Per-hunk cherry-pick.** `UnifiedPatch` parses the patch into file sections
+  and hunks; the sheet shows a file → hunk tree of checkboxes and reassembles
+  only the selected hunks (`UnifiedPatch.reassemble`). Selection drives the live
+  precheck, so you cherry-pick at sub-file granularity.
+- **A/B compare.** `worktreeContentTree(for:)` snapshots each worktree's full
+  content (incl. uncommitted/untracked) into a git tree via a throwaway index,
+  and the diff window compares the two trees (`rectangle.split.2x1` toolbar menu
+  → a compare banner; "Exit Compare" returns to changes-vs-HEAD).
+- **Interactive conflict resolution.** `applyPatch(…, threeWay:)` now reports
+  conflicts instead of throwing; the sheet lists each conflicted file with
+  "Use incoming" / "Keep target" (`git checkout --theirs/--ours` + stage), or
+  leave the markers to edit in the worktree.
+
+Possible further work: inline (within-document) conflict editing and applying
+across repositories rather than only sibling worktrees.
 
 ## Sequencing
 

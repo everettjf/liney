@@ -63,6 +63,14 @@ struct WorktreeApplyPrecheck {
     var message: String
 }
 
+/// Result of applying a patch to a worktree.
+struct WorktreeApplyOutcome {
+    /// True when a 3-way merge left unresolved conflicts in the working tree.
+    var hasConflicts: Bool
+    /// Paths (relative to the worktree) left in a conflicted state.
+    var conflictedFiles: [String]
+}
+
 actor GitRepositoryService {
     private let runner = ShellCommandRunner()
 
@@ -732,9 +740,12 @@ actor GitRepositoryService {
     }
 
     /// Applies `patch` to `targetWorktreePath`. When `threeWay` is set, falls back
-    /// to a 3-way merge (leaving conflict markers) for patches that don't apply
-    /// cleanly; otherwise a failure throws.
-    func applyPatch(_ patch: String, to targetWorktreePath: String, threeWay: Bool) async throws {
+    /// to a 3-way merge for patches that don't apply cleanly: the working tree and
+    /// index are left with conflict markers/stages, reported in the outcome rather
+    /// than thrown. A non-3-way failure (or a 3-way failure that produced no
+    /// recoverable conflict) throws.
+    @discardableResult
+    func applyPatch(_ patch: String, to targetWorktreePath: String, threeWay: Bool) async throws -> WorktreeApplyOutcome {
         let patchFile = try Self.writeTempPatch(patch)
         defer { try? FileManager.default.removeItem(atPath: patchFile) }
 
@@ -745,9 +756,69 @@ actor GitRepositoryService {
         arguments.append(patchFile)
 
         let result = try await git(arguments: arguments, currentDirectory: targetWorktreePath)
-        guard result.exitCode == 0 else {
-            throw GitServiceError.commandFailed(result.stderr.nonEmptyOrFallback("Unable to apply patch."))
+        if result.exitCode == 0 {
+            return WorktreeApplyOutcome(hasConflicts: false, conflictedFiles: [])
         }
+
+        // With --3way, conflicts are expected and recoverable: git records the
+        // merge in the index, so unmerged paths are the conflicted files.
+        if threeWay {
+            let conflicts = try await conflictedFiles(in: targetWorktreePath)
+            if !conflicts.isEmpty {
+                return WorktreeApplyOutcome(hasConflicts: true, conflictedFiles: conflicts)
+            }
+        }
+        throw GitServiceError.commandFailed(result.stderr.nonEmptyOrFallback("Unable to apply patch."))
+    }
+
+    /// Lists paths left in a conflicted (unmerged) state in `worktreePath`.
+    func conflictedFiles(in worktreePath: String) async throws -> [String] {
+        let result = try await git(
+            arguments: ["diff", "--name-only", "--diff-filter=U"],
+            currentDirectory: worktreePath
+        )
+        guard result.exitCode == 0 else {
+            throw GitServiceError.commandFailed(result.stderr.nonEmptyOrFallback("Unable to list conflicted files."))
+        }
+        return result.stdout
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+    }
+
+    /// Resolves a conflicted file by taking one side of the recorded 3-way merge:
+    /// `useTheirs` keeps the incoming patch, otherwise the target's prior content.
+    /// The resolution is staged so the file is no longer unmerged.
+    func resolveConflict(file: String, in worktreePath: String, useTheirs: Bool) async throws {
+        let side = useTheirs ? "--theirs" : "--ours"
+        let checkout = try await git(arguments: ["checkout", side, "--", file], currentDirectory: worktreePath)
+        guard checkout.exitCode == 0 else {
+            throw GitServiceError.commandFailed(checkout.stderr.nonEmptyOrFallback("Unable to resolve \(file)."))
+        }
+        let add = try await git(arguments: ["add", "--", file], currentDirectory: worktreePath)
+        guard add.exitCode == 0 else {
+            throw GitServiceError.commandFailed(add.stderr.nonEmptyOrFallback("Unable to stage resolved \(file)."))
+        }
+    }
+
+    // MARK: - Worktree Comparison
+
+    /// Snapshots a worktree's full content (tracked + untracked, including
+    /// uncommitted changes) into a git tree object and returns its SHA, without
+    /// mutating the real index. Used to diff two worktrees against each other.
+    func worktreeContentTree(for worktreePath: String) async throws -> String {
+        let tempIndexPath = NSTemporaryDirectory() + "liney-tree-index-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tempIndexPath) }
+
+        let env = ["GIT_INDEX_FILE": tempIndexPath]
+        let addResult = try await git(arguments: ["add", "-A"], currentDirectory: worktreePath, extraEnvironment: env)
+        guard addResult.exitCode == 0 else {
+            throw GitServiceError.commandFailed(addResult.stderr.nonEmptyOrFallback("Unable to snapshot worktree for compare."))
+        }
+        let treeResult = try await git(arguments: ["write-tree"], currentDirectory: worktreePath, extraEnvironment: env)
+        guard treeResult.exitCode == 0 else {
+            throw GitServiceError.commandFailed(treeResult.stderr.nonEmptyOrFallback("Unable to snapshot worktree for compare."))
+        }
+        return treeResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     nonisolated private static func writeTempPatch(_ patch: String) throws -> String {
