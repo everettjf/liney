@@ -303,7 +303,10 @@ final class GitRepositoryServiceTests: XCTestCase {
             currentDirectory: repo.path
         )
 
-        // Both sides change the same line → 3-way merge conflicts.
+        // Both sides change the same line → 3-way merge conflicts. The target's
+        // change is left UNSTAGED on purpose: `git apply --3way` would otherwise
+        // refuse with "does not match index", so applyPatch must stage the target
+        // worktree before merging.
         try Data("source change\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
         try Data("target change\n".utf8).write(to: worktree.appendingPathComponent("a.txt"))
 

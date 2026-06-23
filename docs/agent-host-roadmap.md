@@ -178,7 +178,9 @@ Second slice (shipped): the rest of the loop.
 - **Interactive conflict resolution.** `applyPatch(…, threeWay:)` now reports
   conflicts instead of throwing; the sheet lists each conflicted file with
   "Use incoming" / "Keep target" (`git checkout --theirs/--ours` + stage), or
-  leave the markers to edit in the worktree.
+  leave the markers to edit in the worktree. Because `git apply --3way` refuses
+  a dirty target ("does not match index"), the apply stages the target worktree
+  (`git add -A`) first so the merge's "ours" side reflects its current state.
 
 Possible further work: inline (within-document) conflict editing and applying
 across repositories rather than only sibling worktrees.
