@@ -749,6 +749,17 @@ actor GitRepositoryService {
         let patchFile = try Self.writeTempPatch(patch)
         defer { try? FileManager.default.removeItem(atPath: patchFile) }
 
+        if threeWay {
+            // `git apply --3way` refuses ("does not match index") when the target
+            // worktree has uncommitted changes, which is the common case here.
+            // Stage the working tree first so the merge's "ours" side reflects the
+            // target's current state (including uncommitted edits).
+            let stage = try await git(arguments: ["add", "-A"], currentDirectory: targetWorktreePath)
+            guard stage.exitCode == 0 else {
+                throw GitServiceError.commandFailed(stage.stderr.nonEmptyOrFallback("Unable to prepare target for 3-way merge."))
+            }
+        }
+
         var arguments = ["apply", "--whitespace=nowarn"]
         if threeWay {
             arguments.append("--3way")
