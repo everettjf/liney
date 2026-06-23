@@ -37,6 +37,23 @@ struct DiffWindowContentView: View {
             diffDetail
         }
         .background(LineyTheme.appBackground)
+        .safeAreaInset(edge: .top) {
+            if let compareTarget = state.compareTarget {
+                HStack(spacing: 8) {
+                    Image(systemName: "rectangle.split.2x1")
+                    Text("Comparing this worktree against \(compareTargetLabel(compareTarget))")
+                        .font(.system(size: 11, weight: .medium))
+                    Spacer()
+                }
+                .foregroundStyle(LineyTheme.secondaryText)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .background(LineyTheme.chromeBackground)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(LineyTheme.border).frame(height: 1)
+                }
+            }
+        }
         .onChange(of: listSelection) { _, newValue in
             guard state.selectedFileID != newValue else { return }
             state.selectedFileID = newValue
@@ -99,6 +116,55 @@ struct DiffWindowContentView: View {
             }
 
             ToolbarItem(placement: .primaryAction) {
+                if state.compareTarget != nil {
+                    Button {
+                        state.endCompare()
+                    } label: {
+                        Label("Exit Compare", systemImage: "xmark.circle")
+                    }
+                    .help("Exit A/B compare and show changes vs HEAD")
+                } else {
+                    Menu {
+                        if state.availableTargets.isEmpty {
+                            Text("No other worktrees")
+                        } else {
+                            ForEach(state.availableTargets) { target in
+                                Button {
+                                    state.startCompare(with: target)
+                                } label: {
+                                    Text(compareTargetLabel(target))
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "rectangle.split.2x1")
+                    }
+                    .help("Compare this worktree against another (A/B)")
+                    .disabled(state.availableTargets.isEmpty)
+                }
+            }
+
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    if state.availableTargets.isEmpty {
+                        Text("No other worktrees")
+                    } else {
+                        ForEach(state.availableTargets) { target in
+                            Button {
+                                state.beginApply(to: target)
+                            } label: {
+                                Text(compareTargetLabel(target))
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.turn.down.right")
+                }
+                .help("Apply these changes to another worktree")
+                .disabled(state.compareTarget != nil || state.changedFiles.isEmpty || state.availableTargets.isEmpty)
+            }
+
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     state.refresh()
                 } label: {
@@ -107,6 +173,25 @@ struct DiffWindowContentView: View {
                 .help("Refresh Diff")
             }
         }
+        .sheet(isPresented: applySheetBinding) {
+            DiffApplySheet(state: state)
+        }
+    }
+
+    private var applySheetBinding: Binding<Bool> {
+        Binding(
+            get: { state.applyPhase != .idle },
+            set: { presented in
+                if !presented { state.cancelApply() }
+            }
+        )
+    }
+
+    private func compareTargetLabel(_ target: WorktreeApplyTarget) -> String {
+        if let branch = target.branch, !branch.isEmpty {
+            return "\(target.displayName) — \(branch)"
+        }
+        return target.displayName
     }
 
     private var fileListSidebar: some View {
@@ -301,6 +386,228 @@ private struct DiffYiTongDocumentView: View {
             inlineChangeStyle: .wordAlt,
             allowsSelection: true
         )
+    }
+}
+
+private struct DiffApplySheet: View {
+    @ObservedObject var state: DiffWindowState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            switch state.applyPhase {
+            case .idle:
+                EmptyView()
+            case .working:
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Preparing changes…")
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 12)
+            case .preview(let preview):
+                previewBody(preview)
+            case .conflicts(let conflictState):
+                conflictsBody(conflictState)
+            case .result(let result):
+                resultBody(result)
+            }
+        }
+        .padding(24)
+        .frame(width: 480)
+    }
+
+    @ViewBuilder
+    private func previewBody(_ preview: WorktreeApplyPreview) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Apply to \(preview.target.displayName)", systemImage: "arrow.turn.down.right")
+                .font(.headline)
+
+            if let branch = preview.target.branch, !branch.isEmpty {
+                Text(branch)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(LineyTheme.mutedText)
+            }
+
+            Text("\(preview.fileCount) file(s) selected. Pick the hunks to apply:")
+                .font(.callout)
+
+            hunkSelectionList
+
+            if preview.fileCount == 0 {
+                Text(preview.detail.isEmpty ? "Select at least one hunk to apply." : preview.detail)
+                    .font(.callout)
+                    .foregroundStyle(LineyTheme.mutedText)
+            } else if preview.appliesCleanly {
+                Label("Applies cleanly", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(LineyTheme.success)
+                    .font(.callout)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Conflicts detected — a 3-way merge will be attempted", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(LineyTheme.warning)
+                        .font(.callout)
+                    if !preview.detail.isEmpty {
+                        ScrollView {
+                            Text(preview.detail)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(LineyTheme.mutedText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                        }
+                        .frame(maxHeight: 100)
+                    }
+                }
+            }
+
+            HStack {
+                Button("Cancel", role: .cancel) {
+                    state.cancelApply()
+                }
+                Spacer()
+                if preview.fileCount == 0 {
+                    Button("Apply") {}
+                        .disabled(true)
+                } else if preview.appliesCleanly {
+                    Button("Apply") {
+                        state.confirmApply(threeWay: false)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                } else {
+                    Button("Apply with 3-way merge") {
+                        state.confirmApply(threeWay: true)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private var hunkSelectionList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(state.patchSections) { section in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Toggle(isOn: Binding(
+                            get: { state.isSectionFullySelected(section) },
+                            set: { _ in state.toggleSection(section) }
+                        )) {
+                            Text(section.path)
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .toggleStyle(.checkbox)
+
+                        ForEach(section.hunks) { hunk in
+                            Toggle(isOn: Binding(
+                                get: { state.selectedHunkIDs.contains(hunk.id) },
+                                set: { _ in state.toggleHunk(hunk.id) }
+                            )) {
+                                Text(hunkLabel(hunk))
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(LineyTheme.mutedText)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                            .toggleStyle(.checkbox)
+                            .padding(.leading, 18)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: 200)
+        .padding(8)
+        .background(LineyTheme.canvasBackground, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func hunkLabel(_ hunk: PatchHunk) -> String {
+        if hunk.isWholeFile {
+            return hunk.header
+        }
+        return "\(hunk.header)  +\(hunk.addedCount) -\(hunk.removedCount)"
+    }
+
+    @ViewBuilder
+    private func conflictsBody(_ conflictState: WorktreeConflictState) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Resolve conflicts in \(conflictState.target.displayName)", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(LineyTheme.warning)
+                .font(.headline)
+
+            Text("The 3-way merge left \(conflictState.files.count) file(s) conflicted. Choose a side per file, or open the worktree to edit the conflict markers directly.")
+                .font(.callout)
+                .foregroundStyle(LineyTheme.mutedText)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(conflictState.files, id: \.self) { file in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(file)
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            HStack(spacing: 8) {
+                                Button("Use incoming") {
+                                    state.resolveConflict(file: file, useTheirs: true)
+                                }
+                                Button("Keep target") {
+                                    state.resolveConflict(file: file, useTheirs: false)
+                                }
+                            }
+                            .controlSize(.small)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+            .frame(maxHeight: 200)
+            .padding(8)
+            .background(LineyTheme.canvasBackground, in: RoundedRectangle(cornerRadius: 6))
+
+            HStack {
+                Spacer()
+                Button("Leave markers & close") {
+                    state.cancelApply()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func resultBody(_ result: DiffApplyResult) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if result.success {
+                Label("Changes applied", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(LineyTheme.success)
+                    .font(.headline)
+            } else {
+                Label("Apply failed", systemImage: "xmark.octagon.fill")
+                    .foregroundStyle(LineyTheme.danger)
+                    .font(.headline)
+            }
+
+            if !result.message.isEmpty {
+                ScrollView {
+                    Text(result.message)
+                        .font(.system(size: 12))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .frame(maxHeight: 140)
+            }
+
+            HStack {
+                Spacer()
+                Button("Done") {
+                    state.cancelApply()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
     }
 }
 

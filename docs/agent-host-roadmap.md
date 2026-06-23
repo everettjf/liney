@@ -138,11 +138,57 @@ The per-agent status column already has its data source: `liney status`
 records state into `AgentStatusStore` keyed by pane (item 3). What remains is
 the aggregating surface itself and wiring pane-close eviction.
 
+### 6. Review → merge loop across worktrees
+
+**Status:** in progress.
+
+Items 1–5 solved *running* many agents; the remaining gap is the part no
+competitor (cmux, ghostree) has made smooth: after N agents finish, how do I
+quickly review → pick → merge their output? This is now Liney's primary moat —
+"true terminal + worktree" alone is no longer a differentiator.
+
+First slice (this work): apply one worktree's changes onto another, straight
+from the diff window.
+
+- `GitRepositoryService.workingTreePatch(for:)` builds a single unified patch of
+  a worktree's full working-tree state vs HEAD — tracked *and* untracked files —
+  by staging into a throwaway `GIT_INDEX_FILE` so the real index is never
+  touched.
+- `precheckApplyPatch(_:to:)` dry-runs it with `git apply --check` so conflicts
+  are surfaced *before* anything is written.
+- `applyPatch(_:to:threeWay:)` applies it, with an opt-in `--3way` fallback that
+  leaves conflict markers when the patch doesn't apply cleanly.
+- The diff window gains an "apply to another worktree" menu (target = sibling
+  worktrees) and a confirmation sheet showing the precheck verdict.
+- File-level cherry-pick: the confirmation sheet lists every changed file with a
+  checkbox (all selected by default); `workingTreePatch(for:paths:)` scopes the
+  patch to the chosen subset and the precheck re-runs as the selection changes,
+  so you can pick exactly which files merge into the target.
+
+Second slice (shipped): the rest of the loop.
+
+- **Per-hunk cherry-pick.** `UnifiedPatch` parses the patch into file sections
+  and hunks; the sheet shows a file → hunk tree of checkboxes and reassembles
+  only the selected hunks (`UnifiedPatch.reassemble`). Selection drives the live
+  precheck, so you cherry-pick at sub-file granularity.
+- **A/B compare.** `worktreeContentTree(for:)` snapshots each worktree's full
+  content (incl. uncommitted/untracked) into a git tree via a throwaway index,
+  and the diff window compares the two trees (`rectangle.split.2x1` toolbar menu
+  → a compare banner; "Exit Compare" returns to changes-vs-HEAD).
+- **Interactive conflict resolution.** `applyPatch(…, threeWay:)` now reports
+  conflicts instead of throwing; the sheet lists each conflicted file with
+  "Use incoming" / "Keep target" (`git checkout --theirs/--ours` + stage), or
+  leave the markers to edit in the worktree.
+
+Possible further work: inline (within-document) conflict editing and applying
+across repositories rather than only sibling worktrees.
+
 ## Sequencing
 
 1, 2, 3, 4, 5 — strictly in order. Each item produces a primitive the next
 one consumes. Skipping ahead (e.g., building the orchestration panel before
-the IPC server) means re-doing the data plumbing later.
+the IPC server) means re-doing the data plumbing later. Item 6 builds on the
+worktree model and the diff window that items 1–5 established.
 
 ## Non-goals (for this track)
 
