@@ -18,6 +18,8 @@ Liney 是一款原生 macOS 终端工作区应用，面向需要频繁在多个�
 - 在同一个侧边栏里管理多个仓库和 worktree。
 - 回到某个仓库时，快速恢复上次使用的分屏布局。
 - 混合使用本地 shell、SSH 和 agent 驱动的终端会话——文件树会跟随当前焦点面板，通过 SSH 浏览远程主机的目录。
+- 直接在终端里显示内联图片——Liney 会把 iTerm2 的 OSC 1337 协议（Claude Code 等工具用它打印截图）翻译成 Ghostty 原生支持的图形协议。
+- 在内置的 diff 窗口里 review 并提交每个 agent 在其 worktree 的改动，无需离开应用。
 - 在一个围绕键盘高频操作设计的原生 macOS 应用中完成工作。
 
 ## 安装
@@ -57,6 +59,7 @@ brew update && brew install --cask everettjf/tap/liney
 进阶功能：
 
 - [生命周期钩子](https://liney.dev/docs/guides/lifecycle-hooks) — 在应用或会话启动/退出时执行自定义命令
+- [终端内联图片](./docs/terminal-inline-images.md) — 把 iTerm2 OSC 1337 内联图片（如 Claude Code 截图）翻译成 Ghostty 原生 Kitty 图形协议来渲染；默认开启，可在 设置 → 终端 中开关
 
 ## 分支说明
 

@@ -18,6 +18,8 @@ It gives you one focused place to open codebases, switch worktrees, keep termina
 - Keep multiple repositories and worktrees in one sidebar.
 - Reopen the same pane layout when you come back to a repo.
 - Mix local shell, SSH, and agent-backed terminal sessions — the file tree follows the focused pane and browses the remote host over SSH.
+- See inline images right in the terminal — Liney translates iTerm2's OSC 1337 protocol (used by Claude Code for screenshots) into Ghostty's native graphics.
+- Review and commit each agent's worktree changes from a built-in diff window, without leaving the app.
 - Stay in a native macOS app built around keyboard-heavy workflows.
 
 ## Install
@@ -58,6 +60,7 @@ Power features:
 
 - [Lifecycle hooks](https://liney.dev/docs/guides/lifecycle-hooks) — run a command when the app or a session starts/exits
 - [Agent notifications](./docs/guides/agent-notifications.md) — `liney notify` CLI and OSC 9/777 sequences route through the dynamic island, scoped to the pane that fired them
+- [Inline terminal images](./docs/terminal-inline-images.md) — render iTerm2 OSC 1337 inline images (e.g. Claude Code screenshots) by translating them to Ghostty's native Kitty graphics; on by default, toggle under Settings → Terminal
 
 ## Branches
 
