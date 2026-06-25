@@ -59,6 +59,8 @@ final class DiffWindowState: ObservableObject {
     @Published var isLoadingFiles = false
     @Published var isLoadingDocument = false
     @Published var loadErrorMessage: String?
+    @Published var isCommitting = false
+    @Published var commitErrorMessage: String?
 
     private let gitRepositoryService = GitRepositoryService()
     private var documentCache: [String: DiffFileDocument] = [:]
@@ -92,6 +94,34 @@ final class DiffWindowState: ObservableObject {
         fileListTask?.cancel()
         documentTask?.cancel()
         fileListTask = Task { await reloadFileList(for: worktreePath) }
+    }
+
+    /// Stages and commits every change in the current worktree, then reloads the
+    /// (now empty) file list. Returns `true` on success. Surfaces failures via
+    /// `commitErrorMessage` so the commit sheet can keep the message for a retry.
+    @discardableResult
+    func commitAllChanges(message: String) async -> Bool {
+        guard let worktreePath else { return false }
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedMessage.isEmpty else {
+            commitErrorMessage = "Commit message cannot be empty."
+            return false
+        }
+
+        isCommitting = true
+        commitErrorMessage = nil
+        defer { isCommitting = false }
+
+        do {
+            try await gitRepositoryService.commitAllChanges(in: worktreePath, message: trimmedMessage)
+            DiffDiagnostics.log("Committed changes in \(worktreePath)")
+            refresh()
+            return true
+        } catch {
+            DiffDiagnostics.error("Commit failed for \(worktreePath): \(error.localizedDescription)")
+            commitErrorMessage = error.localizedDescription.nonEmptyOrFallback("Unable to commit changes.")
+            return false
+        }
     }
 
     func updateDocumentSelection(for id: String?) {

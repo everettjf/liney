@@ -19,6 +19,8 @@ struct DiffWindowContentView: View {
     @State private var listSelection: String?
     @AppStorage("liney.diff.viewStyle") private var diffStyleRaw = DiffPresentationStyle.split.rawValue
     @AppStorage("liney.diff.zoom") private var zoomLevel: Double = 1.0
+    @State private var isShowingCommitSheet = false
+    @State private var commitMessage = ""
 
     private var diffStyle: DiffPresentationStyle {
         DiffPresentationStyle(rawValue: diffStyleRaw) ?? .split
@@ -106,6 +108,26 @@ struct DiffWindowContentView: View {
                 }
                 .help("Refresh Diff")
             }
+
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    commitMessage = ""
+                    state.commitErrorMessage = nil
+                    isShowingCommitSheet = true
+                } label: {
+                    Label("Commit", systemImage: "checkmark.circle")
+                }
+                .help("Commit all changes in this worktree")
+                .disabled(state.changedFiles.isEmpty || state.worktreePath == nil || state.isCommitting)
+            }
+        }
+        .sheet(isPresented: $isShowingCommitSheet) {
+            DiffCommitSheet(
+                state: state,
+                message: $commitMessage,
+                onCancel: { isShowingCommitSheet = false },
+                onCommitted: { isShowingCommitSheet = false }
+            )
         }
     }
 
@@ -266,6 +288,91 @@ private struct DiffDocumentHeader: View {
                 .fill(LineyTheme.border)
                 .frame(height: 1)
         }
+    }
+}
+
+private struct DiffCommitSheet: View {
+    @ObservedObject var state: DiffWindowState
+    @Binding var message: String
+    let onCancel: () -> Void
+    let onCommitted: () -> Void
+
+    private var trimmedMessage: String {
+        message.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var subtitle: String {
+        let count = state.changedFiles.count
+        let fileText = count == 1 ? "1 file" : "\(count) files"
+        let branchPrefix = state.branchName.isEmpty ? "" : "\(state.branchName) · "
+        return "\(branchPrefix)\(fileText)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Commit Changes")
+                    .font(.system(size: 15, weight: .semibold))
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundStyle(LineyTheme.mutedText)
+            }
+
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $message)
+                    .font(.system(size: 13, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .frame(minWidth: 380, minHeight: 110)
+                    .padding(6)
+                    .background(LineyTheme.canvasBackground, in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6).stroke(LineyTheme.border)
+                    )
+                    .disabled(state.isCommitting)
+
+                if message.isEmpty {
+                    Text("Summary of changes…")
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundStyle(LineyTheme.mutedText)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 14)
+                        .allowsHitTesting(false)
+                }
+            }
+
+            if let commitErrorMessage = state.commitErrorMessage {
+                Text(commitErrorMessage)
+                    .font(.system(size: 12))
+                    .foregroundStyle(LineyTheme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 10) {
+                Spacer()
+                Button("Cancel", role: .cancel, action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(state.isCommitting)
+
+                Button {
+                    Task {
+                        if await state.commitAllChanges(message: message) {
+                            onCommitted()
+                        }
+                    }
+                } label: {
+                    if state.isCommitting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Commit")
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(state.isCommitting || trimmedMessage.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 440)
     }
 }
 
