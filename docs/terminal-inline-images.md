@@ -44,10 +44,13 @@ Claude Code → shell → [inner PTY] → liney-osc-filter → Ghostty PTY → G
   arguments. Wrapping happens in `SessionBackendLaunch` for **local shell** and
   **agent** sessions, *after* shell-integration preparation (so zsh/fish
   detection still sees the real shell).
-- The feature is **opt-in**, off by default, backed by the UserDefaults key
-  `liney.terminal.inlineImageProtocol` and a toggle in Settings → Terminal. It
-  applies to newly opened terminals only, and fails safe: if the helper is
-  missing or the toggle is off, commands launch unwrapped exactly as before.
+- The feature is **on by default** (so inline images work out of the box) but
+  fully toggleable, backed by the UserDefaults key
+  `liney.terminal.inlineImageProtocol` and a toggle in Settings → Terminal. When
+  the key is absent it is treated as on; once the user flips the toggle their
+  stored choice is honored. It applies to newly opened terminals only, and fails
+  safe: if the helper is missing or the toggle is off, commands launch unwrapped
+  exactly as before.
 
 ## Notes / follow-ups
 

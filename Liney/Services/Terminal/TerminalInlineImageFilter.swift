@@ -28,8 +28,15 @@ enum TerminalInlineImageFilter {
     /// "Compile OSC Filter" build phase.
     private static let helperResourceName = "liney-osc-filter"
 
+    /// Enabled by default. When the user has never touched the toggle the key is
+    /// absent, and we treat that as on; once they flip it, their stored choice
+    /// (on or off) is honored. This must match the `@AppStorage` default in the
+    /// Settings toggle.
     static var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: defaultsKey)
+        guard UserDefaults.standard.object(forKey: defaultsKey) != nil else {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: defaultsKey)
     }
 
     /// Absolute path to the bundled helper, or `nil` if it isn't present (e.g. a

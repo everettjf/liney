@@ -413,7 +413,7 @@ struct SettingsSheet: View {
     @State private var selectedWorkspaceID: UUID?
     @State private var terminalFontSearchText = ""
     @State private var terminalThemeSearchText = ""
-    @AppStorage(TerminalInlineImageFilter.defaultsKey) private var inlineImagesEnabled = false
+    @AppStorage(TerminalInlineImageFilter.defaultsKey) private var inlineImagesEnabled = true
     @State private var workspaceSettings = WorkspaceSettings()
     @State private var localizationVersion = 0
     @State private var originalAppLanguage: AppLanguage = .automatic

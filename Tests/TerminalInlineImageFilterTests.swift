@@ -57,4 +57,26 @@ final class TerminalInlineImageFilterTests: XCTestCase {
 
         XCTAssertEqual(result, empty)
     }
+
+    func testEnabledByDefaultWhenUnsetThenHonorsStoredChoice() {
+        let key = TerminalInlineImageFilter.defaultsKey
+        let defaults = UserDefaults.standard
+        let original = defaults.object(forKey: key)
+        defer {
+            if let original {
+                defaults.set(original, forKey: key)
+            } else {
+                defaults.removeObject(forKey: key)
+            }
+        }
+
+        defaults.removeObject(forKey: key)
+        XCTAssertTrue(TerminalInlineImageFilter.isEnabled, "should default to on when unset")
+
+        defaults.set(false, forKey: key)
+        XCTAssertFalse(TerminalInlineImageFilter.isEnabled, "should honor an explicit off")
+
+        defaults.set(true, forKey: key)
+        XCTAssertTrue(TerminalInlineImageFilter.isEnabled, "should honor an explicit on")
+    }
 }
