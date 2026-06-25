@@ -413,6 +413,7 @@ struct SettingsSheet: View {
     @State private var selectedWorkspaceID: UUID?
     @State private var terminalFontSearchText = ""
     @State private var terminalThemeSearchText = ""
+    @AppStorage(TerminalInlineImageFilter.defaultsKey) private var inlineImagesEnabled = true
     @State private var workspaceSettings = WorkspaceSettings()
     @State private var localizationVersion = 0
     @State private var originalAppLanguage: AppLanguage = .automatic
@@ -944,6 +945,14 @@ struct SettingsSheet: View {
                         .disabled(appSettings.terminalBackgroundOpacity >= 1)
 
                     Text(localized("settings.general.terminal.backgroundOpacityHint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Divider()
+
+                    Toggle("Inline images (OSC 1337 → Kitty)", isOn: $inlineImagesEnabled)
+
+                    Text("Experimental. Renders iTerm2 inline images (used by Claude Code and other AI tools to print screenshots) by translating them to Ghostty's native Kitty graphics. Wraps the shell in a small relay; affects new terminals only.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                 }

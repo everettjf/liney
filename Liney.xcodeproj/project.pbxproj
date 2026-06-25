@@ -131,6 +131,7 @@
 				5A45CEF62F67D58F00861AB5 /* Frameworks */,
 				5A45CEF72F67D58F00861AB5 /* Resources */,
 				8C1D2E3F4A5B6C7D8E9F0001 /* Copy Ghostty Resources */,
+				8C1D2E3F4A5B6C7D8E9F0002 /* Compile OSC Filter */,
 			);
 			buildRules = (
 			);
@@ -259,6 +260,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "set -e\nRESOURCE_ROOT=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$RESOURCE_ROOT/ghostty\" \"$RESOURCE_ROOT/terminfo\"\nrsync -a \"$SRCROOT/Liney/ghostty/\" \"$RESOURCE_ROOT/ghostty/\"\nrsync -a \"$SRCROOT/Liney/terminfo/\" \"$RESOURCE_ROOT/terminfo/\"\n";
+		};
+		8C1D2E3F4A5B6C7D8E9F0002 /* Compile OSC Filter */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/tools/liney-osc-filter.c",
+			);
+			name = "Compile OSC Filter";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/liney-osc-filter",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nRESOURCE_ROOT=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$RESOURCE_ROOT\"\nOUT=\"$RESOURCE_ROOT/liney-osc-filter\"\nSRC=\"$SRCROOT/tools/liney-osc-filter.c\"\nARCHFLAGS=\"\"\nfor a in $ARCHS; do ARCHFLAGS=\"$ARCHFLAGS -arch $a\"; done\nxcrun clang $ARCHFLAGS -isysroot \"$SDKROOT\" -mmacosx-version-min=\"$MACOSX_DEPLOYMENT_TARGET\" -O2 -Wall -o \"$OUT\" \"$SRC\"\ncodesign --force --options runtime --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \"$OUT\" 2>/dev/null || codesign --force --sign - \"$OUT\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
