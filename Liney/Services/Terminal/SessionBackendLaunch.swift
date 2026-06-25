@@ -48,7 +48,7 @@ extension SessionBackendConfiguration {
             return TerminalLaunchConfiguration(
                 workingDirectory: preferredWorkingDirectory,
                 environment: prepared.environment,
-                command: prepared.command,
+                command: TerminalInlineImageFilter.applyIfEnabled(to: prepared.command),
                 backendConfiguration: self,
                 initialInput: nil
             )
@@ -114,7 +114,7 @@ extension SessionBackendConfiguration {
             return TerminalLaunchConfiguration(
                 workingDirectory: configuration.workingDirectory ?? preferredWorkingDirectory,
                 environment: prepared.environment,
-                command: prepared.command,
+                command: TerminalInlineImageFilter.applyIfEnabled(to: prepared.command),
                 backendConfiguration: self,
                 initialInput: nil
             )
