@@ -55,6 +55,22 @@ struct RemoteWorktreeStatus {
     var behindCount: Int
 }
 
+/// Result of dry-running a patch against a target worktree with `git apply --check`.
+struct WorktreeApplyPrecheck {
+    /// Whether `git apply --check` reported the patch applies without conflicts.
+    var appliesCleanly: Bool
+    /// Git's diagnostic output when the patch does not apply cleanly.
+    var message: String
+}
+
+/// Result of applying a patch to a worktree.
+struct WorktreeApplyOutcome {
+    /// True when a 3-way merge left unresolved conflicts in the working tree.
+    var hasConflicts: Bool
+    /// Paths (relative to the worktree) left in a conflicted state.
+    var conflictedFiles: [String]
+}
+
 actor GitRepositoryService {
     private let runner = ShellCommandRunner()
 
@@ -669,13 +685,188 @@ actor GitRepositoryService {
         }
     }
 
-    private func git(arguments: [String], currentDirectory: String, timeout: TimeInterval? = nil) async throws -> ShellCommandResult {
+    // MARK: - Cross-Worktree Apply
+
+    /// The well-known SHA-1 of git's empty tree object, used to diff against when
+    /// HEAD is unborn (a repository with no commits yet).
+    private static let emptyTreeObject = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+    /// Produces a single unified patch capturing the entire working-tree state of
+    /// `worktreePath` relative to HEAD, including untracked files. The repository's
+    /// real index is left untouched: we stage into a throwaway temp index file via
+    /// `GIT_INDEX_FILE` so `git add -A` never mutates the user's staging area.
+    ///
+    /// When `paths` is non-empty the resulting patch is scoped to those pathspecs,
+    /// enabling a file-level cherry-pick of a worktree's changes.
+    func workingTreePatch(for worktreePath: String, paths: [String] = []) async throws -> String {
+        let tempIndexPath = NSTemporaryDirectory() + "liney-apply-index-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tempIndexPath) }
+
+        let env = ["GIT_INDEX_FILE": tempIndexPath]
+
+        // Snapshot the full worktree (tracked + untracked) into the temp index.
+        let addResult = try await git(
+            arguments: ["add", "-A"],
+            currentDirectory: worktreePath,
+            extraEnvironment: env
+        )
+        guard addResult.exitCode == 0 else {
+            throw GitServiceError.commandFailed(addResult.stderr.nonEmptyOrFallback("Unable to stage changes for patch."))
+        }
+
+        // Diff the snapshot against HEAD so new/deleted files are represented too.
+        let base: String
+        let headResult = try await git(arguments: ["rev-parse", "--verify", "--quiet", "HEAD"], currentDirectory: worktreePath)
+        base = headResult.exitCode == 0 ? "HEAD" : Self.emptyTreeObject
+
+        var diffArguments = ["diff", "--binary", "--no-color", "--cached", base]
+        if !paths.isEmpty {
+            diffArguments.append("--")
+            diffArguments.append(contentsOf: paths)
+        }
+        let diffResult = try await git(
+            arguments: diffArguments,
+            currentDirectory: worktreePath,
+            extraEnvironment: env
+        )
+        guard diffResult.exitCode == 0 else {
+            throw GitServiceError.commandFailed(diffResult.stderr.nonEmptyOrFallback("Unable to build patch from working tree."))
+        }
+        return diffResult.stdout
+    }
+
+    /// Dry-runs `patch` against `targetWorktreePath` using `git apply --check`,
+    /// surfacing whether it would apply cleanly without touching the worktree.
+    func precheckApplyPatch(_ patch: String, to targetWorktreePath: String) async throws -> WorktreeApplyPrecheck {
+        let patchFile = try Self.writeTempPatch(patch)
+        defer { try? FileManager.default.removeItem(atPath: patchFile) }
+
+        let result = try await git(
+            arguments: ["apply", "--check", "--whitespace=nowarn", patchFile],
+            currentDirectory: targetWorktreePath
+        )
+        if result.exitCode == 0 {
+            return WorktreeApplyPrecheck(appliesCleanly: true, message: "")
+        }
+        return WorktreeApplyPrecheck(
+            appliesCleanly: false,
+            message: result.stderr.nonEmptyOrFallback("Patch does not apply cleanly.")
+        )
+    }
+
+    /// Applies `patch` to `targetWorktreePath`. When `threeWay` is set, falls back
+    /// to a 3-way merge for patches that don't apply cleanly: the working tree and
+    /// index are left with conflict markers/stages, reported in the outcome rather
+    /// than thrown. A non-3-way failure (or a 3-way failure that produced no
+    /// recoverable conflict) throws.
+    @discardableResult
+    func applyPatch(_ patch: String, to targetWorktreePath: String, threeWay: Bool) async throws -> WorktreeApplyOutcome {
+        let patchFile = try Self.writeTempPatch(patch)
+        defer { try? FileManager.default.removeItem(atPath: patchFile) }
+
+        if threeWay {
+            // `git apply --3way` refuses ("does not match index") when the target
+            // worktree has uncommitted changes, which is the common case here.
+            // Stage the working tree first so the merge's "ours" side reflects the
+            // target's current state (including uncommitted edits).
+            let stage = try await git(arguments: ["add", "-A"], currentDirectory: targetWorktreePath)
+            guard stage.exitCode == 0 else {
+                throw GitServiceError.commandFailed(stage.stderr.nonEmptyOrFallback("Unable to prepare target for 3-way merge."))
+            }
+        }
+
+        var arguments = ["apply", "--whitespace=nowarn"]
+        if threeWay {
+            arguments.append("--3way")
+        }
+        arguments.append(patchFile)
+
+        let result = try await git(arguments: arguments, currentDirectory: targetWorktreePath)
+        if result.exitCode == 0 {
+            return WorktreeApplyOutcome(hasConflicts: false, conflictedFiles: [])
+        }
+
+        // With --3way, conflicts are expected and recoverable: git records the
+        // merge in the index, so unmerged paths are the conflicted files.
+        if threeWay {
+            let conflicts = try await conflictedFiles(in: targetWorktreePath)
+            if !conflicts.isEmpty {
+                return WorktreeApplyOutcome(hasConflicts: true, conflictedFiles: conflicts)
+            }
+        }
+        throw GitServiceError.commandFailed(result.stderr.nonEmptyOrFallback("Unable to apply patch."))
+    }
+
+    /// Lists paths left in a conflicted (unmerged) state in `worktreePath`.
+    func conflictedFiles(in worktreePath: String) async throws -> [String] {
+        let result = try await git(
+            arguments: ["diff", "--name-only", "--diff-filter=U"],
+            currentDirectory: worktreePath
+        )
+        guard result.exitCode == 0 else {
+            throw GitServiceError.commandFailed(result.stderr.nonEmptyOrFallback("Unable to list conflicted files."))
+        }
+        return result.stdout
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+    }
+
+    /// Resolves a conflicted file by taking one side of the recorded 3-way merge:
+    /// `useTheirs` keeps the incoming patch, otherwise the target's prior content.
+    /// The resolution is staged so the file is no longer unmerged.
+    func resolveConflict(file: String, in worktreePath: String, useTheirs: Bool) async throws {
+        let side = useTheirs ? "--theirs" : "--ours"
+        let checkout = try await git(arguments: ["checkout", side, "--", file], currentDirectory: worktreePath)
+        guard checkout.exitCode == 0 else {
+            throw GitServiceError.commandFailed(checkout.stderr.nonEmptyOrFallback("Unable to resolve \(file)."))
+        }
+        let add = try await git(arguments: ["add", "--", file], currentDirectory: worktreePath)
+        guard add.exitCode == 0 else {
+            throw GitServiceError.commandFailed(add.stderr.nonEmptyOrFallback("Unable to stage resolved \(file)."))
+        }
+    }
+
+    // MARK: - Worktree Comparison
+
+    /// Snapshots a worktree's full content (tracked + untracked, including
+    /// uncommitted changes) into a git tree object and returns its SHA, without
+    /// mutating the real index. Used to diff two worktrees against each other.
+    func worktreeContentTree(for worktreePath: String) async throws -> String {
+        let tempIndexPath = NSTemporaryDirectory() + "liney-tree-index-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: tempIndexPath) }
+
+        let env = ["GIT_INDEX_FILE": tempIndexPath]
+        let addResult = try await git(arguments: ["add", "-A"], currentDirectory: worktreePath, extraEnvironment: env)
+        guard addResult.exitCode == 0 else {
+            throw GitServiceError.commandFailed(addResult.stderr.nonEmptyOrFallback("Unable to snapshot worktree for compare."))
+        }
+        let treeResult = try await git(arguments: ["write-tree"], currentDirectory: worktreePath, extraEnvironment: env)
+        guard treeResult.exitCode == 0 else {
+            throw GitServiceError.commandFailed(treeResult.stderr.nonEmptyOrFallback("Unable to snapshot worktree for compare."))
+        }
+        return treeResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    nonisolated private static func writeTempPatch(_ patch: String) throws -> String {
+        let path = NSTemporaryDirectory() + "liney-apply-\(UUID().uuidString).patch"
+        try patch.write(toFile: path, atomically: true, encoding: .utf8)
+        return path
+    }
+
+    private func git(
+        arguments: [String],
+        currentDirectory: String,
+        timeout: TimeInterval? = nil,
+        extraEnvironment: [String: String] = [:]
+    ) async throws -> ShellCommandResult {
+        var environment = ["LC_ALL": "en_US.UTF-8"]
+        environment.merge(extraEnvironment) { _, new in new }
         if let timeout {
             return try await runner.run(
                 executable: "/usr/bin/env",
                 arguments: ["git"] + arguments,
                 currentDirectory: currentDirectory,
-                environment: ["LC_ALL": "en_US.UTF-8"],
+                environment: environment,
                 timeout: timeout
             )
         }
@@ -683,7 +874,7 @@ actor GitRepositoryService {
             executable: "/usr/bin/env",
             arguments: ["git"] + arguments,
             currentDirectory: currentDirectory,
-            environment: ["LC_ALL": "en_US.UTF-8"]
+            environment: environment
         )
     }
 
