@@ -5,11 +5,14 @@
 [![Website](https://img.shields.io/badge/Website-liney.dev-111111?style=flat-square)](https://liney.dev)
 [![Releases](https://img.shields.io/badge/Download-GitHub%20Releases-24292f?style=flat-square&logo=github)](https://github.com/everettjf/liney/releases)
 [![Platform](https://img.shields.io/badge/Platform-macOS-black?style=flat-square)](https://liney.dev)
+[![Windows](https://img.shields.io/badge/Windows-liney--win%20(beta)-0078d4?style=flat-square&logo=windows)](https://github.com/everettjf/liney-win)
 [![License](https://img.shields.io/badge/License-Apache%202.0-2ea44f?style=flat-square)](./LICENSE)
 
 Liney 是一款原生 macOS 终端工作区应用，面向需要频繁在多个仓库、worktree、分支和分屏之间切换的开发者。
 
 它把代码库、worktree、终端标签页和分屏布局集中到一个专注的工作空间中，让你不必来回整理一堆 Terminal 窗口，也能保持上下文连续。
+
+> **用 Windows?** [liney-win](https://github.com/everettjf/liney-win) 是独立的 Windows 移植版，**目前还是测试版（beta）**。它用 Win32 + Direct2D 从零重写界面，终端内核复用 Ghostty 的 `libghostty-vt`，所以暂时还做不到和 macOS 版完全一致。欢迎试用并反馈问题。
 
 ![Liney 应用截图](./images/screenshot.png)
 
@@ -53,6 +56,7 @@ brew update && brew install --cask everettjf/tap/liney
 - Website: <https://liney.dev>
 - 文档: <https://liney.dev/docs/intro>
 - Releases: <https://github.com/everettjf/liney/releases>
+- Windows 移植版（测试版）: <https://github.com/everettjf/liney-win>
 - Issues: <https://github.com/everettjf/liney/issues>
 - Discord: <https://discord.com/invite/eGzEaP6TzR>
 

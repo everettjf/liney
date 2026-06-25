@@ -5,11 +5,14 @@
 [![Website](https://img.shields.io/badge/Website-liney.dev-111111?style=flat-square)](https://liney.dev)
 [![Releases](https://img.shields.io/badge/Download-GitHub%20Releases-24292f?style=flat-square&logo=github)](https://github.com/everettjf/liney/releases)
 [![Platform](https://img.shields.io/badge/Platform-macOS-black?style=flat-square)](https://liney.dev)
+[![Windows](https://img.shields.io/badge/Windows-liney--win%20(beta)-0078d4?style=flat-square&logo=windows)](https://github.com/everettjf/liney-win)
 [![License](https://img.shields.io/badge/License-Apache%202.0-2ea44f?style=flat-square)](./LICENSE)
 
 Liney is a native macOS terminal workspace app for developers who work across repositories, worktrees, branches, and split panes.
 
 It gives you one focused place to open codebases, switch worktrees, keep terminal layouts around, and move faster without juggling a pile of Terminal windows.
+
+> **On Windows?** [liney-win](https://github.com/everettjf/liney-win) is a separate Windows port — currently in **beta**. It is built from scratch with Win32 + Direct2D and reuses Ghostty's `libghostty-vt` as the terminal core, so it isn't a 1:1 match with the macOS app yet. Try it and report issues.
 
 ![Liney app screenshot](./images/screenshot.png)
 
@@ -53,6 +56,7 @@ Download the latest signed `.dmg` from GitHub Releases:
 - Website: <https://liney.dev>
 - Docs: <https://liney.dev/docs/intro>
 - Releases: <https://github.com/everettjf/liney/releases>
+- Windows port (beta): <https://github.com/everettjf/liney-win>
 - Issues: <https://github.com/everettjf/liney/issues>
 - Discord: <https://discord.com/invite/eGzEaP6TzR>
 
