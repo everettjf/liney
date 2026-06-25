@@ -670,6 +670,21 @@ actor GitRepositoryService {
         }
     }
 
+    /// Stages every change in the worktree (`git add -A`) and records a commit
+    /// with the supplied message. Used by the diff window's "approve" action so
+    /// an agent's produced changes can be committed without leaving Liney.
+    func commitAllChanges(in worktreePath: String, message: String) async throws {
+        let stageResult = try await git(arguments: ["add", "-A"], currentDirectory: worktreePath)
+        guard stageResult.exitCode == 0 else {
+            throw GitServiceError.commandFailed(stageResult.stderr.nonEmptyOrFallback("Unable to stage changes."))
+        }
+
+        let commitResult = try await git(arguments: ["commit", "-m", message], currentDirectory: worktreePath)
+        guard commitResult.exitCode == 0 else {
+            throw GitServiceError.commandFailed(commitResult.stderr.nonEmptyOrFallback("Unable to commit changes."))
+        }
+    }
+
     // MARK: - Cross-Worktree Apply
 
     /// The well-known SHA-1 of git's empty tree object, used to diff against when
