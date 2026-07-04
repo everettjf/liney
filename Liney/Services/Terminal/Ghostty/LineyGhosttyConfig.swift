@@ -70,8 +70,10 @@ enum LineyGhosttyConfigManager {
             lines.append("font-size = \(Int(terminalFontSize.rounded()))")
         }
 
-        if let scrollbackLines = settings.terminalScrollbackLines {
-            lines.append("scrollback-limit = \(scrollbackLines)")
+        // Ghostty's `scrollback-limit` is a byte budget, so emit the stored
+        // byte value directly (see TerminalScrollback).
+        if let scrollbackBytes = settings.terminalScrollbackBytes {
+            lines.append("scrollback-limit = \(scrollbackBytes)")
         }
 
         // Only emit background-opacity when the terminal is meant to be
