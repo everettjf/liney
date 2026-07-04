@@ -315,6 +315,60 @@ nonisolated enum IslandHeightPreset: String, Codable, Hashable, CaseIterable, Id
     }
 }
 
+/// Shared constants and conversions for the terminal scrollback budget.
+///
+/// Ghostty's `scrollback-limit` is measured in **bytes**, not lines (and it
+/// allocates in fixed-size pages, so any sub-page budget collapses to a single
+/// page). We therefore store the budget in bytes and present it to the user as
+/// a memory size, with an approximate line-count estimate derived from
+/// ``bytesPerLine``.
+nonisolated enum TerminalScrollback {
+    /// Rough bytes consumed per stored row. Ghostty allocates scrollback in
+    /// fixed 512 KB pages, and each row carries cell data plus per-page
+    /// style/grapheme/hyperlink bookkeeping, so the real per-row cost is far
+    /// higher than the raw text. Calibrated empirically: an 8 MB budget held
+    /// ~4,458 rows (≈1,880 B/row) at a typical pane width. This is width
+    /// dependent (wider panes → more bytes/row); ~1,900 is a slightly
+    /// conservative default so the UI estimate under-promises rather than over.
+    static let bytesPerLine = 1_900
+
+    /// Floor for the byte budget. Kept comfortably above one Ghostty page so the
+    /// slider never lands in the sub-page dead-band where changes have no effect.
+    static let minBytes = 4 * 1024 * 1024        // 4 MB
+
+    /// Ceiling for the byte budget. Scrollback lives entirely in memory, so this
+    /// bounds worst-case per-surface memory use.
+    static let maxBytes = 1024 * 1024 * 1024     // 1 GB
+
+    /// Budget used when the custom limit is first enabled. Matches Ghostty's own
+    /// stock default so enabling the toggle never shrinks scrollback.
+    static let defaultBytes = 10 * 1024 * 1024   // 10 MB
+
+    /// Upper bound applied when migrating a legacy line-count setting. Honors the
+    /// user's intent of "more history" without letting a large legacy line count
+    /// (e.g. 90,000) translate into a very large per-terminal memory budget. The
+    /// user can still raise the slider past this manually.
+    static let migrationMaxBytes = 64 * 1024 * 1024   // 64 MB
+
+    /// Clamp an arbitrary byte value into the supported range.
+    static func clampBytes(_ value: Int) -> Int {
+        min(max(value, minBytes), maxBytes)
+    }
+
+    /// Approximate number of scrollback rows a byte budget can hold.
+    static func estimatedLines(forBytes bytes: Int) -> Int {
+        max(0, bytes / bytesPerLine)
+    }
+
+    /// Convert a legacy line-count setting into a byte budget, honoring the
+    /// user's original intent (their number was the line count they wanted)
+    /// while capping the result at ``migrationMaxBytes`` so an old large value
+    /// doesn't balloon per-terminal memory. Clamped into the supported range.
+    static func bytes(forLegacyLines lines: Int) -> Int {
+        min(clampBytes(lines * bytesPerLine), migrationMaxBytes)
+    }
+}
+
 struct AppSettings: Codable, Hashable {
     var appLanguage: AppLanguage
     var autoRefreshEnabled: Bool
@@ -339,7 +393,9 @@ struct AppSettings: Codable, Hashable {
     var terminalFontFamily: String?
     var terminalFontSize: Double?
     var terminalTheme: String?
-    var terminalScrollbackLines: Int?
+    /// Terminal scrollback budget in **bytes** (Ghostty's `scrollback-limit`
+    /// unit). `nil` leaves Ghostty on its own default. See ``TerminalScrollback``.
+    var terminalScrollbackBytes: Int?
     var terminalBackgroundOpacity: Double
     var terminalBackgroundBlur: Bool
     var sidebarShowsSecondaryLabels: Bool
@@ -390,7 +446,7 @@ struct AppSettings: Codable, Hashable {
         terminalFontFamily: String? = nil,
         terminalFontSize: Double? = nil,
         terminalTheme: String? = nil,
-        terminalScrollbackLines: Int? = nil,
+        terminalScrollbackBytes: Int? = nil,
         terminalBackgroundOpacity: Double = 1,
         terminalBackgroundBlur: Bool = false,
         sidebarShowsSecondaryLabels: Bool = true,
@@ -448,7 +504,7 @@ struct AppSettings: Codable, Hashable {
         self.terminalTheme = terminalTheme?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
-        self.terminalScrollbackLines = terminalScrollbackLines.map { min(max($0, 1000), 1_000_000) }
+        self.terminalScrollbackBytes = terminalScrollbackBytes.map(TerminalScrollback.clampBytes)
         self.terminalBackgroundOpacity = min(max(terminalBackgroundOpacity, 0.5), 1)
         self.terminalBackgroundBlur = terminalBackgroundBlur
         self.sidebarShowsSecondaryLabels = sidebarShowsSecondaryLabels
@@ -519,7 +575,7 @@ extension AppSettings {
         case terminalFontFamily
         case terminalFontSize
         case terminalTheme
-        case terminalScrollbackLines
+        case terminalScrollbackBytes
         case terminalBackgroundOpacity
         case terminalBackgroundBlur
         case sidebarShowsSecondaryLabels
@@ -547,8 +603,32 @@ extension AppSettings {
         case directoryTreeEnabled
     }
 
+    /// Keys that are only read for migration and must not participate in the
+    /// synthesized `Encodable` conformance.
+    private enum LegacyCodingKeys: String, CodingKey {
+        case terminalScrollbackLines
+    }
+
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Scrollback migration: prefer the current byte-based key. If only the
+        // legacy line-count key is present, convert it to a byte budget so users
+        // who set (say) 80,000 "lines" get an equivalent, actually-working
+        // buffer instead of 80 KB. The legacy key is read via a separate
+        // container so it stays out of the synthesized Encodable. See
+        // `TerminalScrollback`.
+        let terminalScrollbackBytes: Int?
+        if let bytes = try container.decodeIfPresent(Int.self, forKey: .terminalScrollbackBytes) {
+            terminalScrollbackBytes = bytes
+        } else if let legacyLines = try decoder
+            .container(keyedBy: LegacyCodingKeys.self)
+            .decodeIfPresent(Int.self, forKey: .terminalScrollbackLines) {
+            terminalScrollbackBytes = TerminalScrollback.bytes(forLegacyLines: legacyLines)
+        } else {
+            terminalScrollbackBytes = nil
+        }
+
         let preferredExternalEditor: ExternalEditor
         if let rawValue = try container.decodeIfPresent(String.self, forKey: .preferredExternalEditor),
            let decoded = ExternalEditor(rawValue: rawValue) {
@@ -581,7 +661,7 @@ extension AppSettings {
             terminalFontFamily: try container.decodeIfPresent(String.self, forKey: .terminalFontFamily),
             terminalFontSize: try container.decodeIfPresent(Double.self, forKey: .terminalFontSize),
             terminalTheme: try container.decodeIfPresent(String.self, forKey: .terminalTheme),
-            terminalScrollbackLines: try container.decodeIfPresent(Int.self, forKey: .terminalScrollbackLines),
+            terminalScrollbackBytes: terminalScrollbackBytes,
             terminalBackgroundOpacity: try container.decodeIfPresent(Double.self, forKey: .terminalBackgroundOpacity) ?? 1,
             terminalBackgroundBlur: try container.decodeIfPresent(Bool.self, forKey: .terminalBackgroundBlur) ?? false,
             sidebarShowsSecondaryLabels: try container.decodeIfPresent(Bool.self, forKey: .sidebarShowsSecondaryLabels) ?? true,
