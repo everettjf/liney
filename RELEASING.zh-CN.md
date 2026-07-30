@@ -61,14 +61,12 @@ scripts/build_macos_app.sh
 
 ## 签名与公证
 
-建议每台发布机器执行一次：
+在发布所用的 shell 中导出公证凭据：
 
 ```bash
-xcrun notarytool store-credentials liney-notarytool \
-  --apple-id "you@example.com" \
-  --team-id "TEAMID" \
-  --password "xxxx-xxxx-xxxx-xxxx" \
-  --validate
+export APPLE_ID="you@example.com"
+export APPLE_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export APPLE_TEAM_ID="TEAMID"
 ```
 
 ```bash
@@ -79,18 +77,13 @@ scripts/sign_macos.sh \
   --notarize
 ```
 
-可通过以下任一方式提供公证凭据：
-
-- `NOTARYTOOL_PROFILE=liney-notarytool`（推荐）
-- `APPLE_ID`、`APPLE_TEAM_ID` 和 `APPLE_APP_SPECIFIC_PASSWORD`
+公证只接受以下三个环境变量：`APPLE_ID`、`APPLE_SPECIFIC_PASSWORD` 和 `APPLE_TEAM_ID`。
 
 ## 发布
 
 ```bash
 ./deploy.sh
 ```
-
-如果当前钥匙串中存在 `liney-notarytool` 配置，`scripts/sign_macos.sh` 和 `./deploy.sh` 会自动使用它。只有在你想覆盖这个默认值时，才需要显式传入 `NOTARYTOOL_PROFILE`。
 
 默认行为如下：
 

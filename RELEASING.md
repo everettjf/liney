@@ -61,14 +61,12 @@ The default release bundle is now a universal macOS artifact that contains both 
 
 ## Sign And Notarize
 
-Recommended once per release machine:
+Export the notarization credentials in the release shell:
 
 ```bash
-xcrun notarytool store-credentials liney-notarytool \
-  --apple-id "you@example.com" \
-  --team-id "TEAMID" \
-  --password "xxxx-xxxx-xxxx-xxxx" \
-  --validate
+export APPLE_ID="you@example.com"
+export APPLE_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export APPLE_TEAM_ID="TEAMID"
 ```
 
 ```bash
@@ -79,18 +77,13 @@ scripts/sign_macos.sh \
   --notarize
 ```
 
-Provide notarization credentials with either:
-
-- `NOTARYTOOL_PROFILE=liney-notarytool` (recommended)
-- `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD` (the password is also accepted as `APPLE_SPECIFIC_PASSWORD`, `APPLE_PASSWORD`, or `APP_SPECIFIC_PASSWORD`)
+Notarization requires exactly these environment variables: `APPLE_ID`, `APPLE_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`.
 
 ## Publish
 
 ```bash
 ./deploy.sh
 ```
-
-If the `liney-notarytool` profile exists in the current keychain, `scripts/sign_macos.sh` and `./deploy.sh` will use it automatically. You only need to pass `NOTARYTOOL_PROFILE` when you want to override that default.
 
 Default behavior:
 

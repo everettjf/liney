@@ -20,11 +20,9 @@ TAP_DIR="${TAP_DIR:-$TAP_DIR_DEFAULT}"
 CASK_PATH="${CASK_PATH:-Casks/${APP_SLUG}.rb}"
 APP_HOMEPAGE="${APP_HOMEPAGE:-}"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
-NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-}"
-DEFAULT_NOTARYTOOL_PROFILE="${DEFAULT_NOTARYTOOL_PROFILE:-liney-notarytool}"
 APPLE_ID="${APPLE_ID:-}"
+APPLE_SPECIFIC_PASSWORD="${APPLE_SPECIFIC_PASSWORD:-}"
 APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
-APPLE_APP_SPECIFIC_PASSWORD="${APPLE_APP_SPECIFIC_PASSWORD:-${APPLE_SPECIFIC_PASSWORD:-${APPLE_PASSWORD:-${APP_SPECIFIC_PASSWORD:-}}}}"
 LINEY_RELEASE_HOME="${LINEY_RELEASE_HOME:-$HOME/.liney_release}"
 SPARKLE_PRIVATE_KEY_FILE="${SPARKLE_PRIVATE_KEY_FILE:-$LINEY_RELEASE_HOME/sparkle_private_key}"
 SPARKLE_MAX_VERSIONS="${SPARKLE_MAX_VERSIONS:-10}"
@@ -55,7 +53,9 @@ Environment:
   SKIP_SENTRY_DSYM_UPLOAD=1  Skip uploading the release dSYM to Sentry.
   TAP_REPO=owner/repo    Override the tap repo. Default: everettjf/homebrew-tap.
   LINEY_RELEASE_HOME=dir Release-only secret directory. Default: ~/.liney_release.
-  DEFAULT_NOTARYTOOL_PROFILE=name  Auto-detected notarytool profile. Default: liney-notarytool.
+  APPLE_ID=value         Apple ID used for notarization.
+  APPLE_SPECIFIC_PASSWORD=value  App-specific password used for notarization.
+  APPLE_TEAM_ID=value    Apple Developer team ID used for notarization.
   SPARKLE_PRIVATE_KEY_FILE=path  Private key used for Sparkle appcast signing.
 EOF
 }
@@ -87,12 +87,6 @@ require_cmd() {
     echo "Missing required command: $1" >&2
     exit 1
   fi
-}
-
-detect_notarytool_profile() {
-  local profile="${1:-}"
-  [[ -n "$profile" ]] || return 1
-  xcrun notarytool history --keychain-profile "$profile" >/dev/null 2>&1
 }
 
 ensure_clean_worktree() {
@@ -206,10 +200,6 @@ fi
 for cmd in git gh shasum mktemp security; do
   require_cmd "$cmd"
 done
-
-if [[ -z "$NOTARYTOOL_PROFILE" ]] && detect_notarytool_profile "$DEFAULT_NOTARYTOOL_PROFILE"; then
-  NOTARYTOOL_PROFILE="$DEFAULT_NOTARYTOOL_PROFILE"
-fi
 
 if [[ ! -f "$PROJECT_FILE" ]]; then
   echo "Missing Xcode project file: $PROJECT_FILE" >&2
@@ -367,10 +357,9 @@ if [[ "$SKIP_NOTARIZE" != "1" ]]; then
 fi
 
 if [[ "$RESUMING" != "1" ]]; then
-  NOTARYTOOL_PROFILE="$NOTARYTOOL_PROFILE" \
   APPLE_ID="$APPLE_ID" \
+  APPLE_SPECIFIC_PASSWORD="$APPLE_SPECIFIC_PASSWORD" \
   APPLE_TEAM_ID="$APPLE_TEAM_ID" \
-  APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD" \
   PROJECT_PATH="$PROJECT_PATH" \
   SCHEME="$SCHEME" \
   "$SIGN_SCRIPT" "${SIGN_ARGS[@]}"

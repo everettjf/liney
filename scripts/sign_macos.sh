@@ -15,11 +15,9 @@ ENTITLEMENTS_PATH="${ENTITLEMENTS_PATH:-$ROOT_DIR/Liney/Liney.entitlements}"
 BUILD_IF_MISSING="${BUILD_IF_MISSING:-1}"
 FORCE_REBUILD="${FORCE_REBUILD:-0}"
 NOTARIZE="${NOTARIZE:-0}"
-NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-}"
-DEFAULT_NOTARYTOOL_PROFILE="${DEFAULT_NOTARYTOOL_PROFILE:-liney-notarytool}"
 APPLE_ID="${APPLE_ID:-}"
+APPLE_SPECIFIC_PASSWORD="${APPLE_SPECIFIC_PASSWORD:-}"
 APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
-APPLE_APP_SPECIFIC_PASSWORD="${APPLE_APP_SPECIFIC_PASSWORD:-${APPLE_SPECIFIC_PASSWORD:-${APPLE_PASSWORD:-${APP_SPECIFIC_PASSWORD:-}}}}"
 STAGING_DIR="$OUTPUT_DIR/.signed-dmg-staging"
 
 source "$ROOT_DIR/scripts/sparkle_tools.sh"
@@ -28,12 +26,6 @@ detect_signing_identity() {
   security find-identity -v -p codesigning 2>/dev/null |
     sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' |
     head -n 1
-}
-
-detect_notarytool_profile() {
-  local profile="${1:-}"
-  [[ -n "$profile" ]] || return 1
-  xcrun notarytool history --keychain-profile "$profile" >/dev/null 2>&1
 }
 
 usage() {
@@ -51,7 +43,7 @@ Options:
   --no-build             Fail instead of building when the app bundle is missing.
   --force-rebuild        Rebuild the unsigned app before signing.
   --notarize             Submit the DMG for notarization and staple results.
-                        Auto-uses DEFAULT_NOTARYTOOL_PROFILE when available.
+                        Requires APPLE_ID, APPLE_SPECIFIC_PASSWORD, and APPLE_TEAM_ID.
   --help                 Show this help.
 EOF
 }
@@ -142,10 +134,6 @@ for cmd in codesign security xcodebuild xcrun /usr/bin/ditto /usr/bin/hdiutil /b
   require_cmd "$cmd"
 done
 
-if [[ -z "$NOTARYTOOL_PROFILE" ]] && detect_notarytool_profile "$DEFAULT_NOTARYTOOL_PROFILE"; then
-  NOTARYTOOL_PROFILE="$DEFAULT_NOTARYTOOL_PROFILE"
-fi
-
 read_build_setting() {
   local key="$1"
   xcodebuild \
@@ -201,27 +189,19 @@ ln -s /Applications "$STAGING_DIR/Applications"
   "$DMG_PATH" >/dev/null
 
 if [[ "$NOTARIZE" == "1" ]]; then
-  if [[ -z "$NOTARYTOOL_PROFILE" && ( -z "$APPLE_ID" || -z "$APPLE_TEAM_ID" || -z "$APPLE_APP_SPECIFIC_PASSWORD" ) ]]; then
+  if [[ -z "$APPLE_ID" || -z "$APPLE_SPECIFIC_PASSWORD" || -z "$APPLE_TEAM_ID" ]]; then
     cat >&2 <<EOF
 Notarization credentials missing.
-Set one of:
-  NOTARYTOOL_PROFILE=<keychain-profile>
-  APPLE_ID + APPLE_TEAM_ID + APPLE_APP_SPECIFIC_PASSWORD
-    (password also accepted as APPLE_SPECIFIC_PASSWORD / APPLE_PASSWORD / APP_SPECIFIC_PASSWORD)
+Set APPLE_ID, APPLE_SPECIFIC_PASSWORD, and APPLE_TEAM_ID.
 EOF
     exit 1
   fi
 
-  if [[ -n "$NOTARYTOOL_PROFILE" ]]; then
-    echo "Using notarytool profile: $NOTARYTOOL_PROFILE"
-    NOTARY_AUTH_ARGS=(--keychain-profile "$NOTARYTOOL_PROFILE")
-  else
-    NOTARY_AUTH_ARGS=(
-      --apple-id "$APPLE_ID"
-      --team-id "$APPLE_TEAM_ID"
-      --password "$APPLE_APP_SPECIFIC_PASSWORD"
-    )
-  fi
+  NOTARY_AUTH_ARGS=(
+    --apple-id "$APPLE_ID"
+    --password "$APPLE_SPECIFIC_PASSWORD"
+    --team-id "$APPLE_TEAM_ID"
+  )
 
   echo "Submitting $DMG_PATH for notarization..."
   NOTARY_SUBMIT_LOG="$OUTPUT_DIR/notarytool-submit.log"
@@ -258,7 +238,7 @@ EOF
   while :; do
     if (( $(date +%s) > POLL_DEADLINE )); then
       echo "Notarization still pending after ${POLL_TIMEOUT}s; continuing without stapling (id: $SUBMISSION_ID)." >&2
-      echo "Check later with: xcrun notarytool info $SUBMISSION_ID --keychain-profile <profile>" >&2
+      echo "Check later with xcrun notarytool info using the same Apple environment credentials." >&2
       break
     fi
     if ! INFO_OUTPUT=$(xcrun notarytool info "$SUBMISSION_ID" "${NOTARY_AUTH_ARGS[@]}" 2>&1); then
