@@ -2928,8 +2928,8 @@ final class WorkspaceStore: ObservableObject {
             )
             let errorTitle = localized("main.error.saveState.title")
             persistence.save(snapshot) { error in
-                Task { @MainActor [weak self] in
-                    self?.presentedError = PresentedError(title: errorTitle, message: error.localizedDescription)
+                Task { @MainActor [self] in
+                    self.presentedError = PresentedError(title: errorTitle, message: error.localizedDescription)
                 }
             }
         }
@@ -3172,8 +3172,8 @@ final class WorkspaceStore: ObservableObject {
     private func persistAppSettings() {
         let errorTitle = localized("main.error.saveSettings.title")
         appSettingsPersistence.save(appSettings) { error in
-            Task { @MainActor [weak self] in
-                self?.presentedError = PresentedError(title: errorTitle, message: error.localizedDescription)
+            Task { @MainActor [self] in
+                self.presentedError = PresentedError(title: errorTitle, message: error.localizedDescription)
             }
         }
         AppLogger.updateLevel(appSettings.logLevel)

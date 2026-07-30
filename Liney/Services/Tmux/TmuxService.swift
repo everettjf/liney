@@ -8,7 +8,7 @@
 import Foundation
 import os
 
-struct TmuxSessionInfo: Codable, Identifiable {
+nonisolated struct TmuxSessionInfo: Codable, Identifiable {
     var id: String { name }
     let name: String
     let windowCount: Int

@@ -140,6 +140,19 @@ sparkle_codesign_app() {
   sparkle_sign_embedded_frameworks "$app_path" "$signing_identity" || return 1
   sparkle_sign_embedded_bundle "$app_path" "$signing_identity" || return 1
 
+  # Xcode builds this universal helper into Resources and signs it with the
+  # build identity. Release signing must replace that development/ad-hoc
+  # signature with the same timestamped Developer ID signature as the app.
+  local osc_filter="$app_path/Contents/Resources/liney-osc-filter"
+  if [[ -f "$osc_filter" ]]; then
+    /usr/bin/codesign \
+      --force \
+      --sign "$signing_identity" \
+      --options runtime \
+      --timestamp \
+      "$osc_filter" || return 1
+  fi
+
   local sign_args=(
     /usr/bin/codesign
     --force

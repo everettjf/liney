@@ -8,7 +8,7 @@
 import Foundation
 
 /// One of the four lifecycle points where a user-defined hook can fire.
-enum HookKind: String, Codable, CaseIterable, Hashable {
+nonisolated enum HookKind: String, Codable, CaseIterable, Hashable {
     case appOnLaunch = "app.on_launch"
     case appOnQuit = "app.on_quit"
     case sessionOnStart = "session.on_start"
@@ -28,7 +28,7 @@ enum HookKind: String, Codable, CaseIterable, Hashable {
 ///
 /// `timeoutSeconds` overrides the per-mode default. nil → 5s for sync, 30s
 /// for async. The hook process is force-terminated after the timeout.
-struct HookCommand: Codable, Hashable {
+nonisolated struct HookCommand: Codable, Hashable {
     static let defaultAsyncTimeout: TimeInterval = 30
     static let defaultSyncTimeout: TimeInterval = 5
 
@@ -141,7 +141,7 @@ struct HookCommand: Codable, Hashable {
 }
 
 /// User configuration loaded from `~/.liney/hooks.json`.
-struct HookSettings: Codable, Hashable {
+nonisolated struct HookSettings: Codable, Hashable {
     static let currentVersion = 1
 
     var version: Int
@@ -210,7 +210,7 @@ struct HookSettings: Codable, Hashable {
 }
 
 /// Context handed to a fired hook. Becomes environment variables in the spawned process.
-struct HookContext {
+nonisolated struct HookContext {
     var appVersion: String
     var sessionID: String?
     var sessionCWD: String?

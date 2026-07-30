@@ -9,7 +9,7 @@ import Darwin
 import Foundation
 
 /// Walks the macOS process tree using sysctl to discover descendant processes.
-enum ProcessTree {
+nonisolated enum ProcessTree {
 
     struct ProcessEntry {
         let pid: pid_t

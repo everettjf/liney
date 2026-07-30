@@ -160,7 +160,7 @@ struct LocalShellSessionConfiguration: Codable, Hashable {
     }
 }
 
-struct SSHSessionConfiguration: Codable, Hashable {
+nonisolated struct SSHSessionConfiguration: Codable, Hashable {
     var host: String
     var user: String?
     var port: Int?

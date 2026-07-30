@@ -37,7 +37,7 @@ final class SleepPreventionSupportTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_000)
         let session = SleepPreventionSession(option: .forever, startedAt: now, expiresAt: nil)
 
-        let description = await session.remainingDescription(relativeTo: now)
+        let description = session.remainingDescription(relativeTo: now)
         XCTAssertEqual(description, "On")
     }
 }

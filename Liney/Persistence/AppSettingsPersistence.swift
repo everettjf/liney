@@ -7,7 +7,7 @@
 
 import Foundation
 
-private let lineyPersistenceIsDebugBuild: Bool = {
+nonisolated private let lineyPersistenceIsDebugBuild: Bool = {
 #if DEBUG
     true
 #else
@@ -15,11 +15,11 @@ private let lineyPersistenceIsDebugBuild: Bool = {
 #endif
 }()
 
-func lineyStateDirectoryName(isDebugBuild: Bool = lineyPersistenceIsDebugBuild) -> String {
+nonisolated func lineyStateDirectoryName(isDebugBuild: Bool = lineyPersistenceIsDebugBuild) -> String {
     isDebugBuild ? ".liney-debug" : ".liney"
 }
 
-func lineyStateDirectoryURL(fileManager: FileManager = .default) -> URL {
+nonisolated func lineyStateDirectoryURL(fileManager: FileManager = .default) -> URL {
     fileManager.homeDirectoryForCurrentUser.appendingPathComponent(
         lineyStateDirectoryName(),
         isDirectory: true

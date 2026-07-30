@@ -1686,7 +1686,6 @@ private final class SidebarOutlineView: NSOutlineView {
         var frame = super.frameOfCell(atColumn: column, row: row)
         let item = self.item(atRow: row) as? SidebarNodeItem
         let isExpandable = item?.isExpandable ?? false
-        let isTopLevel = item?.isWorkspaceNode ?? false
         let disclosureEnd: CGFloat = 20
         if !isExpandable {
             frame.origin.x = disclosureEnd

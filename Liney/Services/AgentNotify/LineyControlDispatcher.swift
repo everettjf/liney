@@ -32,7 +32,7 @@ protocol LineyControlHost: AnyObject {
 /// main-actor deinit hop, which on this OS/Swift toolchain trips a libmalloc
 /// abort under XCTest's deterministic dealloc check (XCTMemoryChecker).
 /// `dispatch(frame:)` keeps `@MainActor` so the host call-sites remain safe.
-nonisolated final class LineyControlDispatcher {
+nonisolated final class LineyControlDispatcher: @unchecked Sendable {
     weak var host: LineyControlHost?
     /// Token resolver — returns the user-configured trust token or nil if
     /// the URL-scheme feature is disabled. Indirection so tests can inject.

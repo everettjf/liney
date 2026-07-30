@@ -13,7 +13,7 @@ func l10nFormat(_ format: String, locale: Locale = .current, arguments: [CVarArg
     }
 }
 
-enum L10nTable {
+nonisolated enum L10nTable {
     static let english: [String: String] = [
         "test.fallback.onlyEnglish": "Only English",
         "language.automatic": "Automatic",

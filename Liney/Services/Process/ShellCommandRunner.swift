@@ -8,13 +8,13 @@
 import Foundation
 import os
 
-struct ShellCommandResult {
+nonisolated struct ShellCommandResult {
     var stdout: String
     var stderr: String
     var exitCode: Int32
 }
 
-enum ShellCommandError: LocalizedError {
+nonisolated enum ShellCommandError: LocalizedError {
     case executableNotFound(String)
     case failed(String)
     case timedOut(TimeInterval)
@@ -184,7 +184,7 @@ actor ShellCommandRunner {
 
 /// Thread-safe holder for a running Process so the timeout path can terminate
 /// it when cancellation fires.
-private final class ProcessHandle: @unchecked Sendable {
+nonisolated private final class ProcessHandle: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?
 
@@ -205,7 +205,7 @@ private final class ProcessHandle: @unchecked Sendable {
 
 /// Thread-safe accumulator for pipe data drained from a concurrent readability
 /// handler.
-private final class PipeBuffer: @unchecked Sendable {
+nonisolated private final class PipeBuffer: @unchecked Sendable {
     private let lock = NSLock()
     private var buffer = Data()
 

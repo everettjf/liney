@@ -44,22 +44,28 @@ final class PreviewWebEngine: NSObject, ObservableObject {
 
         observations = [
             webView.observe(\.isLoading, options: [.new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.isLoading = webView.isLoading }
+                let isLoading = webView.isLoading
+                Task { @MainActor [weak self] in self?.isLoading = isLoading }
             },
             webView.observe(\.canGoBack, options: [.new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.canGoBack = webView.canGoBack }
+                let canGoBack = webView.canGoBack
+                Task { @MainActor [weak self] in self?.canGoBack = canGoBack }
             },
             webView.observe(\.canGoForward, options: [.new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.canGoForward = webView.canGoForward }
+                let canGoForward = webView.canGoForward
+                Task { @MainActor [weak self] in self?.canGoForward = canGoForward }
             },
             webView.observe(\.estimatedProgress, options: [.new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.estimatedProgress = webView.estimatedProgress }
+                let estimatedProgress = webView.estimatedProgress
+                Task { @MainActor [weak self] in self?.estimatedProgress = estimatedProgress }
             },
             webView.observe(\.title, options: [.new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.pageTitle = webView.title ?? "" }
+                let pageTitle = webView.title ?? ""
+                Task { @MainActor [weak self] in self?.pageTitle = pageTitle }
             },
             webView.observe(\.url, options: [.new]) { [weak self] webView, _ in
-                Task { @MainActor in self?.currentURL = webView.url }
+                let currentURL = webView.url
+                Task { @MainActor [weak self] in self?.currentURL = currentURL }
             },
         ]
     }

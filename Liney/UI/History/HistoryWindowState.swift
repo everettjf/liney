@@ -595,7 +595,7 @@ final class HistoryWindowState: ObservableObject {
     // MARK: - Document Loading
 
     /// Maximum patch size (in bytes) that we'll render. Beyond this YiTong may become unresponsive.
-    private static let maxPatchSize = 512 * 1024  // 512 KB
+    nonisolated private static let maxPatchSize = 512 * 1024  // 512 KB
 
     nonisolated private static func loadHistoryDocument(
         for file: DiffChangedFile,

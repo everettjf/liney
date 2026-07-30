@@ -558,7 +558,7 @@ final class DiffWindowState: ObservableObject {
         }
     }
 
-    private static let maxPatchBytes = 1_000_000
+    nonisolated private static let maxPatchBytes = 1_000_000
 
     /// Loads a per-file diff document for A/B compare mode, diffing the two
     /// resolved tree snapshots.
@@ -639,7 +639,7 @@ final class DiffWindowState: ObservableObject {
         )
     }
 
-    private static let maxFileReadBytes = 1_000_000
+    nonisolated private static let maxFileReadBytes = 1_000_000
 
     nonisolated private static func readFile(at url: URL) -> String {
         let start = DiffDiagnostics.now()

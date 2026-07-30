@@ -8,7 +8,7 @@
 import Foundation
 
 /// Status of an SSH connection test.
-enum SSHConnectionStatus {
+nonisolated enum SSHConnectionStatus {
     case connected
     case authRequired
     case unreachable(Error)

@@ -8,7 +8,7 @@
 import Foundation
 
 /// A parsed entry from an SSH config file.
-struct SSHConfigEntry: Hashable, Sendable {
+nonisolated struct SSHConfigEntry: Hashable, Sendable {
     let displayName: String   // Host alias
     let host: String          // HostName (or Host if HostName missing)
     let port: Int             // default 22
@@ -21,7 +21,7 @@ struct SSHConfigEntry: Hashable, Sendable {
 }
 
 /// Parses OpenSSH config files into SSHConfigEntry models.
-enum SSHConfigParser {
+nonisolated enum SSHConfigParser {
 
     /// Parse an SSH config file at the given path.
     static func parse(configPath: String = "~/.ssh/config") -> [SSHConfigEntry] {

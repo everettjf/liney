@@ -8,7 +8,7 @@
 import Foundation
 import os
 
-enum GitServiceError: LocalizedError {
+nonisolated enum GitServiceError: LocalizedError {
     case notAGitRepository(String)
     case commandFailed(String)
     case repositoryInspectionFailed(path: String, step: String, message: String)
@@ -34,13 +34,13 @@ enum GitServiceError: LocalizedError {
     }
 }
 
-struct CreateWorktreeRequest {
+nonisolated struct CreateWorktreeRequest {
     var directoryPath: String
     var branchName: String
     var createNewBranch: Bool
 }
 
-struct RemoteGitSnapshot {
+nonisolated struct RemoteGitSnapshot {
     var branch: String
     var head: String
     var changedFileCount: Int
@@ -49,14 +49,14 @@ struct RemoteGitSnapshot {
     var worktrees: [WorktreeModel] = []
 }
 
-struct RemoteWorktreeStatus {
+nonisolated struct RemoteWorktreeStatus {
     var changedFileCount: Int
     var aheadCount: Int
     var behindCount: Int
 }
 
 /// Result of dry-running a patch against a target worktree with `git apply --check`.
-struct WorktreeApplyPrecheck {
+nonisolated struct WorktreeApplyPrecheck {
     /// Whether `git apply --check` reported the patch applies without conflicts.
     var appliesCleanly: Bool
     /// Git's diagnostic output when the patch does not apply cleanly.
@@ -64,7 +64,7 @@ struct WorktreeApplyPrecheck {
 }
 
 /// Result of applying a patch to a worktree.
-struct WorktreeApplyOutcome {
+nonisolated struct WorktreeApplyOutcome {
     /// True when a 3-way merge left unresolved conflicts in the working tree.
     var hasConflicts: Bool
     /// Paths (relative to the worktree) left in a conflicted state.

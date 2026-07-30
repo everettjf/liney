@@ -23,7 +23,7 @@ import Foundation
 /// script argument only — never arbitrary trailing args or the cwd — so a
 /// repository that merely happens to contain "codex" in its path is not
 /// misread as an agent.
-enum AgentProcessDetector {
+nonisolated enum AgentProcessDetector {
 
     struct Detected: Equatable {
         let pid: pid_t

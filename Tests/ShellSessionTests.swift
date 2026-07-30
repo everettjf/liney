@@ -324,7 +324,7 @@ final class ShellSessionTests: XCTestCase {
     func testRestartReapsPreviousLaunchConfiguration() async {
         await MainActor.run {
             let surface = FakeManagedTerminalSurfaceController()
-            var reapedConfigurations: [TerminalLaunchConfiguration] = []
+            let reapedConfigurations = LockedTestArray<TerminalLaunchConfiguration>()
             let session = ShellSession(
                 snapshot: PaneSnapshot.makeDefault(cwd: "/tmp/liney-shell-session-reap-restart"),
                 surfaceController: surface,
@@ -337,9 +337,10 @@ final class ShellSessionTests: XCTestCase {
             session.startIfNeeded()
             session.restart()
 
-            XCTAssertEqual(reapedConfigurations.count, 1)
-            XCTAssertEqual(reapedConfigurations[0].command.executablePath, initialLaunchPath)
-            XCTAssertEqual(reapedConfigurations[0].command.arguments, initialLaunchArguments)
+            let reaped = reapedConfigurations.values
+            XCTAssertEqual(reaped.count, 1)
+            XCTAssertEqual(reaped[0].command.executablePath, initialLaunchPath)
+            XCTAssertEqual(reaped[0].command.arguments, initialLaunchArguments)
             XCTAssertEqual(surface.restartCallCount, 1)
         }
     }
@@ -347,7 +348,7 @@ final class ShellSessionTests: XCTestCase {
     func testTerminateReapsCurrentLaunchConfiguration() async {
         await MainActor.run {
             let surface = FakeManagedTerminalSurfaceController()
-            var reapedConfigurations: [TerminalLaunchConfiguration] = []
+            let reapedConfigurations = LockedTestArray<TerminalLaunchConfiguration>()
             let session = ShellSession(
                 snapshot: PaneSnapshot.makeDefault(cwd: "/tmp/liney-shell-session-reap-terminate"),
                 surfaceController: surface,
@@ -360,9 +361,10 @@ final class ShellSessionTests: XCTestCase {
 
             session.terminate()
 
-            XCTAssertEqual(reapedConfigurations.count, 1)
-            XCTAssertEqual(reapedConfigurations[0].command.executablePath, runningLaunchPath)
-            XCTAssertEqual(reapedConfigurations[0].command.arguments, runningLaunchArguments)
+            let reaped = reapedConfigurations.values
+            XCTAssertEqual(reaped.count, 1)
+            XCTAssertEqual(reaped[0].command.executablePath, runningLaunchPath)
+            XCTAssertEqual(reaped[0].command.arguments, runningLaunchArguments)
             XCTAssertEqual(surface.terminateCallCount, 1)
         }
     }
@@ -466,7 +468,7 @@ final class ShellSessionTests: XCTestCase {
             backendConfiguration: .local()
         )
 
-        var signals: [(pid: Int32, signal: Int32)] = []
+        let signals = LockedTestArray<(pid: Int32, signal: Int32)>()
         let processControl = LineyTerminalManagedProcessControl(
             processGroupID: { pid in
                 XCTAssertEqual(pid, 321)
@@ -484,9 +486,26 @@ final class ShellSessionTests: XCTestCase {
             processControl: processControl
         )
 
-        XCTAssertEqual(signals.map(\.pid), [-777, 321, 123])
-        XCTAssertEqual(signals.map(\.signal), [SIGTERM, SIGTERM, SIGTERM])
+        XCTAssertEqual(signals.values.map(\.pid), [-777, 321, 123])
+        XCTAssertEqual(signals.values.map(\.signal), [SIGTERM, SIGTERM, SIGTERM])
         XCTAssertFalse(FileManager.default.fileExists(atPath: metadataPath))
+    }
+}
+
+nonisolated private final class LockedTestArray<Element>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [Element] = []
+
+    func append(_ element: Element) {
+        lock.lock()
+        storage.append(element)
+        lock.unlock()
+    }
+
+    var values: [Element] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
     }
 }
 

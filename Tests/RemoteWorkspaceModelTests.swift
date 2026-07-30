@@ -55,7 +55,6 @@ final class RemoteWorkspaceModelTests: XCTestCase {
     // MARK: - WorkspaceRecord sshTarget
 
     func testWorkspaceRecordWithSSHTarget() throws {
-        let paneID = UUID()
         let sshConfig = SSHSessionConfiguration(
             host: "prod.example.com",
             user: "deploy",

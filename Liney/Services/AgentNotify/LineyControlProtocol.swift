@@ -208,7 +208,7 @@ struct LineyControlSession: Codable, Equatable {
 }
 
 /// Generic response written back to the CLI client.
-struct LineyControlResponse: Codable, Equatable {
+nonisolated struct LineyControlResponse: Codable, Equatable {
     var ok: Bool
     var error: String?
     var sessions: [LineyControlSession]?

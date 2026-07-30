@@ -64,66 +64,71 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         SentrySDK.metrics.count(key: "app.launch", value: 1)
         
         Task { @MainActor in
-            let desktopApplication = LineyDesktopApplication()
-            self.desktopApplication = desktopApplication
-            self.applicationMenuController.activeWorkspaceStoreProvider = { [weak self] in
-                self?.desktopApplication?.activeWorkspaceStore
-            }
-            appSettingsObserver = NotificationCenter.default.addObserver(
+            self.finishLaunching()
+        }
+    }
+
+    @MainActor
+    private func finishLaunching() {
+        let desktopApplication = LineyDesktopApplication()
+        self.desktopApplication = desktopApplication
+        applicationMenuController.activeWorkspaceStoreProvider = { [weak self] in
+            self?.desktopApplication?.activeWorkspaceStore
+        }
+        appSettingsObserver = NotificationCenter.default.addObserver(
                 forName: .lineyAppSettingsDidChange,
                 object: nil,
                 queue: .main
-            ) { [weak self] notification in
-                guard let self,
-                      let settings = notification.object as? AppSettings else {
-                    return
-                }
-                Task { @MainActor in
-                    self.applicationMenuController.applySettings(settings)
-                    self.desktopApplication?.updateHotKeyWindowSettings(settings)
-                    HookRunner.shared.updateMasterSwitch(settings.hooksEnabled)
-                    if settings.dynamicIslandEnabled {
-                        IslandPanelController.shared.workspaceStore = self.desktopApplication?.activeWorkspaceStore
-                        IslandPanelController.shared.show()
-                    } else {
-                        IslandPanelController.shared.hide()
-                    }
-                }
+        ) { [weak self] notification in
+            guard let self,
+                  let settings = notification.object as? AppSettings else {
+                return
             }
-            localizationObserver = NotificationCenter.default.addObserver(
-                forName: .lineyLocalizationDidChange,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                guard let self else { return }
-                Task { @MainActor in
-                    self.refreshMainMenu()
+            Task { @MainActor in
+                self.applicationMenuController.applySettings(settings)
+                self.desktopApplication?.updateHotKeyWindowSettings(settings)
+                HookRunner.shared.updateMasterSwitch(settings.hooksEnabled)
+                if settings.dynamicIslandEnabled {
+                    IslandPanelController.shared.workspaceStore = self.desktopApplication?.activeWorkspaceStore
+                    IslandPanelController.shared.show()
+                } else {
+                    IslandPanelController.shared.hide()
                 }
             }
-            WorkspaceNotificationCenter.shared.onNotificationTapped = { [weak desktopApplication] workspaceID, worktreePath in
-                desktopApplication?.navigateToWorkspace(id: workspaceID, worktreePath: worktreePath)
-            }
-            WorkspaceNotificationCenter.shared.onNotificationTappedFromSystem = {
-                let island = IslandPanelController.shared
-                let state = island.state
-                state.selectedTab = .notifications
-                state.isExpanded = true
-                island.show()
-                island.repositionPanel()
-            }
-            desktopApplication.launch()
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
+        }
+        localizationObserver = NotificationCenter.default.addObserver(
+            forName: .lineyLocalizationDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
                 self.refreshMainMenu()
-                if let store = self.desktopApplication?.activeWorkspaceStore {
-                    IslandPanelController.shared.workspaceStore = store
-                    if store.appSettings.dynamicIslandEnabled {
-                        IslandPanelController.shared.show()
-                    }
-                }
-                self.drainPendingIncomingURLs()
-                self.startAgentNotifyServer()
             }
+        }
+        WorkspaceNotificationCenter.shared.onNotificationTapped = { [weak desktopApplication] workspaceID, worktreePath in
+            desktopApplication?.navigateToWorkspace(id: workspaceID, worktreePath: worktreePath)
+        }
+        WorkspaceNotificationCenter.shared.onNotificationTappedFromSystem = {
+            let island = IslandPanelController.shared
+            let state = island.state
+            state.selectedTab = .notifications
+            state.isExpanded = true
+            island.show()
+            island.repositionPanel()
+        }
+        desktopApplication.launch()
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.refreshMainMenu()
+            if let store = self.desktopApplication?.activeWorkspaceStore {
+                IslandPanelController.shared.workspaceStore = store
+                if store.appSettings.dynamicIslandEnabled {
+                    IslandPanelController.shared.show()
+                }
+            }
+            self.drainPendingIncomingURLs()
+            self.startAgentNotifyServer()
         }
     }
 

@@ -18,10 +18,11 @@ import Security
 ///   `SSHSessionConfiguration` only carries a non-secret keychain *account*
 ///   string; the secret itself lives in the Keychain.
 /// - The helper is a tiny shell script that shells out to `/usr/bin/security`
-///   to read the secret lazily *at the moment ssh asks*. We never put the
-///   password into ssh's argv or environment, both of which a same-user process
-///   can read via `KERN_PROCARGS2`.
-enum SSHPasswordStore {
+///   to read the secret lazily *at the moment ssh asks*. The first read can
+///   trigger the standard Keychain access prompt. We never put the password
+///   into ssh's argv or environment, both of which a same-user process can read
+///   via `KERN_PROCARGS2`.
+nonisolated enum SSHPasswordStore {
     /// Keychain generic-password service shared by every Liney SSH secret.
     static let keychainService = "com.liney.ssh"
 
@@ -45,20 +46,17 @@ enum SSHPasswordStore {
         }
         guard let passwordData = password.data(using: .utf8) else { return false }
 
-        // Remove any existing entry first so we can attach a fresh access ACL
-        // that trusts `/usr/bin/security` (used by the askpass helper).
+        // Remove any existing entry first so the replacement is atomic from
+        // the caller's perspective.
         delete(account: account)
 
-        var query: [String: Any] = [
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
             kSecAttrAccount as String: account,
             kSecValueData as String: passwordData,
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
         ]
-        if let access = makeHelperAccess() {
-            query[kSecAttrAccess as String] = access
-        }
 
         let status = SecItemAdd(query as CFDictionary, nil)
         return status == errSecSuccess
@@ -101,24 +99,6 @@ enum SSHPasswordStore {
         SecItemDelete(query as CFDictionary)
     }
 
-    /// Builds an access object that trusts this app plus `/usr/bin/security`,
-    /// so the askpass helper can read the secret without a Keychain prompt.
-    /// Returns `nil` on failure; the caller then falls back to the default ACL
-    /// (the helper's first read will surface a one-time "Always Allow" prompt).
-    nonisolated private static func makeHelperAccess() -> SecAccess? {
-        var selfApp: SecTrustedApplication?
-        var securityApp: SecTrustedApplication?
-        SecTrustedApplicationCreateFromPath(nil, &selfApp)
-        SecTrustedApplicationCreateFromPath("/usr/bin/security", &securityApp)
-
-        let trusted = [selfApp, securityApp].compactMap { $0 }
-        guard !trusted.isEmpty else { return nil }
-
-        var access: SecAccess?
-        let status = SecAccessCreate("Liney SSH password" as CFString, trusted as CFArray, &access)
-        guard status == errSecSuccess else { return nil }
-        return access
-    }
 }
 
 // MARK: - Askpass helper
@@ -126,7 +106,7 @@ enum SSHPasswordStore {
 extension SSHPasswordStore {
     /// Environment variable the helper reads to learn which keychain account to
     /// fetch. Set on the ssh process by the launch path.
-    static let askpassAccountEnvKey = "LINEY_SSH_ASKPASS_ACCOUNT"
+    nonisolated static let askpassAccountEnvKey = "LINEY_SSH_ASKPASS_ACCOUNT"
 
     /// Environment that makes `/usr/bin/ssh` (or `sftp`) fetch the stored
     /// password through the askpass helper instead of prompting on a tty.

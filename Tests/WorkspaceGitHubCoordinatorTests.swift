@@ -39,7 +39,7 @@ final class WorkspaceGitHubCoordinatorTests: XCTestCase {
             ]
         )
 
-        let updatedNumbers = await client.updatedNumbers
+        let updatedNumbers = client.updatedNumbers
         XCTAssertEqual(updatedNumbers, [101, 202])
         XCTAssertEqual(result.activities.count, 1)
         XCTAssertEqual(result.workspaceIDsToRefresh, Set([workspace.id]))
