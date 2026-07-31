@@ -50,7 +50,7 @@ nonisolated enum ReviewAgent: String, CaseIterable, Codable, Hashable, Identifia
         case .codex: return "o.circle.fill"
         case .kimi: return "k.circle.fill"
         case .gemini: return "g.circle.fill"
-        case .opencode: return "terminal.fill"
+        case .opencode: return "terminal"
         case .qwenCode: return "q.circle.fill"
         case .cursorAgent: return "cursorarrow.rays"
         case .githubCopilot: return "chevron.left.forwardslash.chevron.right"
