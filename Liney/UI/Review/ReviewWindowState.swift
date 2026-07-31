@@ -16,6 +16,7 @@ final class ReviewWindowState: ObservableObject {
     @Published var statuses: [ReviewAgent: ReviewAgentStatus] = [:]
     @Published var results: [ReviewAgentResult] = []
     @Published var findings: [ReviewFinding] = []
+    @Published var verifications: [ReviewVerificationKey: ReviewVerificationStatus] = [:]
     @Published var selectedFindingID: UUID?
     @Published var isRunning = false
     @Published var validationMessage: String?
@@ -25,6 +26,7 @@ final class ReviewWindowState: ObservableObject {
     private let commandRunner = ShellCommandRunner()
     private var reviewTask: Task<Void, Never>?
     private var branchTask: Task<Void, Never>?
+    private var verificationTasks: [ReviewVerificationKey: Task<Void, Never>] = [:]
     private var runtimeEnvironment: [String: String]?
 
     init(service: ReviewService = ReviewService()) {
@@ -35,11 +37,14 @@ final class ReviewWindowState: ObservableObject {
     deinit {
         reviewTask?.cancel()
         branchTask?.cancel()
+        verificationTasks.values.forEach { $0.cancel() }
     }
 
     func load(repositoryPath: String?, repositoryName: String) {
         reviewTask?.cancel()
         branchTask?.cancel()
+        verificationTasks.values.forEach { $0.cancel() }
+        verificationTasks = [:]
         self.repositoryPath = repositoryPath
         self.repositoryName = repositoryName
         targetMode = 0
@@ -50,6 +55,7 @@ final class ReviewWindowState: ObservableObject {
         statuses = Dictionary(uniqueKeysWithValues: ReviewAgent.allCases.map { ($0, .idle) })
         results = []
         findings = []
+        verifications = [:]
         selectedFindingID = nil
         isRunning = false
         validationMessage = nil
@@ -60,8 +66,8 @@ final class ReviewWindowState: ObservableObject {
     func toggleAgent(_ agent: ReviewAgent) {
         guard !isRunning else { return }
         if selectedAgents.contains(agent) {
-            guard selectedAgents.count > 2 else {
-                validationMessage = "Select at least two reviewers."
+            guard selectedAgents.count > 1 else {
+                validationMessage = "Select at least one reviewer."
                 return
             }
             selectedAgents.remove(agent)
@@ -88,8 +94,8 @@ final class ReviewWindowState: ObservableObject {
             validationMessage = "Select a local Git repository."
             return
         }
-        guard selectedAgents.count >= 2, selectedAgents.count <= 3 else {
-            validationMessage = "Select two or three reviewers."
+        guard selectedAgents.count >= 1, selectedAgents.count <= 3 else {
+            validationMessage = "Select one to three reviewers."
             return
         }
         let unavailable = selectedAgents.filter { agentAvailability[$0] == false }
@@ -119,6 +125,7 @@ final class ReviewWindowState: ObservableObject {
         showsResults = true
         results = []
         findings = []
+        verifications = [:]
         selectedFindingID = nil
         statuses = Dictionary(uniqueKeysWithValues: ReviewAgent.allCases.map { ($0, .idle) })
 
@@ -164,9 +171,39 @@ final class ReviewWindowState: ObservableObject {
         }
     }
 
+    func verify(_ finding: ReviewFinding, with agent: ReviewAgent) {
+        guard let repositoryPath,
+              !finding.reviewers.contains(agent),
+              agentAvailability[agent] != false else { return }
+        let key = ReviewVerificationKey(findingID: finding.id, agent: agent)
+        guard verifications[key] == nil else { return }
+
+        verifications[key] = .running
+        verificationTasks[key] = Task {
+            let result = await service.verifyFinding(
+                finding,
+                with: agent,
+                repositoryPath: repositoryPath,
+                environment: runtimeEnvironment
+            )
+            guard !Task.isCancelled else { return }
+            switch result {
+            case .success(let verification):
+                verifications[key] = .completed(verification)
+            case .failure(let error):
+                verifications[key] = .failed(error.localizedDescription)
+            }
+            verificationTasks[key] = nil
+        }
+    }
+
     func newReview() {
         showsResults = false
         validationMessage = nil
+    }
+
+    func verificationStatus(for findingID: UUID, agent: ReviewAgent) -> ReviewVerificationStatus? {
+        verifications[ReviewVerificationKey(findingID: findingID, agent: agent)]
     }
 
     private func loadRepositoryContext() {

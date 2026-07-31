@@ -86,7 +86,7 @@ struct ReviewWindowContentView: View {
                             .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 10))
                             .overlay { RoundedRectangle(cornerRadius: 10).stroke(LineyTheme.border) }
 
-                            Text("Select at least 2. Each agent runs independently; findings are merged by code location.")
+                            Text("Select 1–3 agents. Each runs one independent review.")
                                 .font(.system(size: 11))
                                 .foregroundStyle(LineyTheme.mutedText)
                         }
@@ -182,7 +182,7 @@ struct ReviewWindowContentView: View {
                         Image(systemName: "play.fill")
                         Text("Start Review")
                         Spacer()
-                        Text("\(state.selectedAgents.count) agents")
+                        Text(state.selectedAgents.count == 1 ? "1 agent" : "\(state.selectedAgents.count) agents")
                             .font(.system(size: 10, weight: .medium))
                             .opacity(0.8)
                     }
@@ -203,7 +203,7 @@ struct ReviewWindowContentView: View {
                 title: "Review Results",
                 subtitle: state.isRunning
                     ? "Reviewers are inspecting the repository and diff in parallel."
-                    : "Findings are merged by issue; no follow-up discussion is triggered."
+                    : "Send any finding to another agent for an optional second opinion."
             )
             .padding(22)
 
@@ -254,7 +254,7 @@ struct ReviewWindowContentView: View {
             }
             Spacer()
             if !state.isRunning {
-                Text("\(state.findings.count) merged findings")
+                Text(state.findings.count == 1 ? "1 finding" : "\(state.findings.count) findings")
                     .font(.system(size: 11))
                     .foregroundStyle(LineyTheme.mutedText)
             }
@@ -315,19 +315,21 @@ struct ReviewWindowContentView: View {
                         .textSelection(.enabled)
 
                     Divider().overlay(LineyTheme.border)
-                    Text("Reviewer coverage")
+                    Text("Reported by")
                         .font(.system(size: 13, weight: .semibold))
-                    ForEach(ReviewAgent.allCases.filter { state.selectedAgents.contains($0) }) { agent in
-                        HStack {
-                            Image(systemName: finding.reviewers.contains(agent) ? "checkmark.circle.fill" : "minus.circle")
-                                .foregroundStyle(finding.reviewers.contains(agent) ? LineyTheme.success : LineyTheme.mutedText)
-                            Text(agent.displayName)
-                            Spacer()
-                            Text(finding.reviewers.contains(agent) ? "Reported" : "Not reported")
-                                .foregroundStyle(LineyTheme.mutedText)
+                    HStack(spacing: 8) {
+                        ForEach(ReviewAgent.allCases.filter { finding.reviewers.contains($0) }) { agent in
+                            Label(agent.displayName, systemImage: agent.systemImage)
+                                .font(.system(size: 11, weight: .medium))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 6)
+                                .background(LineyTheme.panelBackground, in: Capsule())
+                                .overlay { Capsule().stroke(LineyTheme.border) }
                         }
-                        .font(.system(size: 12))
                     }
+
+                    Divider().overlay(LineyTheme.border)
+                    manualVerificationSection(finding)
                 }
                 .padding(26)
                 .frame(maxWidth: 760, alignment: .leading)
@@ -335,6 +337,101 @@ struct ReviewWindowContentView: View {
             .background(LineyTheme.appBackground)
         } else {
             ContentUnavailableView("Select a finding", systemImage: "text.magnifyingglass")
+        }
+    }
+
+    @ViewBuilder
+    private func manualVerificationSection(_ finding: ReviewFinding) -> some View {
+        let candidates = ReviewAgent.allCases.filter {
+            !finding.reviewers.contains($0) && state.agentAvailability[$0] != false
+        }
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Second Opinion")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Manually send this finding to another agent for verification.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(LineyTheme.mutedText)
+                }
+                Spacer()
+                if !candidates.isEmpty {
+                    Menu {
+                        ForEach(candidates) { agent in
+                            Button {
+                                state.verify(finding, with: agent)
+                            } label: {
+                                Label("Send to \(agent.displayName)", systemImage: agent.systemImage)
+                            }
+                            .disabled(state.verificationStatus(for: finding.id, agent: agent) != nil)
+                        }
+                    } label: {
+                        Label("Send to Agent", systemImage: "paperplane")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+            }
+
+            ForEach(ReviewAgent.allCases) { agent in
+                if let status = state.verificationStatus(for: finding.id, agent: agent) {
+                    verificationRow(agent: agent, status: status)
+                }
+            }
+
+            if candidates.isEmpty && !ReviewAgent.allCases.contains(where: {
+                state.verificationStatus(for: finding.id, agent: $0) != nil
+            }) {
+                Text("No other available agent can verify this finding.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(LineyTheme.mutedText)
+            }
+        }
+        .padding(14)
+        .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 10))
+        .overlay { RoundedRectangle(cornerRadius: 10).stroke(LineyTheme.border) }
+    }
+
+    @ViewBuilder
+    private func verificationRow(agent: ReviewAgent, status: ReviewVerificationStatus) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: agent.systemImage)
+                .foregroundStyle(LineyTheme.accent)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(agent.displayName)
+                    .font(.system(size: 11, weight: .semibold))
+                switch status {
+                case .running:
+                    Text("Checking the finding…")
+                        .foregroundStyle(LineyTheme.mutedText)
+                case .completed(let verification):
+                    Text(verification.verdict.displayName)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(verdictColor(verification.verdict))
+                    Text(verification.rationale)
+                        .foregroundStyle(LineyTheme.secondaryText)
+                        .textSelection(.enabled)
+                case .failed(let message):
+                    Text(message)
+                        .foregroundStyle(LineyTheme.danger)
+                }
+            }
+            .font(.system(size: 11))
+            Spacer()
+            if case .running = status {
+                ProgressView().controlSize(.small)
+            }
+        }
+        .padding(10)
+        .background(LineyTheme.paneBackground, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func verdictColor(_ verdict: ReviewVerdict) -> Color {
+        switch verdict {
+        case .confirmed: return LineyTheme.success
+        case .rejected: return LineyTheme.danger
+        case .uncertain: return LineyTheme.warning
         }
     }
 

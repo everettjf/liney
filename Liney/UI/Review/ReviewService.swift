@@ -97,6 +97,36 @@ nonisolated struct ReviewService: Sendable {
         }
     }
 
+    func verifyFinding(
+        _ finding: ReviewFinding,
+        with agent: ReviewAgent,
+        repositoryPath: String,
+        environment: [String: String]? = nil
+    ) async -> Result<ReviewVerification, Error> {
+        let prompt = Self.verificationPrompt(finding: finding)
+        let invocation = Self.invocation(for: agent, prompt: prompt, repositoryPath: repositoryPath)
+
+        do {
+            let result = try await runner.run(
+                executable: invocation.executable,
+                arguments: invocation.arguments,
+                currentDirectory: repositoryPath,
+                environment: environment,
+                timeout: timeout
+            )
+            guard result.exitCode == 0 else {
+                let message = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                throw ReviewVerificationError.commandFailed(
+                    message.isEmpty ? "\(agent.displayName) exited with code \(result.exitCode)." : message
+                )
+            }
+            let output = Self.finalOutput(from: result.stdout, agent: agent)
+            return .success(try ReviewVerificationParser.parse(output))
+        } catch {
+            return .failure(error)
+        }
+    }
+
     static func prompt(target: ReviewTarget, focus: Set<ReviewFocus>, instructions: String) -> String {
         let targetText: String
         switch target {
@@ -135,6 +165,27 @@ nonisolated struct ReviewService: Sendable {
 
         Use an empty findings array when there are no actionable issues. Do not include markdown fences.
         Each finding must identify a changed file and, when possible, a changed line.
+        """
+    }
+
+    static func verificationPrompt(finding: ReviewFinding) -> String {
+        """
+        You are verifying another code reviewer's finding. This is a strictly read-only task.
+        Inspect the referenced code and relevant repository context. Decide whether the reported issue is correct.
+        Do not modify files or repository state.
+
+        Finding:
+        Title: \(finding.title)
+        Severity: \(finding.severity.rawValue)
+        File: \(finding.file ?? "Not provided")
+        Line: \(finding.line.map(String.init) ?? "Not provided")
+        Claim: \(finding.body)
+
+        Return ONLY valid JSON with this exact shape:
+        {"verdict":"confirmed|rejected|uncertain","rationale":"concise evidence-based explanation"}
+
+        Confirm only when the issue is reproducible from the current code. Reject false positives clearly.
+        Use uncertain when the repository does not contain enough evidence.
         """
     }
 
@@ -179,6 +230,36 @@ nonisolated struct ReviewService: Sendable {
             return stdout
         }
         return result
+    }
+}
+
+nonisolated enum ReviewVerificationParser {
+    static func parse(_ output: String) throws -> ReviewVerification {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        let json: String
+        if trimmed.hasPrefix("{"), trimmed.hasSuffix("}") {
+            json = trimmed
+        } else if let start = trimmed.firstIndex(of: "{"),
+                  let end = trimmed.lastIndex(of: "}"),
+                  start <= end {
+            json = String(trimmed[start...end])
+        } else {
+            throw ReviewParsingError.invalidOutput
+        }
+        guard let data = json.data(using: .utf8) else {
+            throw ReviewParsingError.invalidOutput
+        }
+        return try JSONDecoder().decode(ReviewVerification.self, from: data)
+    }
+}
+
+nonisolated enum ReviewVerificationError: LocalizedError {
+    case commandFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .commandFailed(let message): return message
+        }
     }
 }
 

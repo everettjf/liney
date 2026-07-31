@@ -159,3 +159,33 @@ nonisolated enum ReviewAgentStatus: Equatable {
     case completed(Int)
     case failed(String)
 }
+
+nonisolated struct ReviewVerificationKey: Hashable {
+    let findingID: UUID
+    let agent: ReviewAgent
+}
+
+nonisolated enum ReviewVerdict: String, Codable, Sendable {
+    case confirmed
+    case rejected
+    case uncertain
+
+    var displayName: String {
+        switch self {
+        case .confirmed: return "Confirmed"
+        case .rejected: return "Rejected"
+        case .uncertain: return "Uncertain"
+        }
+    }
+}
+
+nonisolated struct ReviewVerification: Codable, Equatable, Sendable {
+    let verdict: ReviewVerdict
+    let rationale: String
+}
+
+nonisolated enum ReviewVerificationStatus: Equatable {
+    case running
+    case completed(ReviewVerification)
+    case failed(String)
+}

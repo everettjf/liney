@@ -83,4 +83,34 @@ final class ReviewServiceTests: XCTestCase {
         XCTAssertTrue(prompt.contains("report only concrete regressions introduced by the selected diff"))
         XCTAssertTrue(prompt.contains("Check cancellation."))
     }
+
+    func testVerificationParserAcceptsStructuredVerdict() throws {
+        let output = """
+        {"verdict":"confirmed","rationale":"The task is retained after cancellation."}
+        """
+
+        let verification = try ReviewVerificationParser.parse(output)
+
+        XCTAssertEqual(verification.verdict, .confirmed)
+        XCTAssertEqual(verification.rationale, "The task is retained after cancellation.")
+    }
+
+    func testVerificationPromptIncludesFindingEvidence() {
+        let finding = ReviewFinding(
+            title: "Task can outlive session",
+            body: "Cancellation does not release the task.",
+            severity: .high,
+            file: "Liney/Session.swift",
+            line: 18,
+            category: .reliability,
+            reviewers: [.codex]
+        )
+
+        let prompt = ReviewService.verificationPrompt(finding: finding)
+
+        XCTAssertTrue(prompt.contains("verifying another code reviewer's finding"))
+        XCTAssertTrue(prompt.contains("Liney/Session.swift"))
+        XCTAssertTrue(prompt.contains("Cancellation does not release the task."))
+        XCTAssertTrue(prompt.contains("confirmed|rejected|uncertain"))
+    }
 }
