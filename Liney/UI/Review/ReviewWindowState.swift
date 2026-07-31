@@ -61,13 +61,13 @@ final class ReviewWindowState: ObservableObject {
         guard !isRunning else { return }
         if selectedAgents.contains(agent) {
             guard selectedAgents.count > 2 else {
-                validationMessage = "至少需要选择两个 Reviewer。"
+                validationMessage = "Select at least two reviewers."
                 return
             }
             selectedAgents.remove(agent)
         } else {
             guard agentAvailability[agent] != false else {
-                validationMessage = "\(agent.displayName) CLI 不可用。请先安装并完成登录。"
+                validationMessage = "\(agent.displayName) CLI is unavailable. Install it and sign in first."
                 return
             }
             selectedAgents.insert(agent)
@@ -85,20 +85,20 @@ final class ReviewWindowState: ObservableObject {
 
     func startReview() {
         guard let repositoryPath else {
-            validationMessage = "请选择一个本地 Git 仓库。"
+            validationMessage = "Select a local Git repository."
             return
         }
         guard selectedAgents.count >= 2, selectedAgents.count <= 3 else {
-            validationMessage = "请选择两个或三个 Reviewer。"
+            validationMessage = "Select two or three reviewers."
             return
         }
         let unavailable = selectedAgents.filter { agentAvailability[$0] == false }
         guard unavailable.isEmpty else {
-            validationMessage = "\(unavailable.map(\.displayName).sorted().joined(separator: ", ")) CLI 不可用。"
+            validationMessage = "\(unavailable.map(\.displayName).sorted().joined(separator: ", ")) CLI is unavailable."
             return
         }
         guard !selectedFocus.isEmpty else {
-            validationMessage = "请至少选择一个 Review 类别。"
+            validationMessage = "Select at least one review category."
             return
         }
         let target: ReviewTarget
@@ -108,7 +108,7 @@ final class ReviewWindowState: ObservableObject {
             let base = baseBranch.trimmingCharacters(in: .whitespacesAndNewlines)
             let head = targetBranch.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !base.isEmpty, !head.isEmpty else {
-                validationMessage = "请输入完整的基础分支和目标分支。"
+                validationMessage = "Enter both a base branch and a target branch."
                 return
             }
             target = .branchRange(base: base, target: head)

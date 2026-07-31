@@ -44,10 +44,10 @@ struct ReviewWindowContentView: View {
             HStack(alignment: .top, spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 28) {
-                        workflowSection(number: "01", title: "选择评审范围", caption: state.repositoryName) {
+                        workflowSection(number: "01", title: "Choose Review Scope", caption: state.repositoryName) {
                             Picker("Diff source", selection: $state.targetMode) {
-                                Text("当前修改").tag(0)
-                                Text("分支对比").tag(1)
+                                Text("Current Changes").tag(0)
+                                Text("Compare Branches").tag(1)
                             }
                             .labelsHidden()
                             .pickerStyle(.segmented)
@@ -63,7 +63,7 @@ struct ReviewWindowContentView: View {
                             }
 
                             Label(
-                                "Agent 可读取整个仓库作为上下文，仅对所选 Diff 输出问题。",
+                                "Agents can read the entire repository for context, but only report issues in the selected diff.",
                                 systemImage: "lock.open.display"
                             )
                             .font(.system(size: 11))
@@ -72,7 +72,7 @@ struct ReviewWindowContentView: View {
 
                         workflowSection(
                             number: "02",
-                            title: "选择 Reviewer",
+                            title: "Choose Reviewers",
                             caption: "\(state.selectedAgents.count) / 3"
                         ) {
                             VStack(spacing: 0) {
@@ -86,7 +86,7 @@ struct ReviewWindowContentView: View {
                             .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 10))
                             .overlay { RoundedRectangle(cornerRadius: 10).stroke(LineyTheme.border) }
 
-                            Text("至少选择 2 个。各 Agent 独立运行，结果按代码位置聚合。")
+                            Text("Select at least 2. Each agent runs independently; findings are merged by code location.")
                                 .font(.system(size: 11))
                                 .foregroundStyle(LineyTheme.mutedText)
                         }
@@ -114,7 +114,7 @@ struct ReviewWindowContentView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("New Review")
                     .font(.system(size: 20, weight: .semibold))
-                Text("多个 Agent 独立审查同一份代码变更")
+                Text("Run independent reviews of the same code changes")
                     .font(.system(size: 11))
                     .foregroundStyle(LineyTheme.mutedText)
             }
@@ -136,7 +136,7 @@ struct ReviewWindowContentView: View {
             VStack(alignment: .leading, spacing: 24) {
                 workflowSection(
                     number: "03",
-                    title: "评审重点",
+                    title: "Review Focus",
                     caption: "\(state.selectedFocus.count) selected"
                 ) {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
@@ -146,7 +146,7 @@ struct ReviewWindowContentView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 7) {
-                        Text("补充要求")
+                        Text("Additional Instructions")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(LineyTheme.secondaryText)
                         TextEditor(text: $state.additionalInstructions)
@@ -162,10 +162,10 @@ struct ReviewWindowContentView: View {
                 Divider().overlay(LineyTheme.border)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("本次 Review")
+                    Text("Review Summary")
                         .font(.system(size: 12, weight: .semibold))
-                    summaryRow("范围", state.targetMode == 0 ? "当前修改" : "\(state.baseBranch) → \(state.targetBranch)")
-                    summaryRow("上下文", "整个仓库")
+                    summaryRow("Scope", state.targetMode == 0 ? "Current Changes" : "\(state.baseBranch) → \(state.targetBranch)")
+                    summaryRow("Context", "Entire Repository")
                     summaryRow("Reviewer", state.selectedAgents.map(\.displayName).sorted().joined(separator: " · "))
                 }
 
@@ -202,8 +202,8 @@ struct ReviewWindowContentView: View {
             pageHeader(
                 title: "Review Results",
                 subtitle: state.isRunning
-                    ? "Reviewer 正在并行检查仓库与 Diff。"
-                    : "结果按问题归并；不会触发模型之间的后续讨论。"
+                    ? "Reviewers are inspecting the repository and diff in parallel."
+                    : "Findings are merged by issue; no follow-up discussion is triggered."
             )
             .padding(22)
 
@@ -484,6 +484,6 @@ struct ReviewWindowContentView: View {
         let failures = state.results.compactMap { result in
             result.errorMessage.map { "\(result.agent.displayName): \($0)" }
         }
-        return failures.isEmpty ? "Reviewer 没有发现需要处理的问题。" : failures.joined(separator: "\n")
+        return failures.isEmpty ? "The reviewers found no actionable issues." : failures.joined(separator: "\n")
     }
 }

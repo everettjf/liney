@@ -46,14 +46,14 @@ nonisolated enum ReviewFocus: String, CaseIterable, Codable, Hashable, Identifia
 
     var displayName: String {
         switch self {
-        case .stability: return "稳定性"
-        case .reliability: return "可靠性与边界条件"
-        case .businessLogic: return "业务功能逻辑"
-        case .performance: return "性能"
-        case .security: return "安全与隐私"
-        case .concurrency: return "并发与生命周期"
-        case .compatibility: return "兼容性与 API"
-        case .testing: return "测试与可观测性"
+        case .stability: return "Stability"
+        case .reliability: return "Reliability"
+        case .businessLogic: return "Business Logic"
+        case .performance: return "Performance"
+        case .security: return "Security & Privacy"
+        case .concurrency: return "Concurrency"
+        case .compatibility: return "API Compatibility"
+        case .testing: return "Test Coverage"
         }
     }
 
