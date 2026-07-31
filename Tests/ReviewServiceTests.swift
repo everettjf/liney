@@ -69,6 +69,68 @@ final class ReviewServiceTests: XCTestCase {
         let kimi = ReviewService.invocation(for: .kimi, prompt: "review", repositoryPath: "/repo")
         XCTAssertTrue(kimi.arguments.contains("--quiet"))
         XCTAssertTrue(kimi.arguments.contains("-p"))
+
+        let gemini = ReviewService.invocation(for: .gemini, prompt: "review", repositoryPath: "/repo")
+        XCTAssertTrue(gemini.arguments.contains("plan"))
+        XCTAssertTrue(gemini.arguments.contains("json"))
+
+        let opencode = ReviewService.invocation(for: .opencode, prompt: "review", repositoryPath: "/repo")
+        XCTAssertTrue(opencode.arguments.contains("run"))
+        XCTAssertTrue(opencode.arguments.contains("/repo"))
+        XCTAssertTrue(opencode.arguments.contains("json"))
+
+        let qwen = ReviewService.invocation(for: .qwenCode, prompt: "review", repositoryPath: "/repo")
+        XCTAssertTrue(qwen.arguments.contains("plan"))
+        XCTAssertTrue(qwen.arguments.contains("10m"))
+
+        let cursor = ReviewService.invocation(for: .cursorAgent, prompt: "review", repositoryPath: "/repo")
+        XCTAssertTrue(cursor.arguments.contains("-p"))
+        XCTAssertTrue(cursor.arguments.contains("json"))
+
+        let copilot = ReviewService.invocation(for: .githubCopilot, prompt: "review", repositoryPath: "/repo")
+        XCTAssertTrue(copilot.arguments.contains("--no-ask-user"))
+        XCTAssertTrue(copilot.arguments.contains("--deny-tool=write"))
+        XCTAssertTrue(copilot.arguments.contains("--disable-builtin-mcps"))
+    }
+
+    func testFinalOutputUnwrapsSupportedCLIEnvelopes() {
+        XCTAssertEqual(
+            ReviewService.finalOutput(from: #"{"response":"gemini-result"}"#, agent: .gemini),
+            "gemini-result"
+        )
+        XCTAssertEqual(
+            ReviewService.finalOutput(from: #"{"result":"cursor-result"}"#, agent: .cursorAgent),
+            "cursor-result"
+        )
+        XCTAssertEqual(
+            ReviewService.finalOutput(
+                from: #"[{"type":"system"},{"type":"result","result":"qwen-result"}]"#,
+                agent: .qwenCode
+            ),
+            "qwen-result"
+        )
+        XCTAssertEqual(
+            ReviewService.finalOutput(
+                from: #"{"part":{"type":"text","text":"opencode-result"}}"#,
+                agent: .opencode
+            ),
+            "opencode-result"
+        )
+    }
+
+    func testOpenCodeEnvironmentDeniesWritesAndLimitsShell() {
+        let environment = ReviewService.environment(for: .opencode, base: ["PATH": "/bin"])
+        let permissions = environment?["OPENCODE_PERMISSION"] ?? ""
+
+        XCTAssertEqual(environment?["PATH"], "/bin")
+        XCTAssertTrue(permissions.contains(#""edit":"deny""#))
+        XCTAssertTrue(permissions.contains(#""*":"deny""#))
+        XCTAssertTrue(permissions.contains("git diff*"))
+    }
+
+    func testDefaultAgentsRemainThreeAfterAddingProviders() {
+        XCTAssertEqual(ReviewAgent.defaults, [.claudeCode, .codex, .kimi])
+        XCTAssertEqual(ReviewAgent.allCases.count, 8)
     }
 
     func testPromptLimitsFindingsToSelectedDiff() {

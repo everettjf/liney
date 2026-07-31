@@ -72,7 +72,7 @@ nonisolated struct ReviewService: Sendable {
                 executable: invocation.executable,
                 arguments: invocation.arguments,
                 currentDirectory: repositoryPath,
-                environment: environment,
+                environment: Self.environment(for: agent, base: environment),
                 timeout: timeout
             )
             guard result.exitCode == 0 else {
@@ -111,7 +111,7 @@ nonisolated struct ReviewService: Sendable {
                 executable: invocation.executable,
                 arguments: invocation.arguments,
                 currentDirectory: repositoryPath,
-                environment: environment,
+                environment: Self.environment(for: agent, base: environment),
                 timeout: timeout
             )
             guard result.exitCode == 0 else {
@@ -219,17 +219,82 @@ nonisolated struct ReviewService: Sendable {
                 "/usr/bin/env",
                 ["kimi", "--quiet", "-p", prompt]
             )
+        case .gemini:
+            return (
+                "/usr/bin/env",
+                ["gemini", "-p", prompt, "--output-format", "json", "--approval-mode", "plan"]
+            )
+        case .opencode:
+            return (
+                "/usr/bin/env",
+                ["opencode", "run", "--dir", repositoryPath, "--format", "json", prompt]
+            )
+        case .qwenCode:
+            return (
+                "/usr/bin/env",
+                [
+                    "qwen", "-p", prompt, "--output-format", "json",
+                    "--approval-mode", "plan", "--max-wall-time", "10m",
+                ]
+            )
+        case .cursorAgent:
+            return (
+                "/usr/bin/env",
+                ["cursor-agent", "-p", prompt, "--output-format", "json"]
+            )
+        case .githubCopilot:
+            return (
+                "/usr/bin/env",
+                [
+                    "copilot", "-p", prompt, "-s", "--no-ask-user",
+                    "--allow-tool=read", "--allow-tool=grep", "--allow-tool=glob",
+                    "--allow-tool=shell(git status)", "--allow-tool=shell(git diff:*)",
+                    "--allow-tool=shell(git log:*)", "--deny-tool=write",
+                    "--disable-builtin-mcps",
+                ]
+            )
         }
     }
 
     static func finalOutput(from stdout: String, agent: ReviewAgent) -> String {
-        guard agent == .claudeCode,
-              let data = stdout.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let result = object["result"] as? String else {
+        guard let data = stdout.data(using: .utf8) else { return stdout }
+
+        switch agent {
+        case .claudeCode:
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            return object?["result"] as? String ?? stdout
+        case .gemini:
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            return object?["response"] as? String ?? stdout
+        case .qwenCode:
+            guard let messages = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return stdout
+            }
+            return messages.reversed().compactMap { $0["result"] as? String }.first ?? stdout
+        case .cursorAgent:
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            return object?["result"] as? String ?? stdout
+        case .opencode:
+            let texts = stdout.split(separator: "\n").compactMap { line -> String? in
+                guard let lineData = String(line).data(using: .utf8),
+                      let event = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                      let part = event["part"] as? [String: Any],
+                      part["type"] as? String == "text" else { return nil }
+                return part["text"] as? String
+            }
+            return texts.last ?? stdout
+        case .codex, .kimi, .githubCopilot:
             return stdout
         }
-        return result
+    }
+
+    static func environment(for agent: ReviewAgent, base: [String: String]?) -> [String: String]? {
+        guard agent == .opencode else { return base }
+        var environment = base ?? ProcessInfo.processInfo.environment
+        environment["OPENCODE_PERMISSION"] = """
+        {"edit":"deny","webfetch":"deny","websearch":"deny","bash":{"*":"deny","git status*":"allow","git diff*":"allow","git log*":"allow"}}
+        """
+        return environment
     }
 }
 

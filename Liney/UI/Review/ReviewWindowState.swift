@@ -9,7 +9,7 @@ final class ReviewWindowState: ObservableObject {
     @Published var baseBranch = "main"
     @Published var targetBranch = "HEAD"
     @Published var availableBranches: [String] = []
-    @Published var selectedAgents: Set<ReviewAgent> = Set(ReviewAgent.allCases)
+    @Published var selectedAgents: Set<ReviewAgent> = ReviewAgent.defaults
     @Published var agentAvailability: [ReviewAgent: Bool?] = [:]
     @Published var selectedFocus: Set<ReviewFocus> = ReviewFocus.defaults
     @Published var additionalInstructions = ""
@@ -48,7 +48,7 @@ final class ReviewWindowState: ObservableObject {
         self.repositoryPath = repositoryPath
         self.repositoryName = repositoryName
         targetMode = 0
-        selectedAgents = Set(ReviewAgent.allCases)
+        selectedAgents = ReviewAgent.defaults
         agentAvailability = Dictionary(uniqueKeysWithValues: ReviewAgent.allCases.map { ($0, nil) })
         selectedFocus = ReviewFocus.defaults
         additionalInstructions = ""
@@ -72,6 +72,10 @@ final class ReviewWindowState: ObservableObject {
             }
             selectedAgents.remove(agent)
         } else {
+            guard selectedAgents.count < 3 else {
+                validationMessage = "Select no more than three reviewers."
+                return
+            }
             guard agentAvailability[agent] != false else {
                 validationMessage = "\(agent.displayName) CLI is unavailable. Install it and sign in first."
                 return

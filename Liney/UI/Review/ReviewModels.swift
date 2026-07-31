@@ -4,6 +4,11 @@ nonisolated enum ReviewAgent: String, CaseIterable, Codable, Hashable, Identifia
     case claudeCode
     case codex
     case kimi
+    case gemini
+    case opencode
+    case qwenCode
+    case cursorAgent
+    case githubCopilot
 
     var id: String { rawValue }
 
@@ -12,6 +17,11 @@ nonisolated enum ReviewAgent: String, CaseIterable, Codable, Hashable, Identifia
         case .claudeCode: return "Claude Code"
         case .codex: return "Codex"
         case .kimi: return "Kimi"
+        case .gemini: return "Gemini CLI"
+        case .opencode: return "OpenCode"
+        case .qwenCode: return "Qwen Code"
+        case .cursorAgent: return "Cursor Agent"
+        case .githubCopilot: return "GitHub Copilot"
         }
     }
 
@@ -20,6 +30,11 @@ nonisolated enum ReviewAgent: String, CaseIterable, Codable, Hashable, Identifia
         case .claudeCode: return "claude"
         case .codex: return "codex"
         case .kimi: return "kimi"
+        case .gemini: return "gemini"
+        case .opencode: return "opencode"
+        case .qwenCode: return "qwen"
+        case .cursorAgent: return "cursor-agent"
+        case .githubCopilot: return "copilot"
         }
     }
 
@@ -28,8 +43,15 @@ nonisolated enum ReviewAgent: String, CaseIterable, Codable, Hashable, Identifia
         case .claudeCode: return "c.circle.fill"
         case .codex: return "o.circle.fill"
         case .kimi: return "k.circle.fill"
+        case .gemini: return "g.circle.fill"
+        case .opencode: return "terminal.fill"
+        case .qwenCode: return "q.circle.fill"
+        case .cursorAgent: return "cursorarrow.rays"
+        case .githubCopilot: return "chevron.left.forwardslash.chevron.right"
         }
     }
+
+    static let defaults: Set<ReviewAgent> = [.claudeCode, .codex, .kimi]
 }
 
 nonisolated enum ReviewFocus: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
