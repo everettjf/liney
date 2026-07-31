@@ -62,23 +62,27 @@ actor ShellCommandRunner {
         let commandDescription = ([executable] + arguments).joined(separator: " ")
         let processHandle = ProcessHandle()
         do {
-            return try await withThrowingTaskGroup(of: ShellCommandResult.self) { group in
-                group.addTask {
-                    try await self.run(
-                        executable: executable,
-                        arguments: arguments,
-                        currentDirectory: currentDirectory,
-                        environment: environment,
-                        processHandle: processHandle
-                    )
+            return try await withTaskCancellationHandler {
+                try await withThrowingTaskGroup(of: ShellCommandResult.self) { group in
+                    group.addTask {
+                        try await self.run(
+                            executable: executable,
+                            arguments: arguments,
+                            currentDirectory: currentDirectory,
+                            environment: environment,
+                            processHandle: processHandle
+                        )
+                    }
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                        throw ShellCommandError.timedOut(timeout)
+                    }
+                    let result = try await group.next()!
+                    group.cancelAll()
+                    return result
                 }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                    throw ShellCommandError.timedOut(timeout)
-                }
-                let result = try await group.next()!
-                group.cancelAll()
-                return result
+            } onCancel: {
+                processHandle.terminate()
             }
         } catch let error as ShellCommandError where error.isTimeout {
             // Terminate the orphaned child process so it doesn't linger.

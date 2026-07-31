@@ -413,6 +413,17 @@ struct MainWindowView: View {
                 .help(localized("menu.view.openDiff"))
 
                 Button {
+                    openReviewWindow()
+                } label: {
+                    Image(systemName: "checkmark.bubble")
+                        .padding(4 * uiScale)
+                }
+                .scaleEffect(uiScale)
+                .disabled(!selectedWorkspaceSupportsGit)
+                .accessibilityLabel("Review")
+                .help("Open multi-agent Review")
+
+                Button {
                     openHistoryWindow()
                 } label: {
                     Image(systemName: "clock.arrow.circlepath")
@@ -585,6 +596,11 @@ struct MainWindowView: View {
                     Button(localized("menu.view.openDiff")) {
                         openDiffWindow()
                     }
+
+                    Button("Open Review") {
+                        openReviewWindow()
+                    }
+                    .disabled(!selectedWorkspaceSupportsGit)
 
                     Button(localized("menu.view.openHistory")) {
                         openHistoryWindow()
@@ -760,6 +776,15 @@ struct MainWindowView: View {
             worktreePath: supportsDiff ? workspace?.activeWorktreePath : nil,
             branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
             emptyStateMessage: diffEmptyStateMessage(for: workspace, supportsDiff: supportsDiff)
+        )
+    }
+
+    private func openReviewWindow() {
+        let workspace = store.selectedWorkspace
+        let supportsReview = workspace?.supportsRepositoryFeatures == true
+        ReviewWindowManager.shared.show(
+            repositoryPath: supportsReview ? workspace?.activeWorktreePath : nil,
+            repositoryName: workspace?.name ?? ""
         )
     }
 
