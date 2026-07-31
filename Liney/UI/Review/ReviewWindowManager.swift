@@ -32,10 +32,10 @@ final class ReviewWindowManager: NSObject, NSWindowDelegate {
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.toolbarStyle = .unifiedCompact
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 900, height: 620)
+        window.minSize = NSSize(width: 920, height: 640)
         window.setFrameAutosaveName("LineyReviewWindow")
         if UserDefaults.standard.string(forKey: "NSWindow Frame LineyReviewWindow") == nil {
-            window.setContentSize(NSSize(width: 1120, height: 760))
+            window.setContentSize(NSSize(width: 1040, height: 720))
             window.center()
         }
         window.delegate = self
