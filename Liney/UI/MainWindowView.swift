@@ -402,36 +402,27 @@ struct MainWindowView: View {
                 .accessibilityLabel(localized("main.canvas.title"))
                 .help(isCanvasPresented ? localized("main.canvas.hide") : localized("main.canvas.show"))
 
-                Button {
-                    openDiffWindow()
+                Menu {
+                    Button(localized("menu.view.openDiff"), systemImage: "doc.text.magnifyingglass") {
+                        openDiffWindow()
+                    }
+
+                    Button("Review", systemImage: "checkmark.bubble") {
+                        openReviewWindow()
+                    }
+                    .disabled(!selectedWorkspaceSupportsGit)
+
+                    Button(localized("menu.view.openHistory"), systemImage: "clock.arrow.circlepath") {
+                        openHistoryWindow()
+                    }
                 } label: {
                     Image(systemName: "doc.text.magnifyingglass")
                         .padding(4 * uiScale)
                 }
+                .menuIndicator(.hidden)
                 .scaleEffect(uiScale)
-                .accessibilityLabel(localized("menu.view.openDiff"))
-                .help(localized("menu.view.openDiff"))
-
-                Button {
-                    openReviewWindow()
-                } label: {
-                    Image(systemName: "checkmark.bubble")
-                        .padding(4 * uiScale)
-                }
-                .scaleEffect(uiScale)
-                .disabled(!selectedWorkspaceSupportsGit)
-                .accessibilityLabel("Review")
-                .help("Open multi-agent Review")
-
-                Button {
-                    openHistoryWindow()
-                } label: {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .padding(4 * uiScale)
-                }
-                .scaleEffect(uiScale)
-                .accessibilityLabel(localized("menu.view.openHistory"))
-                .help(localized("menu.view.openHistory"))
+                .accessibilityLabel(localized("main.toolbar.repositoryTools"))
+                .help(localized("main.toolbar.repositoryTools"))
 
                 Button {
                     store.dispatch(.toggleCommandPalette)
@@ -443,29 +434,25 @@ struct MainWindowView: View {
                 .accessibilityLabel(localized("menu.view.commandPalette"))
                 .help(localized("menu.view.commandPalette"))
 
-                Button {
-                    guard let workspace = store.selectedWorkspace else { return }
-                    store.splitFocusedPane(in: workspace, axis: .vertical)
-                } label: {
-                    Image(systemName: "rectangle.split.2x1.fill")
-                        .padding(4 * uiScale)
-                }
-                .scaleEffect(uiScale)
-                .disabled(!hasFocusedPane)
-                .accessibilityLabel(localized("menu.file.splitRight"))
-                .help(localized("menu.file.splitRight"))
+                Menu {
+                    Button(localized("menu.file.splitRight"), systemImage: "rectangle.split.2x1.fill") {
+                        guard let workspace = store.selectedWorkspace else { return }
+                        store.splitFocusedPane(in: workspace, axis: .vertical)
+                    }
 
-                Button {
-                    guard let workspace = store.selectedWorkspace else { return }
-                    store.splitFocusedPane(in: workspace, axis: .horizontal)
+                    Button(localized("menu.file.splitDown"), systemImage: "rectangle.split.1x2.fill") {
+                        guard let workspace = store.selectedWorkspace else { return }
+                        store.splitFocusedPane(in: workspace, axis: .horizontal)
+                    }
                 } label: {
-                    Image(systemName: "rectangle.split.1x2.fill")
+                    Image(systemName: "rectangle.split.2x1")
                         .padding(4 * uiScale)
                 }
+                .menuIndicator(.hidden)
                 .scaleEffect(uiScale)
                 .disabled(!hasFocusedPane)
-                .accessibilityLabel(localized("menu.file.splitDown"))
-                .help(localized("menu.file.splitDown"))
+                .accessibilityLabel(localized("main.toolbar.splitPane"))
+                .help(localized("main.toolbar.splitPane"))
 
                 Button {
                     guard let workspace = store.selectedWorkspace else { return }
@@ -489,18 +476,6 @@ struct MainWindowView: View {
                 .disabled(!hasSelectedWorkspace)
                 .accessibilityLabel(localized("main.toolbar.toggleFileTree"))
                 .help(localized("main.toolbar.toggleFileTree"))
-
-                Menu {
-                    webPreviewMenuContent
-                } label: {
-                    Image(systemName: "globe")
-                        .padding(4 * uiScale)
-                }
-                .menuIndicator(.hidden)
-                .scaleEffect(uiScale)
-                .disabled(!hasSelectedWorkspace)
-                .accessibilityLabel(localized("main.toolbar.webPreview"))
-                .help(localized("main.toolbar.webPreview"))
 
                 Menu {
                     Button(localized("main.menu.restartFocusedSession")) {
@@ -557,6 +532,11 @@ struct MainWindowView: View {
 
                     Button(store.selectedWorkspace?.isFileTreePresented == true ? localized("main.toolbar.hideFileTree") : localized("main.toolbar.toggleFileTree")) {
                         store.selectedWorkspace?.toggleFileTree()
+                    }
+                    .disabled(!hasSelectedWorkspace)
+
+                    Menu(localized("main.toolbar.webPreview")) {
+                        webPreviewMenuContent
                     }
                     .disabled(!hasSelectedWorkspace)
 
