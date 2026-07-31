@@ -1,5 +1,11 @@
 import Foundation
 
+nonisolated enum ReviewRepositoryDisplayName {
+    static func resolve(_ name: String) -> String {
+        name.caseInsensitiveCompare("Liney") == .orderedSame ? "Liney" : name
+    }
+}
+
 nonisolated enum ReviewAgent: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case claudeCode
     case codex

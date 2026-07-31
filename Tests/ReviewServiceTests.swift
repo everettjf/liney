@@ -2,6 +2,12 @@ import XCTest
 @testable import Liney
 
 final class ReviewServiceTests: XCTestCase {
+    func testLineyRepositoryDisplayNameUsesBrandCapitalization() {
+        XCTAssertEqual(ReviewRepositoryDisplayName.resolve("liney"), "Liney")
+        XCTAssertEqual(ReviewRepositoryDisplayName.resolve("LINEY"), "Liney")
+        XCTAssertEqual(ReviewRepositoryDisplayName.resolve("another-repository"), "another-repository")
+    }
+
     func testParserAcceptsJSONAndAttachesReviewer() throws {
         let output = """
         {"findings":[{"title":"Session leak","body":"The child process remains alive.","severity":"high","file":"Liney/Foo.swift","line":42,"category":"reliability"}]}

@@ -11,7 +11,8 @@ final class ReviewWindowManager: NSObject, NSWindowDelegate {
     private override init() {}
 
     func show(repositoryPath: String?, repositoryName: String) {
-        state.load(repositoryPath: repositoryPath, repositoryName: repositoryName)
+        let displayName = ReviewRepositoryDisplayName.resolve(repositoryName)
+        state.load(repositoryPath: repositoryPath, repositoryName: displayName)
 
         if let window {
             if window.isMiniaturized {
@@ -27,7 +28,7 @@ final class ReviewWindowManager: NSObject, NSWindowDelegate {
         hostingController.sizingOptions = []
 
         let window = NSWindow(contentViewController: hostingController)
-        window.title = repositoryName.isEmpty ? "Review" : "Review — \(repositoryName)"
+        window.title = displayName.isEmpty ? "Review" : "Review — \(displayName)"
         window.identifier = NSUserInterfaceItemIdentifier("liney.review")
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.toolbarStyle = .unifiedCompact
