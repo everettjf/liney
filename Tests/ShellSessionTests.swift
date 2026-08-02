@@ -398,6 +398,38 @@ final class ShellSessionTests: XCTestCase {
         }
     }
 
+    func testCopySelectionAvailabilityTracksSurfaceSelection() async {
+        await MainActor.run {
+            let surface = FakeManagedTerminalSurfaceController()
+            let session = ShellSession(
+                snapshot: PaneSnapshot.makeDefault(cwd: "/tmp/liney-shell-session-copy-selection"),
+                surfaceController: surface
+            )
+
+            XCTAssertFalse(session.canCopySelection)
+
+            surface.selectedTextValue = ""
+            XCTAssertFalse(session.canCopySelection)
+
+            surface.selectedTextValue = "selected terminal text"
+            XCTAssertTrue(session.canCopySelection)
+        }
+    }
+
+    func testCopySelectionDelegatesToSurfaceController() async {
+        await MainActor.run {
+            let surface = FakeManagedTerminalSurfaceController()
+            let session = ShellSession(
+                snapshot: PaneSnapshot.makeDefault(cwd: "/tmp/liney-shell-session-copy-action"),
+                surfaceController: surface
+            )
+
+            session.copySelection()
+
+            XCTAssertEqual(surface.copySelectionCallCount, 1)
+        }
+    }
+
     func testSnapshotPromotesLocalTmuxSessionToRestorableLaunch() async {
         await MainActor.run {
             let surface = FakeManagedTerminalSurfaceController()
@@ -530,6 +562,8 @@ private final class FakeManagedTerminalSurfaceController: ManagedTerminalSession
     private(set) var terminateCallCount = 0
     private(set) var sentTexts: [String] = []
     private(set) var sendReturnCallCount = 0
+    private(set) var copySelectionCallCount = 0
+    var selectedTextValue: String?
 
     func updateLaunchConfiguration(_ configuration: TerminalLaunchConfiguration) {}
 
@@ -564,7 +598,10 @@ private final class FakeManagedTerminalSurfaceController: ManagedTerminalSession
     func searchNext() {}
     func searchPrevious() {}
     func endSearch() {}
-    func selectedText() -> String? { nil }
+    func selectedText() -> String? { selectedTextValue }
+    func copySelection() {
+        copySelectionCallCount += 1
+    }
     func toggleReadOnly() {}
     func scrollByLines(_ delta: Int) {}
     func resetTerminal() {}

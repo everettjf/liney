@@ -135,6 +135,12 @@ struct TerminalPaneView: View {
         .background(paneFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .shadow(color: Color.black.opacity(isFocused ? 0.12 : 0.05), radius: isFocused ? 5 : 2, y: 2)
         .contextMenu {
+            Button(localized("menu.edit.copy")) {
+                workspace.focusPane(paneID)
+                session.copySelection()
+            }
+            .disabled(!session.canCopySelection)
+            Divider()
             Button(localized("terminal.menu.splitRight")) {
                 workspace.focusPane(paneID)
                 store.splitFocusedPane(in: workspace, axis: .vertical)

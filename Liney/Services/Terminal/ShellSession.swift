@@ -306,6 +306,15 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.selectedText()
     }
 
+    var canCopySelection: Bool {
+        guard let selectedText = surfaceController.selectedText() else { return false }
+        return !selectedText.isEmpty
+    }
+
+    func copySelection() {
+        surfaceController.copySelection()
+    }
+
     /// Rendered terminal text for this pane. `scrollback == false` is the
     /// visible viewport; `true` includes history. Returns nil for backends
     /// that can't expose buffer text.

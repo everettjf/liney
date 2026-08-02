@@ -48,12 +48,20 @@ protocol TerminalSurfaceController: AnyObject {
     func searchPrevious()
     func endSearch()
     func selectedText() -> String?
+    func copySelection()
     func toggleReadOnly()
     func scrollByLines(_ delta: Int)
     func resetTerminal()
 }
 
 extension TerminalSurfaceController {
+    /// Sends the standard Copy responder action directly to the terminal view.
+    /// The concrete surface remains responsible for reading its selection and
+    /// writing the appropriate pasteboard representation.
+    func copySelection() {
+        _ = view.tryToPerform(#selector(NSText.copy(_:)), with: nil)
+    }
+
     /// Reads the rendered terminal text. `scrollback == false` returns the
     /// current viewport; `true` returns the full screen including scrollback.
     /// Default is `nil` for backends that can't expose buffer text (e.g. the
