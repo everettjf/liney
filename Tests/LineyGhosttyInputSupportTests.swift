@@ -15,6 +15,22 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
     private let returnKeyCode = UInt16(kVK_Return)
     private let keypadEnterKeyCode = UInt16(kVK_ANSI_KeypadEnter)
 
+    func testUnhandledRightMouseDownIsForwardedToAppKit() {
+        XCTAssertTrue(
+            LineyGhosttyMouseRouting.shouldForwardRightMouseDownToAppKit(
+                ghosttyHandled: false
+            )
+        )
+    }
+
+    func testHandledRightMouseDownRemainsWithGhostty() {
+        XCTAssertFalse(
+            LineyGhosttyMouseRouting.shouldForwardRightMouseDownToAppKit(
+                ghosttyHandled: true
+            )
+        )
+    }
+
     func testShiftReturnUsesTextInputRouting() {
         XCTAssertFalse(
             LineyGhosttyTextInputRouting.shouldPreferRawKeyEvent(

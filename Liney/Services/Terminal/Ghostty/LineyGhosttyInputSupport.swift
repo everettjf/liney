@@ -9,6 +9,12 @@ import AppKit
 import Carbon
 import GhosttyKit
 
+enum LineyGhosttyMouseRouting {
+    static func shouldForwardRightMouseDownToAppKit(ghosttyHandled: Bool) -> Bool {
+        !ghosttyHandled
+    }
+}
+
 enum LineyGhosttyTextInputRouting {
     private static let optionNavigationKeyCodes: Set<UInt16> = [
         UInt16(kVK_LeftArrow),
