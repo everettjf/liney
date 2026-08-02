@@ -844,8 +844,20 @@ private final class LineyGhosttySurfaceView: NSView {
     }
 
     override func rightMouseDown(with event: NSEvent) {
-        guard let surface else { return }
-        _ = ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_RIGHT, ghosttyMods(event.modifierFlags))
+        guard let surface else {
+            super.rightMouseDown(with: event)
+            return
+        }
+
+        let handled = ghostty_surface_mouse_button(
+            surface,
+            GHOSTTY_MOUSE_PRESS,
+            GHOSTTY_MOUSE_RIGHT,
+            ghosttyMods(event.modifierFlags)
+        )
+        if LineyGhosttyMouseRouting.shouldForwardRightMouseDownToAppKit(ghosttyHandled: handled) {
+            super.rightMouseDown(with: event)
+        }
     }
 
     override func rightMouseUp(with event: NSEvent) {
