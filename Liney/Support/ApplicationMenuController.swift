@@ -188,6 +188,14 @@ final class ApplicationMenuController: NSObject {
 
         let helpMenu = NSMenu(title: localized("menu.help"))
         helpMenuItem.submenu = helpMenu
+        let diagnosticsItem = addItem(
+            title: localized("menu.help.terminalDiagnostics"),
+            action: #selector(AppDelegate.showTerminalDiagnostics(_:)),
+            keyEquivalent: "",
+            to: helpMenu
+        )
+        diagnosticsItem.target = target
+        helpMenu.addItem(.separator())
         addItem(title: localized("menu.help.visitWebsite"), action: #selector(openWebsite(_:)), keyEquivalent: "", to: helpMenu)
         addItem(title: localized("menu.help.starSourceCode"), action: #selector(openRepository(_:)), keyEquivalent: "", to: helpMenu)
         addItem(title: localized("menu.help.submitFeedback"), action: #selector(submitFeedback(_:)), keyEquivalent: "", to: helpMenu)

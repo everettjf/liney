@@ -532,6 +532,7 @@ private final class LineyGhosttySurfaceView: NSView {
     private var currentTextInputEventKeyCode: UInt16?
     private var currentTextInputHadMarkedText = false
     private var lastMetricsSignature: LineyGhosttySurfaceMetricsSignature?
+    private let diagnosticsID = String(UUID().uuidString.prefix(8))
     private let imeDebugLogger = LineyGhosttyIMEDebugLogger.shared
 
     override var acceptsFirstResponder: Bool { true }
@@ -592,6 +593,7 @@ private final class LineyGhosttySurfaceView: NSView {
 
     func destroySurface() {
         guard let surface else { return }
+        TerminalDiagnostics.shared.record("surface=\(diagnosticsID) event=destroy")
         self.surface = nil
         if let surfaceUserdataToken {
             LineyGhosttyControllerRegistry.shared.unregister(surfaceUserdataToken)
@@ -659,37 +661,37 @@ private final class LineyGhosttySurfaceView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateWindowObservers()
-        syncSurfaceMetrics()
+        syncSurfaceMetrics(reason: "viewDidMoveToWindow")
     }
 
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
-        syncSurfaceMetrics()
+        syncSurfaceMetrics(reason: "viewDidChangeBackingProperties")
     }
 
     override func layout() {
         super.layout()
-        syncSurfaceMetrics()
+        syncSurfaceMetrics(reason: "layout")
     }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        syncSurfaceMetrics()
+        syncSurfaceMetrics(reason: "setFrameSize")
     }
 
     override func setBoundsSize(_ newSize: NSSize) {
         super.setBoundsSize(newSize)
-        syncSurfaceMetrics()
+        syncSurfaceMetrics(reason: "setBoundsSize")
     }
 
     override func updateLayer() {
         super.updateLayer()
-        syncSurfaceMetrics()
+        syncSurfaceMetrics(reason: "updateLayer")
     }
 
     override func viewDidMoveToSuperview() {
         super.viewDidMoveToSuperview()
-        syncSurfaceMetrics()
+        syncSurfaceMetrics(reason: "viewDidMoveToSuperview")
     }
 
     override func resetCursorRects() {
@@ -720,7 +722,7 @@ private final class LineyGhosttySurfaceView: NSView {
         NSCursor.arrow.set()
     }
 
-    func syncSurfaceMetrics() {
+    func syncSurfaceMetrics(reason: String = "explicit") {
         guard let surface else { return }
 
         let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
@@ -754,12 +756,26 @@ private final class LineyGhosttySurfaceView: NSView {
             scale: scale,
             displayID: displayID
         )
-        if lineyGhosttyShouldRefreshSurface(after: lastMetricsSignature, next: nextSignature) {
+        let shouldRefresh = lineyGhosttyShouldRefreshSurface(after: lastMetricsSignature, next: nextSignature)
+        if shouldRefresh {
             ghostty_surface_refresh(surface)
         }
-        lastMetricsSignature = nextSignature
 
         let size = ghostty_surface_size(surface)
+        if shouldRefresh {
+            let pointWidth = String(format: "%.2f", bounds.width)
+            let pointHeight = String(format: "%.2f", bounds.height)
+            let previousDescription = lastMetricsSignature.map {
+                "\($0.width)x\($0.height)@\($0.scale)/display=\($0.displayID.map(String.init) ?? "nil")"
+            } ?? "nil"
+            TerminalDiagnostics.shared.record(
+                "surface=\(diagnosticsID) event=metrics reason=\(reason) " +
+                "points=\(pointWidth)x\(pointHeight) previous=\(previousDescription) " +
+                "next=\(width)x\(height)@\(scale)/display=\(displayID.map(String.init) ?? "nil") " +
+                "pty=\(size.columns)x\(size.rows) refreshed=true"
+            )
+        }
+        lastMetricsSignature = nextSignature
         controller?.handleSurfaceResize(cols: Int(size.columns), rows: Int(size.rows))
     }
 
@@ -1320,6 +1336,7 @@ private final class LineyGhosttySurfaceView: NSView {
         }
         self.surface = surface
         self.surfaceUserdataToken = surfaceUserdataToken
+        TerminalDiagnostics.shared.record("surface=\(diagnosticsID) event=create")
         applyBackingLayerBackground()
         ghostty_surface_set_focus(surface, workspaceFocused)
         syncSurfaceMetrics()
