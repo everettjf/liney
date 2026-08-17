@@ -80,7 +80,9 @@ xcodebuild \
 
 CI also maintains an older-system regression matrix:
 
-- macOS 14 with Xcode 16.2 builds the app at its supported deployment target.
+- Xcode 26.3 builds an arm64 + x86_64 app at the macOS 14.6 deployment target.
+- A macOS 14 runner ad-hoc signs that artifact and verifies that the app stays
+  alive through startup.
 - macOS 15 with Xcode 26.3 runs the full unit-test suite and exercises Swift
   concurrency back-deployment behavior.
 
