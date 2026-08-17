@@ -14,7 +14,7 @@ import Foundation
 /// Keyed by pane UUID. Entries for closed panes are never read (session-list
 /// only iterates live panes) so no active eviction is required; `clear(pane:)`
 /// is provided for callers that want to prune on pane close.
-final class AgentStatusStore {
+nonisolated final class AgentStatusStore: @unchecked Sendable {
     static let shared = AgentStatusStore()
 
     struct Entry: Equatable {
