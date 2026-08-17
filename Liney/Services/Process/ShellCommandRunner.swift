@@ -5,6 +5,7 @@
 //  Author: everettjf
 //
 
+import Darwin
 import Foundation
 import os
 
@@ -65,13 +66,17 @@ actor ShellCommandRunner {
             return try await withTaskCancellationHandler {
                 try await withThrowingTaskGroup(of: ShellCommandResult.self) { group in
                     group.addTask {
-                        try await self.run(
-                            executable: executable,
-                            arguments: arguments,
-                            currentDirectory: currentDirectory,
-                            environment: environment,
-                            processHandle: processHandle
-                        )
+                        try await withTaskCancellationHandler {
+                            try await self.run(
+                                executable: executable,
+                                arguments: arguments,
+                                currentDirectory: currentDirectory,
+                                environment: environment,
+                                processHandle: processHandle
+                            )
+                        } onCancel: {
+                            processHandle.terminate()
+                        }
                     }
                     group.addTask {
                         try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
@@ -191,19 +196,38 @@ actor ShellCommandRunner {
 nonisolated private final class ProcessHandle: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?
+    private var terminationRequested = false
 
     func set(_ process: Process) {
         lock.lock()
-        defer { lock.unlock() }
         self.process = process
+        let shouldTerminate = terminationRequested
+        lock.unlock()
+        if shouldTerminate {
+            terminate(process)
+        }
     }
 
     func terminate() {
         lock.lock()
+        terminationRequested = true
         let process = self.process
         lock.unlock()
         guard let process, process.isRunning else { return }
+        terminate(process)
+    }
+
+    private func terminate(_ process: Process) {
         process.terminate()
+
+        // Some tools ignore SIGTERM. Escalate after a short grace period so a
+        // timeout or task cancellation cannot leave the task group waiting for
+        // an uncooperative child forever.
+        let pid = process.processIdentifier
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(250)) {
+            guard process.isRunning else { return }
+            Darwin.kill(pid, SIGKILL)
+        }
     }
 }
 

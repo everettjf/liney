@@ -7,6 +7,64 @@
 
 import AppKit
 import Foundation
+import Security
+
+protocol URLSchemeTokenStoring {
+    func load() -> String?
+    @discardableResult func save(_ token: String) -> Bool
+    func delete()
+}
+
+struct URLSchemeTokenKeychainStore: URLSchemeTokenStoring {
+    static let service = "com.liney.url-scheme"
+    static let account = "command-token"
+
+    func load() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: Self.account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    @discardableResult
+    func save(_ token: String) -> Bool {
+        guard let data = token.data(using: .utf8) else { return false }
+        let identity: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: Self.account,
+        ]
+        let updateStatus = SecItemUpdate(
+            identity as CFDictionary,
+            [kSecValueData as String: data] as CFDictionary
+        )
+        if updateStatus == errSecSuccess { return true }
+        guard updateStatus == errSecItemNotFound else { return false }
+
+        var item = identity
+        item.merge([
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
+        ]) { _, newValue in newValue }
+        return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
+    }
+
+    func delete() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: Self.account,
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
 
 enum LineyURLScheme {
     static let scheme = "liney"
@@ -39,23 +97,47 @@ enum LineyURLScheme {
         UserDefaults.standard.set(value, forKey: skipConfirmationDefaultsKey)
     }
 
-    static func storedToken() -> String? {
-        let value = UserDefaults.standard.string(forKey: tokenDefaultsKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return value?.isEmpty == false ? value : nil
+    static func storedToken(
+        tokenStore: any URLSchemeTokenStoring = URLSchemeTokenKeychainStore(),
+        defaults: UserDefaults = .standard
+    ) -> String? {
+        if let value = normalizedToken(tokenStore.load()) {
+            return value
+        }
+
+        // One-time migration from releases that kept this command-execution
+        // credential in plaintext UserDefaults.
+        guard let legacy = normalizedToken(defaults.string(forKey: tokenDefaultsKey)) else {
+            return nil
+        }
+        guard tokenStore.save(legacy) else { return legacy }
+        defaults.removeObject(forKey: tokenDefaultsKey)
+        return legacy
     }
 
-    static func setStoredToken(_ token: String?) {
-        let trimmed = token?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let trimmed, !trimmed.isEmpty {
-            UserDefaults.standard.set(trimmed, forKey: tokenDefaultsKey)
+    @discardableResult
+    static func setStoredToken(
+        _ token: String?,
+        tokenStore: any URLSchemeTokenStoring = URLSchemeTokenKeychainStore(),
+        defaults: UserDefaults = .standard
+    ) -> Bool {
+        if let trimmed = normalizedToken(token) {
+            guard tokenStore.save(trimmed) else { return false }
+            defaults.removeObject(forKey: tokenDefaultsKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: tokenDefaultsKey)
+            tokenStore.delete()
+            defaults.removeObject(forKey: tokenDefaultsKey)
         }
+        return true
     }
 
     static func generateToken() -> String {
         UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+    }
+
+    private static func normalizedToken(_ token: String?) -> String? {
+        let value = token?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value?.isEmpty == false ? value : nil
     }
 
     /// Parses `liney://run?cmd=...&cwd=...&token=...`.

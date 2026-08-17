@@ -12,28 +12,60 @@ import Foundation
 /// the filesystem. `flushPendingSync` runs from the app-terminate handler to
 /// ensure the latest snapshot is persisted before we exit.
 nonisolated final class WorkspaceStatePersistence: @unchecked Sendable {
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
+    private let stateDirectoryOverride: URL?
     private let saveQueue = DispatchQueue(label: "com.liney.workspace-state.save", qos: .utility)
     private let pendingLock = NSLock()
-    private var pendingState: PersistedWorkspaceState?
+    private var pendingData: Data?
     private var pendingWorkItem: DispatchWorkItem?
     private let saveDebounce: DispatchTimeInterval = .milliseconds(500)
 
-    func load() -> PersistedWorkspaceState {
-        let url = resolvedStateFileURL()
-        guard let data = try? Data(contentsOf: url) else {
-            return PersistedWorkspaceState(selectedWorkspaceID: nil, workspaces: [])
-        }
-        do {
-            return try JSONDecoder().decode(PersistedWorkspaceState.self, from: data)
-        } catch {
-            return PersistedWorkspaceState(selectedWorkspaceID: nil, workspaces: [])
-        }
+    init(fileManager: FileManager = .default, stateDirectoryURL: URL? = nil) {
+        self.fileManager = fileManager
+        self.stateDirectoryOverride = stateDirectoryURL
     }
 
-    func save(_ state: PersistedWorkspaceState, onError: (@Sendable (Error) -> Void)? = nil) {
+    @MainActor func load() -> PersistedWorkspaceState {
+        loadWithRecovery().value
+    }
+
+    @MainActor func loadWithRecovery() -> PersistenceLoadResult<PersistedWorkspaceState> {
+        let url = resolvedStateFileURL()
+        let primaryExists = fileManager.fileExists(atPath: url.path)
+        if primaryExists,
+           let data = try? Data(contentsOf: url),
+           let value = try? JSONDecoder().decode(PersistedWorkspaceState.self, from: data) {
+            return PersistenceLoadResult(value: value, source: .primary)
+        }
+
+        let backupURL = RecoverableJSONPersistence.backupURL(for: url)
+        if let data = try? Data(contentsOf: backupURL),
+           let value = try? JSONDecoder().decode(PersistedWorkspaceState.self, from: data) {
+            return PersistenceLoadResult(value: value, source: .backup)
+        }
+
+        let defaultValue = PersistedWorkspaceState(selectedWorkspaceID: nil, workspaces: [])
+        guard primaryExists else {
+            return PersistenceLoadResult(value: defaultValue, source: .missing)
+        }
+        return PersistenceLoadResult(
+            value: defaultValue,
+            source: .unrecoverable(
+                quarantinedURL: RecoverableJSONPersistence.quarantine(url, fileManager: fileManager)
+            )
+        )
+    }
+
+    @MainActor func save(_ state: PersistedWorkspaceState, onError: (@Sendable (Error) -> Void)? = nil) {
+        let data: Data
+        do {
+            data = try JSONEncoder.prettyPrinted.encode(state)
+        } catch {
+            onError?(error)
+            return
+        }
         pendingLock.lock()
-        pendingState = state
+        pendingData = data
         pendingWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
             self?.drainPendingSave(onError: onError)
@@ -50,8 +82,8 @@ nonisolated final class WorkspaceStatePersistence: @unchecked Sendable {
             pendingLock.lock()
             pendingWorkItem?.cancel()
             pendingWorkItem = nil
-            let toSave = pendingState
-            pendingState = nil
+            let toSave = pendingData
+            pendingData = nil
             pendingLock.unlock()
             guard let toSave else { return }
             try? writeSync(toSave)
@@ -60,8 +92,8 @@ nonisolated final class WorkspaceStatePersistence: @unchecked Sendable {
 
     private func drainPendingSave(onError: (@Sendable (Error) -> Void)?) {
         pendingLock.lock()
-        let toSave = pendingState
-        pendingState = nil
+        let toSave = pendingData
+        pendingData = nil
         pendingWorkItem = nil
         pendingLock.unlock()
         guard let toSave else { return }
@@ -72,18 +104,20 @@ nonisolated final class WorkspaceStatePersistence: @unchecked Sendable {
         }
     }
 
-    private func writeSync(_ state: PersistedWorkspaceState) throws {
-        let directory = stateDirectoryURL()
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        let data = try JSONEncoder.prettyPrinted.encode(state)
-        try data.write(to: stateFileURL(), options: [.atomic])
+    nonisolated private func writeSync(_ data: Data) throws {
+        try RecoverableJSONPersistence.write(
+            data,
+            to: stateFileURL(),
+            fileManager: fileManager
+        )
     }
 
-    private func stateDirectoryURL() -> URL {
-        lineyStateDirectoryURL(fileManager: fileManager)
+    nonisolated private func stateDirectoryURL() -> URL {
+        if let stateDirectoryOverride { return stateDirectoryOverride }
+        return lineyStateDirectoryURL(fileManager: fileManager)
     }
 
-    private func stateFileURL() -> URL {
+    nonisolated private func stateFileURL() -> URL {
         stateDirectoryURL().appendingPathComponent("workspace-state.json")
     }
 
@@ -109,7 +143,7 @@ nonisolated final class WorkspaceStatePersistence: @unchecked Sendable {
     }
 }
 
-private extension JSONEncoder {
+nonisolated private extension JSONEncoder {
     static var prettyPrinted: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

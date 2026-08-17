@@ -31,6 +31,22 @@ final class LineyGhosttyControllerTests: XCTestCase {
         XCTAssertEqual(store.entries.map(\.message), ["two", "three"])
     }
 
+    func testTerminalDiagnosticLogStoreHandlesSustainedVolume() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        var store = TerminalDiagnosticLogStore(retentionInterval: 60 * 60, maximumEntryCount: 5_000)
+
+        for index in 0..<100_000 {
+            store.append(
+                TerminalDiagnosticEntry(timestamp: now, message: "event-\(index)"),
+                now: now
+            )
+        }
+
+        XCTAssertEqual(store.count, 5_000)
+        XCTAssertEqual(store.entries.first?.message, "event-95000")
+        XCTAssertEqual(store.entries.last?.message, "event-99999")
+    }
+
     func testTerminalDiagnosticReportIncludesRuntimeMetadataAndLogs() {
         let report = terminalDiagnosticReport(
             metadata: TerminalDiagnosticReportMetadata(

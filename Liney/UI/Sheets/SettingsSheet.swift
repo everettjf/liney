@@ -1344,8 +1344,10 @@ struct SettingsSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
-                ForEach(Array(appSettings.agentPresets.indices), id: \.self) { index in
-                    agentPresetCard(at: index)
+                ForEach(appSettings.agentPresets) { preset in
+                    if let index = appSettings.agentPresets.firstIndex(where: { $0.id == preset.id }) {
+                        agentPresetCard(at: index)
+                    }
                 }
             }
             .padding(.top, 8)
@@ -1377,8 +1379,10 @@ struct SettingsSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
-                ForEach(Array(appSettings.sshPresets.indices), id: \.self) { index in
-                    sshPresetCard(at: index)
+                ForEach(appSettings.sshPresets) { preset in
+                    if let index = appSettings.sshPresets.firstIndex(where: { $0.id == preset.id }) {
+                        sshPresetCard(at: index)
+                    }
                 }
             }
             .padding(.top, 8)

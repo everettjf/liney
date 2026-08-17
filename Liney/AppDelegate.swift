@@ -159,7 +159,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @MainActor
     private func handleIncomingURL(_ url: URL) async {
         guard let request = LineyURLScheme.parseRunURL(url) else {
-            NSLog("[Liney URL] Ignoring unsupported URL: %@", url.absoluteString)
+            NSLog("[Liney URL] Ignoring unsupported URL (scheme=%@ host=%@)", url.scheme ?? "nil", url.host ?? "nil")
             return
         }
 

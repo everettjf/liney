@@ -49,12 +49,10 @@ final class WorkspaceStore: ObservableObject {
     @Published var pendingWorktreeRemoval: PendingWorktreeRemoval?
     @Published var sleepPreventionSession: SleepPreventionSession?
     @Published private(set) var sleepPreventionQuickActionOption: SleepPreventionDurationOption = .oneHour
-    @Published private(set) var sleepPreventionReferenceDate = Date()
     @Published private(set) var hapiIntegrationState: HAPIIntegrationState = .unavailable
     @Published private(set) var availableExternalEditors: [ExternalEditorDescriptor] = []
 
-    private let persistence = WorkspaceStatePersistence()
-    private let appSettingsPersistence = AppSettingsPersistence()
+    private let persistenceCoordinator = WorkspacePersistenceCoordinator()
     private let initialWorkspaceState: PersistedWorkspaceState?
     private let initialAppSettings: AppSettings?
     private let gitRepositoryService = GitRepositoryService()
@@ -68,7 +66,6 @@ final class WorkspaceStore: ObservableObject {
     private var hasConfiguredUpdater = false
     private var autoRefreshTask: Task<Void, Never>?
     private var statusMessageTask: Task<Void, Never>?
-    private var sleepPreventionTickerTask: Task<Void, Never>?
     private static let remoteRefreshInterval: TimeInterval = 30
     private var remoteRefreshTimer: Timer?
     private var remoteWindowObserver: NSObjectProtocol?
@@ -101,7 +98,6 @@ final class WorkspaceStore: ObservableObject {
     deinit {
         autoRefreshTask?.cancel()
         statusMessageTask?.cancel()
-        sleepPreventionTickerTask?.cancel()
         guard Thread.isMainThread else { return }
         MainActor.assumeIsolated {
             stopRemoteWorkspaceRefreshScheduler()
@@ -212,7 +208,7 @@ final class WorkspaceStore: ObservableObject {
         }
         return localizedFormat(
             "main.sleepPrevention.statusActiveFormat",
-            sleepPreventionSession.remainingDescription(relativeTo: sleepPreventionReferenceDate)
+            sleepPreventionSession.remainingDescription(relativeTo: Date())
         )
     }
 
@@ -224,7 +220,7 @@ final class WorkspaceStore: ObservableObject {
         if let sleepPreventionSession {
             return localizedFormat(
                 "main.sleepPrevention.helpStopFormat",
-                sleepPreventionSession.remainingDescription(relativeTo: sleepPreventionReferenceDate)
+                sleepPreventionSession.remainingDescription(relativeTo: Date())
             )
         }
         return localizedFormat("main.sleepPrevention.helpStartFormat", sleepPreventionQuickActionOption.title)
@@ -677,12 +673,18 @@ final class WorkspaceStore: ObservableObject {
         guard !hasLoaded else { return }
         hasLoaded = true
 
-        appSettings = initialAppSettings ?? appSettingsPersistence.load()
+        let settingsLoadResult = initialAppSettings.map {
+            PersistenceLoadResult(value: $0, source: .primary)
+        } ?? persistenceCoordinator.loadAppSettings()
+        appSettings = settingsLoadResult.value
         appSettings.githubIntegrationEnabled = false
         LocalizationManager.shared.updateSelectedLanguage(appSettings.appLanguage)
         AppLogger.updateLevel(appSettings.logLevel)
         NotificationCenter.default.post(name: .lineyAppSettingsDidChange, object: appSettings)
-        let state = normalizeLaunchState(initialWorkspaceState ?? persistence.load())
+        let workspaceLoadResult = initialWorkspaceState.map {
+            PersistenceLoadResult(value: $0, source: .primary)
+        } ?? persistenceCoordinator.loadWorkspaceState()
+        let state = normalizeLaunchState(workspaceLoadResult.value)
         workspaces = state.workspaces.map(WorkspaceModel.init(record:))
         globalCanvasState = state.globalCanvasState.pruned(to: validGlobalCanvasCardIDs(in: workspaces))
         ensureDefaultWorkspace()
@@ -702,6 +704,40 @@ final class WorkspaceStore: ObservableObject {
         startRemoteWorkspaceRefreshScheduler()
         refreshAvailableExternalEditors()
         persist()
+        reportPersistenceRecovery(settingsLoadResult.source, workspaceLoadResult.source)
+    }
+
+    private func reportPersistenceRecovery(
+        _ settingsSource: PersistenceLoadSource,
+        _ workspaceSource: PersistenceLoadSource
+    ) {
+        let sources = [settingsSource, workspaceSource]
+        if sources.contains(.backup) {
+            receive(
+                .statusMessage(
+                    localized("main.status.persistenceRecoveredBackup"),
+                    .warning,
+                    deliverSystemNotification: false
+                )
+            )
+        }
+
+        let quarantinedPaths = sources.compactMap { source -> String? in
+            guard case .unrecoverable(let url) = source else { return nil }
+            return url?.path
+        }
+        guard sources.contains(where: {
+            if case .unrecoverable = $0 { return true }
+            return false
+        }) else { return }
+
+        let detail = quarantinedPaths.isEmpty
+            ? localized("main.status.persistenceResetNoArchive")
+            : localizedFormat("main.status.persistenceResetWithArchiveFormat", quarantinedPaths.joined(separator: "\n"))
+        presentedError = PresentedError(
+            title: localized("main.error.persistenceRecovery.title"),
+            message: detail
+        )
     }
 
     /// Ensures the default "Terminal" local workspace at the user's home
@@ -2929,7 +2965,7 @@ final class WorkspaceStore: ObservableObject {
                 globalCanvasState: prunedGlobalCanvasState
             )
             let errorTitle = localized("main.error.saveState.title")
-            persistence.save(snapshot) { error in
+            persistenceCoordinator.saveWorkspaceState(snapshot) { error in
                 Task { @MainActor [self] in
                     self.presentedError = PresentedError(title: errorTitle, message: error.localizedDescription)
                 }
@@ -2941,8 +2977,7 @@ final class WorkspaceStore: ObservableObject {
     /// Synchronously flushes any pending workspace-state and app-settings
     /// writes. Call from the app-terminate handler before the process exits.
     func flushPendingPersistence() {
-        persistence.flushPendingSync()
-        appSettingsPersistence.flushPendingSync()
+        persistenceCoordinator.flushPendingSync()
     }
 
     func currentStateSnapshot() -> PersistedWorkspaceState {
@@ -3009,8 +3044,6 @@ final class WorkspaceStore: ObservableObject {
         switch event {
         case .started(let session):
             sleepPreventionSession = session
-            sleepPreventionReferenceDate = Date()
-            startSleepPreventionTicker()
             receive(
                 .statusMessage(
                     session.option == .forever
@@ -3024,8 +3057,6 @@ final class WorkspaceStore: ObservableObject {
         case .stopped(let reason):
             let previousSession = sleepPreventionSession
             sleepPreventionSession = nil
-            sleepPreventionReferenceDate = Date()
-            stopSleepPreventionTicker()
 
             switch reason {
             case .userInitiated:
@@ -3037,24 +3068,6 @@ final class WorkspaceStore: ObservableObject {
                 receive(.statusMessage(message, .warning, deliverSystemNotification: false))
             }
         }
-    }
-
-    private func startSleepPreventionTicker() {
-        sleepPreventionTickerTask?.cancel()
-        sleepPreventionTickerTask = Task.detached { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 30_000_000_000)
-                guard !Task.isCancelled else { return }
-                await MainActor.run { [weak self] in
-                    self?.sleepPreventionReferenceDate = Date()
-                }
-            }
-        }
-    }
-
-    private func stopSleepPreventionTicker() {
-        sleepPreventionTickerTask?.cancel()
-        sleepPreventionTickerTask = nil
     }
 
     private func setPreferredExternalEditor(_ editor: ExternalEditor) {
@@ -3173,7 +3186,7 @@ final class WorkspaceStore: ObservableObject {
 
     private func persistAppSettings() {
         let errorTitle = localized("main.error.saveSettings.title")
-        appSettingsPersistence.save(appSettings) { error in
+        persistenceCoordinator.saveAppSettings(appSettings) { error in
             Task { @MainActor [self] in
                 self.presentedError = PresentedError(title: errorTitle, message: error.localizedDescription)
             }

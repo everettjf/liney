@@ -81,8 +81,10 @@ xcodebuild \
 CI also maintains an older-system regression matrix:
 
 - Xcode 26.3 builds an arm64 + x86_64 app at the macOS 14.6 deployment target.
-- A macOS 14 runner ad-hoc signs that artifact and verifies that the app stays
-  alive through startup.
+- A macOS 14 runner ad-hoc signs that artifact and runs the built-in terminal
+  compatibility harness. The harness creates a real Ghostty surface, performs
+  multiple resizes, reads viewport and scrollback text, and verifies surface
+  teardown plus the corresponding diagnostics.
 - macOS 15 with Xcode 26.3 runs the full unit-test suite and exercises Swift
   concurrency back-deployment behavior.
 

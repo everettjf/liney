@@ -31,24 +31,61 @@ nonisolated func lineyStateDirectoryURL(fileManager: FileManager = .default) -> 
 /// workspace refresh calls persistAppSettings) don't pay for a JSON encode
 /// and a synchronous disk write on the main thread.
 nonisolated final class AppSettingsPersistence: @unchecked Sendable {
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
+    private let stateDirectoryOverride: URL?
     private let saveQueue = DispatchQueue(label: "com.liney.app-settings.save", qos: .utility)
     private let pendingLock = NSLock()
-    private var pendingSettings: AppSettings?
+    private var pendingData: Data?
     private var pendingWorkItem: DispatchWorkItem?
     private let saveDebounce: DispatchTimeInterval = .milliseconds(500)
 
-    func load() -> AppSettings {
-        let url = resolvedSettingsFileURL()
-        guard let data = try? Data(contentsOf: url) else {
-            return AppSettings()
-        }
-        return (try? JSONDecoder().decode(AppSettings.self, from: data)) ?? AppSettings()
+    init(fileManager: FileManager = .default, stateDirectoryURL: URL? = nil) {
+        self.fileManager = fileManager
+        self.stateDirectoryOverride = stateDirectoryURL
     }
 
-    func save(_ settings: AppSettings, onError: (@Sendable (Error) -> Void)? = nil) {
+    @MainActor func load() -> AppSettings {
+        loadWithRecovery().value
+    }
+
+    @MainActor func loadWithRecovery() -> PersistenceLoadResult<AppSettings> {
+        let url = resolvedSettingsFileURL()
+        let primaryExists = fileManager.fileExists(atPath: url.path)
+        if primaryExists,
+           let data = try? Data(contentsOf: url),
+           let value = try? JSONDecoder().decode(AppSettings.self, from: data) {
+            return PersistenceLoadResult(value: value, source: .primary)
+        }
+
+        let backupURL = RecoverableJSONPersistence.backupURL(for: url)
+        if let data = try? Data(contentsOf: backupURL),
+           let value = try? JSONDecoder().decode(AppSettings.self, from: data) {
+            return PersistenceLoadResult(value: value, source: .backup)
+        }
+
+        guard primaryExists else {
+            return PersistenceLoadResult(value: AppSettings(), source: .missing)
+        }
+        return PersistenceLoadResult(
+            value: AppSettings(),
+            source: .unrecoverable(
+                quarantinedURL: RecoverableJSONPersistence.quarantine(url, fileManager: fileManager)
+            )
+        )
+    }
+
+    @MainActor func save(_ settings: AppSettings, onError: (@Sendable (Error) -> Void)? = nil) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data: Data
+        do {
+            data = try encoder.encode(settings)
+        } catch {
+            onError?(error)
+            return
+        }
         pendingLock.lock()
-        pendingSettings = settings
+        pendingData = data
         pendingWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
             self?.drainPendingSave(onError: onError)
@@ -65,8 +102,8 @@ nonisolated final class AppSettingsPersistence: @unchecked Sendable {
             pendingLock.lock()
             pendingWorkItem?.cancel()
             pendingWorkItem = nil
-            let toSave = pendingSettings
-            pendingSettings = nil
+            let toSave = pendingData
+            pendingData = nil
             pendingLock.unlock()
             guard let toSave else { return }
             try? writeSync(toSave)
@@ -75,8 +112,8 @@ nonisolated final class AppSettingsPersistence: @unchecked Sendable {
 
     private func drainPendingSave(onError: (@Sendable (Error) -> Void)?) {
         pendingLock.lock()
-        let toSave = pendingSettings
-        pendingSettings = nil
+        let toSave = pendingData
+        pendingData = nil
         pendingWorkItem = nil
         pendingLock.unlock()
         guard let toSave else { return }
@@ -87,20 +124,20 @@ nonisolated final class AppSettingsPersistence: @unchecked Sendable {
         }
     }
 
-    private func writeSync(_ settings: AppSettings) throws {
-        let directory = stateDirectoryURL()
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(settings)
-        try data.write(to: settingsFileURL(), options: Data.WritingOptions.atomic)
+    nonisolated private func writeSync(_ data: Data) throws {
+        try RecoverableJSONPersistence.write(
+            data,
+            to: settingsFileURL(),
+            fileManager: fileManager
+        )
     }
 
-    private func stateDirectoryURL() -> URL {
-        lineyStateDirectoryURL(fileManager: fileManager)
+    nonisolated private func stateDirectoryURL() -> URL {
+        if let stateDirectoryOverride { return stateDirectoryOverride }
+        return lineyStateDirectoryURL(fileManager: fileManager)
     }
 
-    private func settingsFileURL() -> URL {
+    nonisolated private func settingsFileURL() -> URL {
         stateDirectoryURL().appendingPathComponent("settings.json")
     }
 
