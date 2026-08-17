@@ -23,7 +23,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
+        # Xcode 16.4 only ships the macOS 15.5 SDK, while LineyTests targets
+        # macOS 15.6. Pin a runner-installed Xcode 26 release so clean CI
+        # builds use an SDK that supports the project's deployment target.
+        run: sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
 
       - name: Show toolchain
         run: |
