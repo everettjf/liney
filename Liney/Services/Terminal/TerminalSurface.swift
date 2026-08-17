@@ -116,6 +116,12 @@ private final class LineyTestManagedTerminalSurfaceController: ManagedTerminalSe
         self.launchConfiguration = launchConfiguration
     }
 
+    // Xcode 26's MainActor deinit back-deployment thunk can corrupt the task-
+    // local lookup scope on macOS 15 when the test host tears down its model
+    // graph. This controller is test-only and owns no live terminal process,
+    // so it does not require executor-isolated cleanup.
+    nonisolated deinit {}
+
     func sendText(_ text: String) {}
 
     func sendReturn() {}
