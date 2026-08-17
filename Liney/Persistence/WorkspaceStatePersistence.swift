@@ -19,6 +19,11 @@ final class WorkspaceStatePersistence {
     private var pendingWorkItem: DispatchWorkItem?
     private let saveDebounce: DispatchTimeInterval = .milliseconds(500)
 
+    // Pending work items capture this object weakly and require no actor-
+    // isolated cleanup. Avoid Xcode 26's MainActor deinit back-deployment
+    // thunk, which corrupts task-local state on macOS 15.
+    nonisolated deinit {}
+
     func load() -> PersistedWorkspaceState {
         let url = resolvedStateFileURL()
         guard let data = try? Data(contentsOf: url) else {
