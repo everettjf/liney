@@ -22,7 +22,11 @@ enum TerminalCompatibilitySmoke {
             environment: ProcessInfo.processInfo.environment,
             command: TerminalCommandDefinition(
                 executablePath: "/bin/zsh",
-                arguments: ["-f", "-c", "printf 'liney-compatibility-smoke\\n'; sleep 1"],
+                // Keep the shell alive long enough for slower CI machines to
+                // initialize and resize the surface. The harness terminates it
+                // immediately after observing the marker, so this does not add
+                // five seconds to successful runs.
+                arguments: ["-f", "-c", "printf 'liney-compatibility-smoke\\n'; sleep 5"],
                 displayName: "compatibility-smoke"
             ),
             backendConfiguration: .local(),
@@ -57,7 +61,7 @@ enum TerminalCompatibilitySmoke {
 
         var viewport = ""
         var scrollback = ""
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(10)
         while Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
             viewport = controller.readScreenText(scrollback: false) ?? ""

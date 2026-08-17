@@ -83,7 +83,10 @@ jobs:
         run: |
           APP="$RUNNER_TEMP/liney-runtime-smoke/Liney.app"
           LOG="$RUNNER_TEMP/liney-runtime-smoke/launch.log"
-          "$APP/Contents/MacOS/Liney" compatibility-smoke >"$LOG" 2>&1
+          if ! "$APP/Contents/MacOS/Liney" compatibility-smoke >"$LOG" 2>&1; then
+            sed -n '1,240p' "$LOG"
+            exit 1
+          fi
           grep -F "LINEY_TERMINAL_COMPATIBILITY_SMOKE_OK" "$LOG"
 
   build-and-test:
