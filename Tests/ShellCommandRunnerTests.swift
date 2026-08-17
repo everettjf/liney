@@ -19,6 +19,21 @@ final class ShellCommandRunnerTests: XCTestCase {
         XCTAssertTrue(result.stderr.contains("stderr-2999"))
     }
 
+    func testRunDoesNotLoseShortStderrAtProcessExit() async throws {
+        let runner = ShellCommandRunner()
+        for iteration in 0..<100 {
+            let marker = "fatal-short-stderr-\(iteration)"
+            let result = try await runner.run(
+                executable: "/bin/zsh",
+                arguments: ["-c", "printf '\(marker)\\n' >&2; exit 1"],
+                timeout: 5
+            )
+
+            XCTAssertEqual(result.exitCode, 1)
+            XCTAssertEqual(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines), marker)
+        }
+    }
+
     func testTimeoutTerminatesUncooperativeProcessPromptly() async throws {
         let start = ContinuousClock.now
 

@@ -135,37 +135,30 @@ actor ShellCommandRunner {
         let stdoutBuffer = PipeBuffer()
         let stderrBuffer = PipeBuffer()
         stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if data.isEmpty {
+            if !stdoutBuffer.consumeAvailableData(from: handle) {
                 handle.readabilityHandler = nil
-            } else {
-                stdoutBuffer.append(data)
             }
         }
         stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if data.isEmpty {
+            if !stderrBuffer.consumeAvailableData(from: handle) {
                 handle.readabilityHandler = nil
-            } else {
-                stderrBuffer.append(data)
             }
         }
 
         let result: ShellCommandResult = try await withCheckedThrowingContinuation { continuation in
             process.terminationHandler = { process in
-                // Flush any remaining data from the pipes. The readability
-                // handler is called on a background queue, so drain
-                // synchronously here to catch anything still buffered.
-                let remainingStdout = (try? stdoutPipe.fileHandleForReading.readToEnd()) ?? Data()
-                let remainingStderr = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
+                // Disable future callbacks, then serialize the final read with
+                // any callback already in flight. Otherwise a short-lived
+                // command can exit after its handler reads stderr but before
+                // that handler appends the bytes to our buffer.
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
-                if !remainingStdout.isEmpty { stdoutBuffer.append(remainingStdout) }
-                if !remainingStderr.isEmpty { stderrBuffer.append(remainingStderr) }
+                let stdout = stdoutBuffer.finishReading(from: stdoutPipe.fileHandleForReading)
+                let stderr = stderrBuffer.finishReading(from: stderrPipe.fileHandleForReading)
                 continuation.resume(
                     returning: ShellCommandResult(
-                        stdout: String(decoding: stdoutBuffer.data, as: UTF8.self),
-                        stderr: String(decoding: stderrBuffer.data, as: UTF8.self),
+                        stdout: String(decoding: stdout, as: UTF8.self),
+                        stderr: String(decoding: stderr, as: UTF8.self),
                         exitCode: process.terminationStatus
                     )
                 )
@@ -237,15 +230,22 @@ nonisolated private final class PipeBuffer: @unchecked Sendable {
     private let lock = NSLock()
     private var buffer = Data()
 
-    func append(_ data: Data) {
+    /// Returns false after EOF.
+    func consumeAvailableData(from handle: FileHandle) -> Bool {
         lock.lock()
         defer { lock.unlock() }
+        let data = handle.availableData
+        guard !data.isEmpty else { return false }
         buffer.append(data)
+        return true
     }
 
-    var data: Data {
+    func finishReading(from handle: FileHandle) -> Data {
         lock.lock()
         defer { lock.unlock() }
+        if let remaining = try? handle.readToEnd(), !remaining.isEmpty {
+            buffer.append(remaining)
+        }
         return buffer
     }
 }
