@@ -79,23 +79,15 @@ jobs:
           ditto -x -k Liney-macOS-14.6-universal.zip .
           codesign --force --deep --sign - Liney.app
 
-      - name: Launch app on macOS 14
+      - name: Exercise Ghostty terminal lifecycle on macOS 14
         run: |
           APP="$RUNNER_TEMP/liney-runtime-smoke/Liney.app"
           LOG="$RUNNER_TEMP/liney-runtime-smoke/launch.log"
-          "$APP/Contents/MacOS/Liney" >"$LOG" 2>&1 &
-          APP_PID=$!
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            if ! kill -0 "$APP_PID" 2>/dev/null; then
-              echo "Liney exited during macOS 14 startup smoke test"
-              sed -n '1,240p' "$LOG"
-              wait "$APP_PID"
-              exit 1
-            fi
-            sleep 1
-          done
-          kill "$APP_PID"
-          wait "$APP_PID" || true
+          if ! "$APP/Contents/MacOS/Liney" compatibility-smoke >"$LOG" 2>&1; then
+            sed -n '1,240p' "$LOG"
+            exit 1
+          fi
+          grep -F "LINEY_TERMINAL_COMPATIBILITY_SMOKE_OK" "$LOG"
 
   build-and-test:
     name: Build and test (macOS 15, Xcode 26.3)

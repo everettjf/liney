@@ -46,9 +46,19 @@ struct TerminalDiagnosticEntry: Identifiable, Equatable {
 }
 
 struct TerminalDiagnosticLogStore {
-    private(set) var entries: [TerminalDiagnosticEntry] = []
+    private var storage: [TerminalDiagnosticEntry] = []
+    private var startIndex = 0
     let retentionInterval: TimeInterval
     let maximumEntryCount: Int
+
+    var entries: [TerminalDiagnosticEntry] {
+        guard startIndex < storage.count else { return [] }
+        return Array(storage[startIndex...])
+    }
+
+    var count: Int { storage.count - startIndex }
+
+    var isEmpty: Bool { count == 0 }
 
     init(retentionInterval: TimeInterval = 60 * 60, maximumEntryCount: Int = 5_000) {
         self.retentionInterval = retentionInterval
@@ -56,20 +66,30 @@ struct TerminalDiagnosticLogStore {
     }
 
     mutating func append(_ entry: TerminalDiagnosticEntry, now: Date = Date()) {
-        entries.append(entry)
+        storage.append(entry)
         prune(now: now)
     }
 
     mutating func prune(now: Date = Date()) {
         let cutoff = now.addingTimeInterval(-retentionInterval)
-        entries.removeAll { $0.timestamp < cutoff }
-        if entries.count > maximumEntryCount {
-            entries.removeFirst(entries.count - maximumEntryCount)
+        while startIndex < storage.count, storage[startIndex].timestamp < cutoff {
+            startIndex += 1
+        }
+        if count > maximumEntryCount {
+            startIndex += count - maximumEntryCount
+        }
+
+        // Advancing an index is O(1). Compact only occasionally so sustained
+        // resize/scrollback logging never shifts thousands of entries per event.
+        if startIndex >= 1_024, startIndex * 2 >= storage.count {
+            storage.removeFirst(startIndex)
+            startIndex = 0
         }
     }
 
     mutating func removeAll() {
-        entries.removeAll(keepingCapacity: true)
+        storage.removeAll(keepingCapacity: true)
+        startIndex = 0
     }
 }
 
@@ -170,14 +190,20 @@ func writeTerminalDiagnosticAttachment(
 final class TerminalDiagnostics: ObservableObject {
     static let shared = TerminalDiagnostics()
 
-    @Published private(set) var entries: [TerminalDiagnosticEntry] = []
+    @Published private var publishedEntries: [TerminalDiagnosticEntry] = []
     private var store = TerminalDiagnosticLogStore()
+    private var isPresentationActive = false
+    private var publishTask: Task<Void, Never>?
+
+    var entries: [TerminalDiagnosticEntry] {
+        isPresentationActive ? publishedEntries : store.entries
+    }
 
     private init() {}
 
     func record(_ message: String, timestamp: Date = Date()) {
         store.append(TerminalDiagnosticEntry(timestamp: timestamp, message: message), now: timestamp)
-        entries = store.entries
+        schedulePublishIfNeeded()
     }
 
     func record(
@@ -198,22 +224,35 @@ final class TerminalDiagnostics: ObservableObject {
             TerminalDiagnosticEntry(timestamp: timestamp, message: message, context: context),
             now: timestamp
         )
-        entries = store.entries
+        schedulePublishIfNeeded()
     }
 
     func clear() {
         store.removeAll()
-        entries = []
+        publishTask?.cancel()
+        publishTask = nil
+        publishedEntries = []
     }
 
     func pruneExpired(now: Date = Date()) {
         store.prune(now: now)
-        entries = store.entries
+        publishSnapshot()
+    }
+
+    func beginPresentation() {
+        isPresentationActive = true
+        publishSnapshot()
+    }
+
+    func endPresentation() {
+        isPresentationActive = false
+        publishTask?.cancel()
+        publishTask = nil
     }
 
     var formattedLog: String {
         let formatter = Self.timestampFormatter
-        return entries.map { entry in
+        return store.entries.map { entry in
             "[\(formatter.string(from: entry.timestamp))] \(entry.message)"
         }
         .joined(separator: "\n")
@@ -225,6 +264,20 @@ final class TerminalDiagnostics: ObservableObject {
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
         return formatter
     }()
+
+    private func schedulePublishIfNeeded() {
+        guard isPresentationActive, publishTask == nil else { return }
+        publishTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled, let self else { return }
+            self.publishTask = nil
+            self.publishSnapshot()
+        }
+    }
+
+    private func publishSnapshot() {
+        publishedEntries = store.entries
+    }
 }
 
 @MainActor
@@ -237,6 +290,7 @@ final class TerminalDiagnosticsWindowManager: NSObject, NSWindowDelegate {
 
     func show() {
         TerminalDiagnostics.shared.pruneExpired()
+        TerminalDiagnostics.shared.beginPresentation()
         if let window {
             if window.isMiniaturized {
                 window.deminiaturize(nil)
@@ -269,6 +323,7 @@ final class TerminalDiagnosticsWindowManager: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        TerminalDiagnostics.shared.endPresentation()
         window = nil
     }
 }
@@ -281,6 +336,7 @@ private struct TerminalDiagnosticsView: View {
     }
 
     var body: some View {
+        let formattedLog = diagnostics.formattedLog
         VStack(spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
@@ -297,7 +353,7 @@ private struct TerminalDiagnosticsView: View {
                 Button(localized("terminalDiagnostics.copy")) {
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
-                    pasteboard.setString(diagnostics.formattedLog, forType: .string)
+                    pasteboard.setString(formattedLog, forType: .string)
                 }
                 .disabled(diagnostics.entries.isEmpty)
                 Button(localized("terminalDiagnostics.export")) {
@@ -316,7 +372,7 @@ private struct TerminalDiagnosticsView: View {
             Divider()
 
             ScrollView {
-                Text(diagnostics.formattedLog.isEmpty ? localized("terminalDiagnostics.empty") : diagnostics.formattedLog)
+                Text(formattedLog.isEmpty ? localized("terminalDiagnostics.empty") : formattedLog)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .topLeading)

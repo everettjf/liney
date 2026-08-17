@@ -16,6 +16,8 @@ let cliArguments = Array(CommandLine.arguments.dropFirst())
 if let firstArgument = cliArguments.first {
     let rest = Array(cliArguments.dropFirst())
     switch firstArgument {
+    case "compatibility-smoke":
+        exit(MainActor.assumeIsolated { TerminalCompatibilitySmoke.run() })
     case "notify":
         exit(AgentNotifyCLI.run(arguments: rest).rawValue)
     case "status":

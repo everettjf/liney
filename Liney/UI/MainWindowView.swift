@@ -1032,7 +1032,7 @@ struct MainWindowView: View {
         let menu = NSMenu()
 
         if let session = store.sleepPreventionSession {
-            menu.addDisabledItem(title: localizedFormat("main.sleepPrevention.activeFormat", session.remainingDescription(relativeTo: store.sleepPreventionReferenceDate)))
+            menu.addDisabledItem(title: localizedFormat("main.sleepPrevention.activeFormat", session.remainingDescription(relativeTo: Date())))
             menu.addActionItem(title: localized("main.sleepPrevention.stop"), imageSystemName: "xmark.circle") {
                 store.stopSleepPrevention()
             }
