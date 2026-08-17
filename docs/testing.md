@@ -78,6 +78,18 @@ xcodebuild \
   -only-testing:LineyTests/LineyGhosttyInputSupportTests
 ```
 
+CI also maintains an older-system regression matrix:
+
+- macOS 14 with Xcode 16.2 builds the app at its supported deployment target.
+- macOS 15 with Xcode 26.3 runs the full unit-test suite and exercises Swift
+  concurrency back-deployment behavior.
+
+Terminal diagnostics retain one hour of non-input events. Refresh, display
+metrics, resize, IME composition lengths, scrollback reads, and session/surface
+lifecycle entries include pane and session identifiers. The diagnostics window
+can export a report or open a prefilled GitHub issue while revealing the report
+file in Finder for attachment.
+
 ## Review Checklist
 
 Before sending a test-heavy change for review, check:

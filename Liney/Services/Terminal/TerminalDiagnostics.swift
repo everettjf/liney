@@ -10,15 +10,38 @@ import GhosttyKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+struct TerminalDiagnosticContext: Equatable {
+    var paneID: UUID?
+    var sessionID: UUID?
+    var surfaceID: String?
+
+    var formattedPrefix: String {
+        [
+            paneID.map { "pane=\($0.uuidString.lowercased())" },
+            sessionID.map { "session=\($0.uuidString.lowercased())" },
+            surfaceID.map { "surface=\($0)" },
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
+    }
+}
+
 struct TerminalDiagnosticEntry: Identifiable, Equatable {
     let id: UUID
     let timestamp: Date
     let message: String
+    let context: TerminalDiagnosticContext?
 
-    init(id: UUID = UUID(), timestamp: Date = Date(), message: String) {
+    init(
+        id: UUID = UUID(),
+        timestamp: Date = Date(),
+        message: String,
+        context: TerminalDiagnosticContext? = nil
+    ) {
         self.id = id
         self.timestamp = timestamp
         self.message = message
+        self.context = context
     }
 }
 
@@ -96,6 +119,53 @@ func terminalDiagnosticReport(metadata: TerminalDiagnosticReportMetadata, log: S
     """
 }
 
+func terminalDiagnosticIssueURL(
+    metadata: TerminalDiagnosticReportMetadata,
+    attachmentName: String
+) -> URL? {
+    var components = URLComponents(string: "https://github.com/everettjf/liney/issues/new")
+    let body = """
+    ## Terminal problem
+
+    Describe what happened and what you expected.
+
+    ## Environment
+
+    - Liney: \(metadata.appVersion) (\(metadata.appBuild))
+    - macOS: \(metadata.macOSVersion)
+    - Architecture: \(metadata.architecture)
+    - Ghostty: \(metadata.ghosttyVersion)
+
+    ## Diagnostics
+
+    Please drag `\(attachmentName)` from the Finder window into this issue.
+    The file contains lifecycle and rendering events only; terminal input is not recorded.
+    """
+    components?.queryItems = [
+        URLQueryItem(name: "title", value: "Terminal: "),
+        URLQueryItem(name: "labels", value: "terminal"),
+        URLQueryItem(name: "body", value: body),
+    ]
+    return components?.url
+}
+
+func writeTerminalDiagnosticAttachment(
+    report: String,
+    directory: URL = FileManager.default.temporaryDirectory
+) throws -> URL {
+    let folder = directory.appendingPathComponent("Liney-Terminal-Diagnostics", isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyyMMdd-HHmmss"
+    let suffix = String(UUID().uuidString.prefix(8)).lowercased()
+    let url = folder.appendingPathComponent(
+        "Liney-Terminal-Diagnostics-\(formatter.string(from: Date()))-\(suffix).log"
+    )
+    try report.write(to: url, atomically: true, encoding: .utf8)
+    return url
+}
+
 @MainActor
 final class TerminalDiagnostics: ObservableObject {
     static let shared = TerminalDiagnostics()
@@ -107,6 +177,27 @@ final class TerminalDiagnostics: ObservableObject {
 
     func record(_ message: String, timestamp: Date = Date()) {
         store.append(TerminalDiagnosticEntry(timestamp: timestamp, message: message), now: timestamp)
+        entries = store.entries
+    }
+
+    func record(
+        event: String,
+        context: TerminalDiagnosticContext? = nil,
+        attributes: [String: String] = [:],
+        timestamp: Date = Date()
+    ) {
+        let prefix = context?.formattedPrefix ?? ""
+        let suffix = attributes.keys.sorted().map { key in
+            "\(key)=\(attributes[key] ?? "")"
+        }
+        .joined(separator: " ")
+        let message = [prefix, "event=\(event)", suffix]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        store.append(
+            TerminalDiagnosticEntry(timestamp: timestamp, message: message, context: context),
+            now: timestamp
+        )
         entries = store.entries
     }
 
@@ -212,6 +303,9 @@ private struct TerminalDiagnosticsView: View {
                 Button(localized("terminalDiagnostics.export")) {
                     exportReport()
                 }
+                Button(localized("terminalDiagnostics.reportIssue")) {
+                    reportIssue()
+                }
                 Button(localized("terminalDiagnostics.clear"), role: .destructive) {
                     diagnostics.clear()
                 }
@@ -242,6 +336,22 @@ private struct TerminalDiagnosticsView: View {
         } catch {
             let alert = NSAlert(error: error)
             alert.runModal()
+        }
+    }
+
+    private func reportIssue() {
+        do {
+            let metadata = TerminalDiagnosticReportMetadata.current
+            let report = terminalDiagnosticReport(metadata: metadata, log: diagnostics.formattedLog)
+            let attachmentURL = try writeTerminalDiagnosticAttachment(report: report)
+            guard let issueURL = terminalDiagnosticIssueURL(
+                metadata: metadata,
+                attachmentName: attachmentURL.lastPathComponent
+            ) else { return }
+            NSWorkspace.shared.open(issueURL)
+            NSWorkspace.shared.activateFileViewerSelecting([attachmentURL])
+        } catch {
+            NSAlert(error: error).runModal()
         }
     }
 }
