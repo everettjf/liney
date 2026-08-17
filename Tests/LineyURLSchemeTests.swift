@@ -7,7 +7,7 @@ import XCTest
 @testable import Liney
 
 final class LineyURLSchemeTests: XCTestCase {
-    private final class MemoryTokenStore: URLSchemeTokenStoring {
+    nonisolated private final class MemoryTokenStore: URLSchemeTokenStoring {
         var token: String?
         var allowsSave = true
 

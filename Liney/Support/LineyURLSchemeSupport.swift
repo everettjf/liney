@@ -9,13 +9,13 @@ import AppKit
 import Foundation
 import Security
 
-protocol URLSchemeTokenStoring {
+nonisolated protocol URLSchemeTokenStoring {
     func load() -> String?
     @discardableResult func save(_ token: String) -> Bool
     func delete()
 }
 
-struct URLSchemeTokenKeychainStore: URLSchemeTokenStoring {
+nonisolated struct URLSchemeTokenKeychainStore: URLSchemeTokenStoring {
     static let service = "com.liney.url-scheme"
     static let account = "command-token"
 
