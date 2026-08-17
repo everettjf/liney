@@ -15,7 +15,6 @@ import Foundation
 /// only iterates live panes) so no active eviction is required; `clear(pane:)`
 /// is provided for callers that want to prune on pane close.
 final class AgentStatusStore {
-    @MainActor
     static let shared = AgentStatusStore()
 
     struct Entry: Equatable {
@@ -25,34 +24,46 @@ final class AgentStatusStore {
         var updatedAt: Date
     }
 
-    @MainActor
-    private(set) var entries: [UUID: Entry] = [:]
+    private var storedEntries: [UUID: Entry] = [:]
+    private let lock = NSLock()
+
+    var entries: [UUID: Entry] {
+        withLock { storedEntries }
+    }
 
     private let now: () -> Date
 
     /// `now` is injectable so tests can assert timestamps deterministically.
-    @MainActor
     init(now: @escaping () -> Date = { Date() }) {
         self.now = now
     }
 
-    @MainActor
     func update(pane: UUID, state: AgentReportedState, title: String?, agentName: String? = nil) {
-        entries[pane] = Entry(state: state, title: title, agentName: agentName, updatedAt: now())
+        let entry = Entry(state: state, title: title, agentName: agentName, updatedAt: now())
+        withLock {
+            storedEntries[pane] = entry
+        }
     }
 
-    @MainActor
     func state(for pane: UUID) -> AgentReportedState? {
-        entries[pane]?.state
+        withLock { storedEntries[pane]?.state }
     }
 
-    @MainActor
     func clear(pane: UUID) {
-        entries[pane] = nil
+        withLock {
+            storedEntries[pane] = nil
+        }
     }
 
-    @MainActor
     func clearAll() {
-        entries.removeAll()
+        withLock {
+            storedEntries.removeAll()
+        }
+    }
+
+    private func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
     }
 }
