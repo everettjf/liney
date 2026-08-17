@@ -25,6 +25,10 @@ final class WorkspaceSessionController: ObservableObject {
         replaceSessions(with: paneSnapshots, focusedPaneID: paneSnapshots.first?.id, defaultWorkingDirectory: paneSnapshots.first?.preferredWorkingDirectory ?? NSHomeDirectory())
     }
 
+    // Stored sessions own their own teardown; this type has no actor-isolated
+    // cleanup to perform during deallocation.
+    nonisolated deinit {}
+
     var activeSessionCount: Int {
         sessions.values.filter(\.hasActiveProcess).count
     }

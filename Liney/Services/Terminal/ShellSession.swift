@@ -141,6 +141,11 @@ final class ShellSession: ObservableObject, Identifiable {
         configureSurfaceCallbacks()
     }
 
+    // No executor-isolated cleanup is required here. Keeping the generated
+    // deinit nonisolated also avoids Xcode 26's MainActor back-deployment
+    // deinit thunk corrupting task-local state on macOS 15.
+    nonisolated deinit {}
+
     private func configureSurfaceCallbacks() {
         self.resolvedEngine = surfaceController.resolvedEngine
 
