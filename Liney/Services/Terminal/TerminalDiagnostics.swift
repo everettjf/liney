@@ -6,7 +6,9 @@
 import AppKit
 import Combine
 import Foundation
+import GhosttyKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct TerminalDiagnosticEntry: Identifiable, Equatable {
     let id: UUID
@@ -46,6 +48,52 @@ struct TerminalDiagnosticLogStore {
     mutating func removeAll() {
         entries.removeAll(keepingCapacity: true)
     }
+}
+
+struct TerminalDiagnosticReportMetadata: Equatable {
+    let appVersion: String
+    let appBuild: String
+    let macOSVersion: String
+    let architecture: String
+    let ghosttyVersion: String
+
+    static var current: Self {
+        let info = ghostty_info()
+        let ghosttyVersion: String
+        if let pointer = info.version, info.version_len > 0 {
+            let bytes = UnsafeRawPointer(pointer).assumingMemoryBound(to: UInt8.self)
+            ghosttyVersion = String(decoding: UnsafeBufferPointer(start: bytes, count: Int(info.version_len)), as: UTF8.self)
+        } else {
+            ghosttyVersion = "unknown"
+        }
+#if arch(arm64)
+        let architecture = "arm64"
+#elseif arch(x86_64)
+        let architecture = "x86_64"
+#else
+        let architecture = "unknown"
+#endif
+        return Self(
+            appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
+            appBuild: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
+            macOSVersion: ProcessInfo.processInfo.operatingSystemVersionString,
+            architecture: architecture,
+            ghosttyVersion: ghosttyVersion
+        )
+    }
+}
+
+func terminalDiagnosticReport(metadata: TerminalDiagnosticReportMetadata, log: String) -> String {
+    """
+    Liney Terminal Diagnostics
+    Liney: \(metadata.appVersion) (\(metadata.appBuild))
+    macOS: \(metadata.macOSVersion)
+    Architecture: \(metadata.architecture)
+    Ghostty: \(metadata.ghosttyVersion)
+
+    Recent events (maximum one hour; terminal input is not recorded):
+    \(log.isEmpty ? "(none)" : log)
+    """
 }
 
 @MainActor
@@ -161,6 +209,9 @@ private struct TerminalDiagnosticsView: View {
                     pasteboard.setString(diagnostics.formattedLog, forType: .string)
                 }
                 .disabled(diagnostics.entries.isEmpty)
+                Button(localized("terminalDiagnostics.export")) {
+                    exportReport()
+                }
                 Button(localized("terminalDiagnostics.clear"), role: .destructive) {
                     diagnostics.clear()
                 }
@@ -177,6 +228,20 @@ private struct TerminalDiagnosticsView: View {
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .padding(12)
             }
+        }
+    }
+
+    private func exportReport() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Liney-Terminal-Diagnostics.log"
+        panel.allowedContentTypes = [.plainText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let report = terminalDiagnosticReport(metadata: .current, log: diagnostics.formattedLog)
+            try report.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.runModal()
         }
     }
 }

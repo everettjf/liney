@@ -208,3 +208,19 @@ func lineyTerminalDropText(fileURLs: [URL], plainText: String?) -> String? {
     guard let plainText, !plainText.isEmpty else { return nil }
     return plainText
 }
+
+func lineyTerminalOpenableURL(_ value: String) -> URL? {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    if let candidate = URL(string: trimmed), candidate.scheme != nil {
+        return candidate
+    }
+    return URL(fileURLWithPath: NSString(string: trimmed).expandingTildeInPath)
+}
+
+func lineyTerminalWritePastedPNG(_ data: Data, directory: URL, fileManager: FileManager = .default) throws -> URL {
+    try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent("Liney-Pasted-Image-\(UUID().uuidString).png")
+    try data.write(to: url, options: .atomic)
+    return url
+}

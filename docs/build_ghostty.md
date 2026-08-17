@@ -71,6 +71,9 @@ git checkout <tag-or-commit>
 
 The currently vendored build uses:
 
+These values are also recorded in `Liney/Vendor/GhosttyKit.version`; update
+that manifest together with the framework so CI can verify the binary.
+
 - Ghostty commit: `602497e9b96c62b05c4c6418538192ad974e4326`
 - Ghostty version string: `1.3.2-main+602497e`
 - Source archive SHA-256: `7164678225d3c9c45e214c5081108547333cb31ec9f18f6a918471b73f68a5ad`
@@ -139,6 +142,13 @@ Confirm the xcframework metadata advertises the same architecture set:
 
 ```bash
 plutil -p Liney/Vendor/GhosttyKit.xcframework/Info.plist
+```
+
+Run the repository's complete vendor check (architectures, embedded version,
+and GitHub file-size limit):
+
+```bash
+scripts/verify_ghostty_vendor.sh
 ```
 
 Then verify Liney still builds:

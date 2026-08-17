@@ -31,6 +31,24 @@ final class LineyGhosttyControllerTests: XCTestCase {
         XCTAssertEqual(store.entries.map(\.message), ["two", "three"])
     }
 
+    func testTerminalDiagnosticReportIncludesRuntimeMetadataAndLogs() {
+        let report = terminalDiagnosticReport(
+            metadata: TerminalDiagnosticReportMetadata(
+                appVersion: "1.2.3",
+                appBuild: "45",
+                macOSVersion: "macOS 26.0",
+                architecture: "arm64",
+                ghosttyVersion: "1.3.2"
+            ),
+            log: "[now] surface=abc event=metrics"
+        )
+
+        XCTAssertTrue(report.contains("Liney: 1.2.3 (45)"))
+        XCTAssertTrue(report.contains("Ghostty: 1.3.2"))
+        XCTAssertTrue(report.contains("surface=abc event=metrics"))
+        XCTAssertTrue(report.contains("terminal input is not recorded"))
+    }
+
     func testCommandFinishedDoesNotReportProcessExit() {
         XCTAssertFalse(
             lineyGhosttyShouldReportProcessExitForCommandFinished(

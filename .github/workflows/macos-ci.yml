@@ -1,0 +1,55 @@
+name: macOS CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Verify vendored Ghostty runtime
+        run: scripts/verify_ghostty_vendor.sh
+
+      - name: Build and test
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Liney.xcodeproj \
+            -scheme Liney \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -resultBundlePath "$RUNNER_TEMP/LineyTests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            test | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LineyTests-xcresult
+          path: ${{ runner.temp }}/LineyTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 7

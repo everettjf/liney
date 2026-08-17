@@ -960,6 +960,20 @@ struct SettingsSheet: View {
 
                     Divider()
 
+                    Button {
+                        if let url = LineyGhosttyConfigManager.openUserConfigFileURL() {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } label: {
+                        Label(localized("settings.general.terminal.openGhosttyConfig"), systemImage: "doc.text")
+                    }
+
+                    Text(localized("settings.general.terminal.openGhosttyConfigHint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Divider()
+
                     Toggle("Inline images (OSC 1337 → Kitty)", isOn: $inlineImagesEnabled)
 
                     Text("Experimental. Renders iTerm2 inline images (used by Claude Code and other AI tools to print screenshots) by translating them to Ghostty's native Kitty graphics. Wraps the shell in a small relay; affects new terminals only.")
