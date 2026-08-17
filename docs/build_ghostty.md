@@ -12,7 +12,7 @@ Ghostty's upstream build system can emit an xcframework directly. In current ups
 
 - `app-runtime=none` means "build the library for a macOS app consumer" rather than a standalone Ghostty app runtime.
 - `emit-xcframework=true` enables xcframework output.
-- `xcframework-target=universal` produces a universal macOS library and also includes iOS and iOS Simulator slices in the xcframework bundle.
+- `xcframework-target=universal` produces a universal macOS library. Current upstream emits only the macOS slice for this target.
 
 Relevant upstream sources:
 
@@ -42,8 +42,12 @@ Example setup:
 ```bash
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 xcodebuild -downloadComponent MetalToolchain
+xcrun --kill-cache
 brew install gettext
 ```
+
+`xcrun --kill-cache` is useful after installing the Metal toolchain because
+Xcode can otherwise continue resolving the placeholder `metal` executable.
 
 ## Fetch Upstream Source
 
@@ -65,7 +69,12 @@ cd ghostty
 git checkout <tag-or-commit>
 ```
 
-If this repository starts depending on a specific Ghostty revision, record it in this file when updating the vendor bundle.
+The currently vendored build uses:
+
+- Ghostty commit: `602497e9b96c62b05c4c6418538192ad974e4326`
+- Ghostty version string: `1.3.2-main+602497e`
+- Source archive SHA-256: `7164678225d3c9c45e214c5081108547333cb31ec9f18f6a918471b73f68a5ad`
+- Zig: `0.16.0`
 
 ## Build The XCFramework
 
@@ -77,32 +86,47 @@ zig build \
   -Dapp-runtime=none \
   -Demit-xcframework=true \
   -Demit-macos-app=false \
-  -Dxcframework-target=universal
+  -Dxcframework-target=universal \
+  -Dversion-string=1.3.2-main+602497e
 ```
 
 Expected output:
 
 ```text
-zig-out/macos/GhosttyKit.xcframework
+macos/GhosttyKit.xcframework
 ```
 
-Upstream currently writes the xcframework to `macos/GhosttyKit.xcframework` under `zig-out/`.
+Upstream currently writes the xcframework directly to `macos/GhosttyKit.xcframework`
+in the Ghostty source tree. Its macOS archive is named `ghostty-internal.a`.
+
+Strip debug symbols from the static archive before vendoring it. Current
+upstream builds otherwise exceed GitHub's 100 MB per-file limit:
+
+```bash
+strip -S macos/GhosttyKit.xcframework/macos-arm64_x86_64/ghostty-internal.a
+```
 
 ## Replace The Vendored Framework
 
 From the Liney repository root:
 
 ```bash
-rm -rf Liney/Vendor/GhosttyKit.xcframework
-cp -R /path/to/ghostty/zig-out/macos/GhosttyKit.xcframework Liney/Vendor/GhosttyKit.xcframework
+rsync -a --delete \
+  /path/to/ghostty/macos/GhosttyKit.xcframework/ \
+  Liney/Vendor/GhosttyKit.xcframework/
 ```
+
+Update the matching selected themes and `xterm-ghostty` terminfo entry as
+needed. Do not copy upstream shell integration blindly: recent upstream
+versions route SSH through the standalone `ghostty +ssh` CLI, while Liney
+embeds the library and does not bundle that executable.
 
 ## Verify The Result
 
 Confirm the macOS library is universal:
 
 ```bash
-lipo -archs Liney/Vendor/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a
+lipo -archs Liney/Vendor/GhosttyKit.xcframework/macos-arm64_x86_64/ghostty-internal.a
 ```
 
 Expected output:
@@ -133,4 +157,3 @@ When refreshing `GhosttyKit.xcframework`, record these details in the commit or 
 - Zig version used
 - Whether the macOS slice is `arm64 + x86_64`
 - Whether the public headers changed
-

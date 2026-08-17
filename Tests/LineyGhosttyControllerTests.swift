@@ -10,6 +10,27 @@ import GhosttyKit
 @testable import Liney
 
 final class LineyGhosttyControllerTests: XCTestCase {
+    func testTerminalDiagnosticLogStoreRetainsOnlyRecentEntries() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        var store = TerminalDiagnosticLogStore(retentionInterval: 60 * 60, maximumEntryCount: 100)
+
+        store.append(TerminalDiagnosticEntry(timestamp: now.addingTimeInterval(-3_601), message: "old"), now: now)
+        store.append(TerminalDiagnosticEntry(timestamp: now, message: "recent"), now: now)
+
+        XCTAssertEqual(store.entries.map(\.message), ["recent"])
+    }
+
+    func testTerminalDiagnosticLogStoreEnforcesEntryLimit() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        var store = TerminalDiagnosticLogStore(retentionInterval: 60 * 60, maximumEntryCount: 2)
+
+        store.append(TerminalDiagnosticEntry(timestamp: now, message: "one"), now: now)
+        store.append(TerminalDiagnosticEntry(timestamp: now, message: "two"), now: now)
+        store.append(TerminalDiagnosticEntry(timestamp: now, message: "three"), now: now)
+
+        XCTAssertEqual(store.entries.map(\.message), ["two", "three"])
+    }
+
     func testCommandFinishedDoesNotReportProcessExit() {
         XCTAssertFalse(
             lineyGhosttyShouldReportProcessExitForCommandFinished(

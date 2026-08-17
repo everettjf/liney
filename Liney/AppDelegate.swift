@@ -385,6 +385,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
 
+    @objc func showTerminalDiagnostics(_ sender: Any?) {
+        Task { @MainActor in
+            TerminalDiagnosticsWindowManager.shared.show()
+        }
+    }
+
     @objc func toggleCommandPalette(_ sender: Any?) {
         Task { @MainActor in
             desktopApplication?.toggleCommandPalette()
