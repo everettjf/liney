@@ -30,7 +30,7 @@ nonisolated func lineyStateDirectoryURL(fileManager: FileManager = .default) -> 
 /// WorkspaceStatePersistence so hot paths that touch settings (e.g. every
 /// workspace refresh calls persistAppSettings) don't pay for a JSON encode
 /// and a synchronous disk write on the main thread.
-final class AppSettingsPersistence {
+nonisolated final class AppSettingsPersistence: @unchecked Sendable {
     private let fileManager = FileManager.default
     private let saveQueue = DispatchQueue(label: "com.liney.app-settings.save", qos: .utility)
     private let pendingLock = NSLock()

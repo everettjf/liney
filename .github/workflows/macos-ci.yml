@@ -1,0 +1,141 @@
+name: macOS CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compatibility-artifact:
+    name: Build macOS 14.6 universal artifact
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Verify vendored Ghostty runtime
+        run: scripts/verify_ghostty_vendor.sh
+
+      - name: Build deployment target
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Liney.xcodeproj \
+            -scheme Liney \
+            -configuration Debug \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/LineyCompatibility" \
+            ARCHS='arm64 x86_64' \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee "$RUNNER_TEMP/xcodebuild-compatibility.log"
+
+      - name: Package app for runtime smoke test
+        run: |
+          ditto -c -k --keepParent \
+            "$RUNNER_TEMP/LineyCompatibility/Build/Products/Debug/Liney.app" \
+            "$RUNNER_TEMP/Liney-macOS-14.6-universal.zip"
+
+      - name: Upload compatibility artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Liney-macOS-14.6-universal
+          path: ${{ runner.temp }}/Liney-macOS-14.6-universal.zip
+          retention-days: 7
+
+  macos-14-runtime:
+    name: Runtime smoke test (macOS 14)
+    needs: compatibility-artifact
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - name: Download compatibility artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Liney-macOS-14.6-universal
+          path: ${{ runner.temp }}/liney-runtime-smoke
+
+      - name: Extract and sign app
+        run: |
+          cd "$RUNNER_TEMP/liney-runtime-smoke"
+          ditto -x -k Liney-macOS-14.6-universal.zip .
+          codesign --force --deep --sign - Liney.app
+
+      - name: Launch app on macOS 14
+        run: |
+          APP="$RUNNER_TEMP/liney-runtime-smoke/Liney.app"
+          LOG="$RUNNER_TEMP/liney-runtime-smoke/launch.log"
+          "$APP/Contents/MacOS/Liney" >"$LOG" 2>&1 &
+          APP_PID=$!
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              echo "Liney exited during macOS 14 startup smoke test"
+              sed -n '1,240p' "$LOG"
+              wait "$APP_PID"
+              exit 1
+            fi
+            sleep 1
+          done
+          kill "$APP_PID"
+          wait "$APP_PID" || true
+
+  build-and-test:
+    name: Build and test (macOS 15, Xcode 26.3)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        # Xcode 16.4 only ships the macOS 15.5 SDK, while LineyTests targets
+        # macOS 15.6. Pin a runner-installed Xcode 26 release so clean CI
+        # builds use an SDK that supports the project's deployment target.
+        run: sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Verify vendored Ghostty runtime
+        run: scripts/verify_ghostty_vendor.sh
+
+      - name: Build and test
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Liney.xcodeproj \
+            -scheme Liney \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -resultBundlePath "$RUNNER_TEMP/LineyTests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            test | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LineyTests-xcresult
+          path: ${{ runner.temp }}/LineyTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 7

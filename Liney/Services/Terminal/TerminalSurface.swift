@@ -116,6 +116,12 @@ private final class LineyTestManagedTerminalSurfaceController: ManagedTerminalSe
         self.launchConfiguration = launchConfiguration
     }
 
+    // Xcode 26's MainActor deinit back-deployment thunk can corrupt the task-
+    // local lookup scope on macOS 15 when the test host tears down its model
+    // graph. This controller is test-only and owns no live terminal process,
+    // so it does not require executor-isolated cleanup.
+    nonisolated deinit {}
+
     func sendText(_ text: String) {}
 
     func sendReturn() {}
@@ -207,4 +213,20 @@ func lineyTerminalDropText(fileURLs: [URL], plainText: String?) -> String? {
 
     guard let plainText, !plainText.isEmpty else { return nil }
     return plainText
+}
+
+func lineyTerminalOpenableURL(_ value: String) -> URL? {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    if let candidate = URL(string: trimmed), candidate.scheme != nil {
+        return candidate
+    }
+    return URL(fileURLWithPath: NSString(string: trimmed).expandingTildeInPath)
+}
+
+func lineyTerminalWritePastedPNG(_ data: Data, directory: URL, fileManager: FileManager = .default) throws -> URL {
+    try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent("Liney-Pasted-Image-\(UUID().uuidString).png")
+    try data.write(to: url, options: .atomic)
+    return url
 }

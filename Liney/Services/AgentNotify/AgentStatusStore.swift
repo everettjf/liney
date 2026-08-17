@@ -14,8 +14,7 @@ import Foundation
 /// Keyed by pane UUID. Entries for closed panes are never read (session-list
 /// only iterates live panes) so no active eviction is required; `clear(pane:)`
 /// is provided for callers that want to prune on pane close.
-@MainActor
-final class AgentStatusStore {
+nonisolated final class AgentStatusStore: @unchecked Sendable {
     static let shared = AgentStatusStore()
 
     struct Entry: Equatable {
@@ -25,7 +24,12 @@ final class AgentStatusStore {
         var updatedAt: Date
     }
 
-    private(set) var entries: [UUID: Entry] = [:]
+    private var storedEntries: [UUID: Entry] = [:]
+    private let lock = NSLock()
+
+    var entries: [UUID: Entry] {
+        withLock { storedEntries }
+    }
 
     private let now: () -> Date
 
@@ -35,18 +39,31 @@ final class AgentStatusStore {
     }
 
     func update(pane: UUID, state: AgentReportedState, title: String?, agentName: String? = nil) {
-        entries[pane] = Entry(state: state, title: title, agentName: agentName, updatedAt: now())
+        let entry = Entry(state: state, title: title, agentName: agentName, updatedAt: now())
+        withLock {
+            storedEntries[pane] = entry
+        }
     }
 
     func state(for pane: UUID) -> AgentReportedState? {
-        entries[pane]?.state
+        withLock { storedEntries[pane]?.state }
     }
 
     func clear(pane: UUID) {
-        entries[pane] = nil
+        withLock {
+            storedEntries[pane] = nil
+        }
     }
 
     func clearAll() {
-        entries.removeAll()
+        withLock {
+            storedEntries.removeAll()
+        }
+    }
+
+    private func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
     }
 }

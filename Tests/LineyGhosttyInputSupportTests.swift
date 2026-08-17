@@ -721,6 +721,26 @@ final class LineyGhosttyInputSupportTests: XCTestCase {
         )
     }
 
+    func testTerminalURLPreservesGeneratedQuery() {
+        let value = "https://review.example.com/c/project/+/123?tab=checks#build"
+        XCTAssertEqual(lineyTerminalOpenableURL(value)?.absoluteString, value)
+    }
+
+    func testTerminalURLExpandsFilePath() {
+        XCTAssertTrue(lineyTerminalOpenableURL("/tmp/review output.txt")?.isFileURL == true)
+    }
+
+    func testPastedPNGIsWrittenToEscapablePath() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let url = try lineyTerminalWritePastedPNG(Data([0x89, 0x50, 0x4E, 0x47]), directory: directory)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertEqual(try Data(contentsOf: url), Data([0x89, 0x50, 0x4E, 0x47]))
+        XCTAssertTrue(url.lastPathComponent.hasSuffix(".png"))
+    }
+
     func testDeleteBackwardRemovesSingleComposedCharacter() {
         var state = LineyGhosttyMarkedTextState(
             text: "你好",

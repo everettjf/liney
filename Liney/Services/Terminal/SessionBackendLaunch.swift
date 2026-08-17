@@ -19,6 +19,8 @@ struct TerminalLaunchConfiguration: Hashable {
     var command: TerminalCommandDefinition
     var backendConfiguration: SessionBackendConfiguration
     var initialInput: String?
+    var diagnosticPaneID: UUID? = nil
+    var diagnosticSessionID: UUID? = nil
 
     var ghosttyCommand: String {
         ([command.executablePath] + command.arguments)

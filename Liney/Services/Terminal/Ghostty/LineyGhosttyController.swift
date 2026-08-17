@@ -129,6 +129,7 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         guard let surface = currentSurface else { return }
         ghostty_surface_update_config(surface, config)
         ghostty_surface_refresh(surface)
+        terminalView.recordDiagnosticEvent("refresh", attributes: ["reason": "config-update"])
         terminalView.applyBackingLayerBackground()
         terminalView.syncSurfaceMetrics()
     }
@@ -228,14 +229,8 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
             return true
 
         case GHOSTTY_ACTION_OPEN_URL:
-            guard let cString = action.action.open_url.url else { return false }
-            let value = String(cString: cString)
-            let url: URL
-            if let candidate = URL(string: value), candidate.scheme != nil {
-                url = candidate
-            } else {
-                url = URL(fileURLWithPath: NSString(string: value).expandingTildeInPath)
-            }
+            guard let value = string(action.action.open_url.url, length: Int(action.action.open_url.len)),
+                  let url = lineyTerminalOpenableURL(value) else { return false }
             NSWorkspace.shared.open(url)
             return true
 
@@ -248,7 +243,10 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
             return true
 
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
-            terminalView.hoveredLink = action.action.mouse_over_link.url.map(String.init(cString:))
+            terminalView.hoveredLink = string(
+                action.action.mouse_over_link.url,
+                length: action.action.mouse_over_link.len
+            )
             return true
 
         case GHOSTTY_ACTION_SCROLLBAR:
@@ -300,6 +298,12 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         default:
             return false
         }
+    }
+
+    private func string(_ pointer: UnsafePointer<CChar>?, length: Int) -> String? {
+        guard let pointer, length > 0 else { return nil }
+        let bytes = UnsafeRawPointer(pointer).assumingMemoryBound(to: UInt8.self)
+        return String(decoding: UnsafeBufferPointer(start: bytes, count: length), as: UTF8.self)
     }
 
     func handleManagedProcessExit(exitCode: Int32?) {
@@ -527,13 +531,24 @@ private final class LineyGhosttySurfaceView: NSView {
     private var workspaceFocused = false
     private var backendConfiguration: SessionBackendConfiguration = .local()
     private var handledTextInputCommand = false
+    private var consumedLinkMouseDown = false
     private var lastPerformKeyEvent: TimeInterval?
     private var markedSelectionRange = NSRange(location: NSNotFound, length: 0)
     private var currentTextInputEventKeyCode: UInt16?
     private var currentTextInputHadMarkedText = false
     private var lastMetricsSignature: LineyGhosttySurfaceMetricsSignature?
     private let diagnosticsID = String(UUID().uuidString.prefix(8))
+    private var diagnosticPaneID: UUID?
+    private var diagnosticSessionID: UUID?
     private let imeDebugLogger = LineyGhosttyIMEDebugLogger.shared
+
+    private var diagnosticContext: TerminalDiagnosticContext {
+        TerminalDiagnosticContext(
+            paneID: diagnosticPaneID,
+            sessionID: diagnosticSessionID,
+            surfaceID: diagnosticsID
+        )
+    }
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -593,7 +608,7 @@ private final class LineyGhosttySurfaceView: NSView {
 
     func destroySurface() {
         guard let surface else { return }
-        TerminalDiagnostics.shared.record("surface=\(diagnosticsID) event=destroy")
+        recordDiagnosticEvent("surface-destroy")
         self.surface = nil
         if let surfaceUserdataToken {
             LineyGhosttyControllerRegistry.shared.unregister(surfaceUserdataToken)
@@ -768,11 +783,16 @@ private final class LineyGhosttySurfaceView: NSView {
             let previousDescription = lastMetricsSignature.map {
                 "\($0.width)x\($0.height)@\($0.scale)/display=\($0.displayID.map(String.init) ?? "nil")"
             } ?? "nil"
-            TerminalDiagnostics.shared.record(
-                "surface=\(diagnosticsID) event=metrics reason=\(reason) " +
-                "points=\(pointWidth)x\(pointHeight) previous=\(previousDescription) " +
-                "next=\(width)x\(height)@\(scale)/display=\(displayID.map(String.init) ?? "nil") " +
-                "pty=\(size.columns)x\(size.rows) refreshed=true"
+            recordDiagnosticEvent(
+                "metrics",
+                attributes: [
+                    "next": "\(width)x\(height)@\(scale)/display=\(displayID.map(String.init) ?? "nil")",
+                    "points": "\(pointWidth)x\(pointHeight)",
+                    "previous": previousDescription,
+                    "pty": "\(size.columns)x\(size.rows)",
+                    "reason": reason,
+                    "refreshed": "true",
+                ]
             )
         }
         lastMetricsSignature = nextSignature
@@ -847,12 +867,23 @@ private final class LineyGhosttySurfaceView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        if event.modifierFlags.contains(.command),
+           let hoveredLink,
+           let url = lineyTerminalOpenableURL(hoveredLink) {
+            consumedLinkMouseDown = true
+            NSWorkspace.shared.open(url)
+            return
+        }
         guard let surface else { return }
         let mods = ghosttyMods(event.modifierFlags)
         ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_LEFT, mods)
     }
 
     override func mouseUp(with event: NSEvent) {
+        if consumedLinkMouseDown {
+            consumedLinkMouseDown = false
+            return
+        }
         guard let surface else { return }
         let mods = ghosttyMods(event.modifierFlags)
         ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_RELEASE, GHOSTTY_MOUSE_LEFT, mods)
@@ -1222,6 +1253,10 @@ private final class LineyGhosttySurfaceView: NSView {
     }
 
     @IBAction func paste(_ sender: Any?) {
+        if let imagePasteText = pastedImageText(from: .general) {
+            insertTerminalText(imagePasteText)
+            return
+        }
         _ = performBindingAction("paste_from_clipboard")
     }
 
@@ -1321,6 +1356,8 @@ private final class LineyGhosttySurfaceView: NSView {
     private func createSurface(runtime: LineyGhosttyRuntime, launchConfiguration: TerminalLaunchConfiguration) {
         guard let controller else { return }
         backendConfiguration = launchConfiguration.backendConfiguration
+        diagnosticPaneID = launchConfiguration.diagnosticPaneID
+        diagnosticSessionID = launchConfiguration.diagnosticSessionID
 
         let surfaceUserdataToken = LineyGhosttyControllerRegistry.shared.register(controller)
         let surface = withSurfaceConfig(
@@ -1332,11 +1369,12 @@ private final class LineyGhosttySurfaceView: NSView {
 
         guard let surface else {
             LineyGhosttyControllerRegistry.shared.unregister(surfaceUserdataToken)
+            recordDiagnosticEvent("surface-create-failed")
             return
         }
         self.surface = surface
         self.surfaceUserdataToken = surfaceUserdataToken
-        TerminalDiagnostics.shared.record("surface=\(diagnosticsID) event=create")
+        recordDiagnosticEvent("surface-create")
         applyBackingLayerBackground()
         ghostty_surface_set_focus(surface, workspaceFocused)
         syncSurfaceMetrics()
@@ -1656,7 +1694,13 @@ private final class LineyGhosttySurfaceView: NSView {
     /// history. Uses `text_len` (not NUL-termination) so embedded NULs or
     /// non-terminated buffers decode correctly.
     func currentScreenText(scrollback: Bool) -> String? {
-        guard let surface else { return nil }
+        guard let surface else {
+            recordDiagnosticEvent(
+                "screen-read",
+                attributes: ["result": "no-surface", "scope": scrollback ? "scrollback" : "viewport"]
+            )
+            return nil
+        }
         let tag = scrollback ? GHOSTTY_POINT_SCREEN : GHOSTTY_POINT_VIEWPORT
         let selection = ghostty_selection_s(
             top_left: ghostty_point_s(tag: tag, coord: GHOSTTY_POINT_COORD_TOP_LEFT, x: 0, y: 0),
@@ -1664,11 +1708,35 @@ private final class LineyGhosttySurfaceView: NSView {
             rectangle: false
         )
         var text = ghostty_text_s()
-        guard ghostty_surface_read_text(surface, selection, &text) else { return nil }
+        guard ghostty_surface_read_text(surface, selection, &text) else {
+            recordDiagnosticEvent(
+                "screen-read",
+                attributes: ["result": "failed", "scope": scrollback ? "scrollback" : "viewport"]
+            )
+            return nil
+        }
         defer { ghostty_surface_free_text(surface, &text) }
-        guard let ptr = text.text, text.text_len > 0 else { return "" }
+        guard let ptr = text.text, text.text_len > 0 else {
+            recordDiagnosticEvent(
+                "screen-read",
+                attributes: ["bytes": "0", "result": "success", "scope": scrollback ? "scrollback" : "viewport"]
+            )
+            return ""
+        }
         let buffer = UnsafeRawBufferPointer(start: ptr, count: Int(text.text_len))
+        recordDiagnosticEvent(
+            "screen-read",
+            attributes: [
+                "bytes": String(text.text_len),
+                "result": "success",
+                "scope": scrollback ? "scrollback" : "viewport",
+            ]
+        )
         return String(decoding: buffer, as: UTF8.self)
+    }
+
+    func recordDiagnosticEvent(_ event: String, attributes: [String: String] = [:]) {
+        TerminalDiagnostics.shared.record(event: event, context: diagnosticContext, attributes: attributes)
     }
 
     private func applyCursor() {
@@ -1739,6 +1807,28 @@ private final class LineyGhosttySurfaceView: NSView {
             options: [.urlReadingFileURLsOnly: true]
         ) as? [URL] ?? []
         return lineyTerminalDropText(fileURLs: fileURLs, plainText: pasteboard.string(forType: .string))
+    }
+
+    private func pastedImageText(from pasteboard: NSPasteboard) -> String? {
+        // Text remains Ghostty's responsibility. Only synthesize a path when
+        // the clipboard contains an image and no text representation.
+        guard pasteboard.lineyGhosttyBestString == nil else { return nil }
+        let pngData: Data?
+        if let data = pasteboard.data(forType: .png) {
+            pngData = data
+        } else if let data = pasteboard.data(forType: .tiff),
+                  let imageRep = NSBitmapImageRep(data: data) {
+            pngData = imageRep.representation(using: .png, properties: [:])
+        } else {
+            pngData = nil
+        }
+        guard let pngData else { return nil }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Liney", isDirectory: true)
+            .appendingPathComponent("Pasted Images", isDirectory: true)
+        guard let url = try? lineyTerminalWritePastedPNG(pngData, directory: directory) else { return nil }
+        TerminalDiagnostics.shared.record("surface=\(diagnosticsID) event=paste-image format=png")
+        return url.path.shellEscaped
     }
 
     private func invalidateCursorRectsForCurrentWindow() {
@@ -1835,6 +1925,14 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
         )
         markedText = NSMutableAttributedString(string: state.text)
         markedSelectionRange = state.selectedRange
+        recordDiagnosticEvent(
+            "ime-marked-text",
+            attributes: [
+                "length": String(markedText.length),
+                "replacementLength": String(max(replacementRange.length, 0)),
+                "selectionLength": String(markedSelectionRange.length),
+            ]
+        )
 
         if keyTextAccumulator == nil {
             syncPreedit()
@@ -1843,9 +1941,11 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
 
     func unmarkText() {
         guard markedText.length > 0 else { return }
+        let previousLength = markedText.length
         markedText.mutableString.setString("")
         markedSelectionRange = NSRange(location: NSNotFound, length: 0)
         syncPreedit()
+        recordDiagnosticEvent("ime-unmark", attributes: ["previousLength": String(previousLength)])
     }
 
     func validAttributesForMarkedText() -> [NSAttributedString.Key] {
@@ -1907,6 +2007,10 @@ extension LineyGhosttySurfaceView: @preconcurrency NSTextInputClient {
             markedText = NSMutableAttributedString(string: characters)
             markedSelectionRange = NSRange(location: markedText.length, length: 0)
             syncPreedit()
+            recordDiagnosticEvent(
+                "ime-deletion-recovery",
+                attributes: ["length": String(markedText.length)]
+            )
             return
         }
 

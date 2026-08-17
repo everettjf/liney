@@ -141,6 +141,11 @@ final class ShellSession: ObservableObject, Identifiable {
         configureSurfaceCallbacks()
     }
 
+    // No executor-isolated cleanup is required here. Keeping the generated
+    // deinit nonisolated also avoids Xcode 26's MainActor back-deployment
+    // deinit thunk corrupting task-local state on macOS 15.
+    nonisolated deinit {}
+
     private func configureSurfaceCallbacks() {
         self.resolvedEngine = surfaceController.resolvedEngine
 
@@ -249,6 +254,7 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.startManagedSessionIfNeeded()
         surfaceController.setFocused(isFocusedInWorkspace)
         syncManagedProcessStateAfterLaunch()
+        recordDiagnosticLifecycle("session-start", attributes: ["backend": backendConfiguration.kind.rawValue])
         HookRunner.shared.fire(.sessionOnStart, context: makeHookContext())
     }
 
@@ -271,6 +277,7 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.restartManagedSession()
         surfaceController.setFocused(isFocusedInWorkspace)
         syncManagedProcessStateAfterLaunch()
+        recordDiagnosticLifecycle("session-restart", attributes: ["backend": backendConfiguration.kind.rawValue])
     }
 
     func updatePreferredWorkingDirectory(_ path: String, restartIfRunning: Bool) {
@@ -283,6 +290,7 @@ final class ShellSession: ObservableObject, Identifiable {
 
     func terminate() {
         let currentLaunchConfiguration = launchConfiguration
+        recordDiagnosticLifecycle("session-terminate")
         surfaceController.terminateManagedSession()
         processReaper(currentLaunchConfiguration)
         lifecycle = .exited
@@ -444,11 +452,14 @@ final class ShellSession: ObservableObject, Identifiable {
            !controlToken.isEmpty {
             baseEnvironment[LineyAgentNotifyEnvironment.controlTokenKey] = controlToken
         }
-        return backendConfiguration.makeLaunchConfiguration(
+        var configuration = backendConfiguration.makeLaunchConfiguration(
             preferredWorkingDirectory: preferredWorkingDirectory,
             baseEnvironment: baseEnvironment,
             resumeAgent: resumeAgent
         )
+        configuration.diagnosticPaneID = paneID
+        configuration.diagnosticSessionID = UUID()
+        return configuration
     }
 
     private func syncManagedProcessStateAfterLaunch() {
@@ -460,7 +471,23 @@ final class ShellSession: ObservableObject, Identifiable {
         self.exitCode = exitCode
         lifecycle = .exited
         pid = nil
+        recordDiagnosticLifecycle(
+            "session-exit",
+            attributes: ["exitCode": exitCode.map(String.init) ?? "unknown"]
+        )
         HookRunner.shared.fire(.sessionOnExit, context: makeHookContext(exitCode: exitCode))
+    }
+
+    private func recordDiagnosticLifecycle(_ event: String, attributes: [String: String] = [:]) {
+        TerminalDiagnostics.shared.record(
+            event: event,
+            context: TerminalDiagnosticContext(
+                paneID: launchConfiguration.diagnosticPaneID,
+                sessionID: launchConfiguration.diagnosticSessionID,
+                surfaceID: nil
+            ),
+            attributes: attributes
+        )
     }
 
     private func makeHookContext(exitCode: Int32? = nil) -> HookContext {

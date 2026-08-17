@@ -42,7 +42,6 @@ final class AgentReportedStateTests: XCTestCase {
     }
 }
 
-@MainActor
 final class AgentStatusStoreTests: XCTestCase {
     func testUpdateAndReadBack() {
         let store = AgentStatusStore(now: { Date(timeIntervalSince1970: 100) })

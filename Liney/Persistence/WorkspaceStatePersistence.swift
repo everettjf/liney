@@ -11,7 +11,7 @@ import Foundation
 /// queue so the main thread never spends time JSON-encoding or calling into
 /// the filesystem. `flushPendingSync` runs from the app-terminate handler to
 /// ensure the latest snapshot is persisted before we exit.
-final class WorkspaceStatePersistence {
+nonisolated final class WorkspaceStatePersistence: @unchecked Sendable {
     private let fileManager = FileManager.default
     private let saveQueue = DispatchQueue(label: "com.liney.workspace-state.save", qos: .utility)
     private let pendingLock = NSLock()

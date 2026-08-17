@@ -278,6 +278,28 @@ final class ShellSessionTests: XCTestCase {
         }
     }
 
+    func testSessionLifecycleDiagnosticsKeepPaneAndLaunchSessionIdentity() async {
+        await MainActor.run {
+            let paneID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+            let surface = FakeManagedTerminalSurfaceController()
+            let diagnostics = TerminalDiagnostics.shared
+            diagnostics.clear()
+            let session = ShellSession(
+                snapshot: PaneSnapshot.makeDefault(id: paneID, cwd: "/tmp/liney-diagnostics"),
+                surfaceController: surface
+            )
+
+            session.start()
+            surface.emitProcessExit(9)
+
+            let lifecycleEntries = diagnostics.entries.filter { $0.context?.paneID == paneID }
+            XCTAssertEqual(Set(lifecycleEntries.compactMap(\.context?.sessionID)).count, 1)
+            XCTAssertTrue(lifecycleEntries.contains { $0.message.contains("event=session-start") })
+            XCTAssertTrue(lifecycleEntries.contains { $0.message.contains("event=session-exit") })
+            XCTAssertTrue(lifecycleEntries.contains { $0.message.contains("exitCode=9") })
+        }
+    }
+
     func testRestartTransitionsExitedSessionBackToRunning() async {
         await MainActor.run {
             let surface = FakeManagedTerminalSurfaceController()

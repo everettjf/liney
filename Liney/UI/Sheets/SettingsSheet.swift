@@ -917,14 +917,24 @@ struct SettingsSheet: View {
                     Toggle(localized("settings.general.terminal.useCustomScrollback"), isOn: terminalScrollbackEnabledBinding)
 
                     HStack {
-                        Text(localized("settings.general.terminal.scrollbackLines"))
+                        Text(localized("settings.general.terminal.scrollbackSize"))
                         Spacer()
-                        Text(localizedFormat("settings.general.terminal.scrollbackLinesValue", appSettings.terminalScrollbackLines ?? 10000))
+                        Text(localizedFormat(
+                            "settings.general.terminal.scrollbackSizeValue",
+                            (appSettings.terminalScrollbackBytes ?? TerminalScrollback.defaultBytes) / (1024 * 1024)
+                        ))
                             .foregroundStyle(.secondary)
                     }
 
-                    Slider(value: terminalScrollbackBinding, in: 1000...100_000, step: 1000)
-                        .disabled(appSettings.terminalScrollbackLines == nil)
+                    Slider(value: terminalScrollbackBinding, in: terminalScrollbackRangeMB, step: 4)
+                        .disabled(appSettings.terminalScrollbackBytes == nil)
+
+                    Text(localizedFormat(
+                        "settings.general.terminal.scrollbackEstimate",
+                        TerminalScrollback.estimatedLines(forBytes: appSettings.terminalScrollbackBytes ?? TerminalScrollback.defaultBytes)
+                    ))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
 
                     Text(localized("settings.general.terminal.scrollbackHint"))
                         .font(.system(size: 11, weight: .medium))
@@ -945,6 +955,20 @@ struct SettingsSheet: View {
                         .disabled(appSettings.terminalBackgroundOpacity >= 1)
 
                     Text(localized("settings.general.terminal.backgroundOpacityHint"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    Divider()
+
+                    Button {
+                        if let url = LineyGhosttyConfigManager.openUserConfigFileURL() {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } label: {
+                        Label(localized("settings.general.terminal.openGhosttyConfig"), systemImage: "doc.text")
+                    }
+
+                    Text(localized("settings.general.terminal.openGhosttyConfigHint"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
 
@@ -1719,21 +1743,29 @@ struct SettingsSheet: View {
 
     private var terminalScrollbackEnabledBinding: Binding<Bool> {
         Binding(
-            get: { appSettings.terminalScrollbackLines != nil },
+            get: { appSettings.terminalScrollbackBytes != nil },
             set: { enabled in
                 if enabled {
-                    appSettings.terminalScrollbackLines = appSettings.terminalScrollbackLines ?? 10000
+                    appSettings.terminalScrollbackBytes = appSettings.terminalScrollbackBytes ?? TerminalScrollback.defaultBytes
                 } else {
-                    appSettings.terminalScrollbackLines = nil
+                    appSettings.terminalScrollbackBytes = nil
                 }
             }
         )
     }
 
+    /// Slider range expressed in whole megabytes, derived from the byte bounds.
+    private var terminalScrollbackRangeMB: ClosedRange<Double> {
+        Double(TerminalScrollback.minBytes / (1024 * 1024))...Double(TerminalScrollback.maxBytes / (1024 * 1024))
+    }
+
+    /// Slider value is in megabytes; the stored setting is in bytes.
     private var terminalScrollbackBinding: Binding<Double> {
         Binding(
-            get: { Double(appSettings.terminalScrollbackLines ?? 10000) },
-            set: { appSettings.terminalScrollbackLines = Int(min(max($0, 1000), 100_000)) }
+            get: { Double((appSettings.terminalScrollbackBytes ?? TerminalScrollback.defaultBytes) / (1024 * 1024)) },
+            set: { megabytes in
+                appSettings.terminalScrollbackBytes = TerminalScrollback.clampBytes(Int(megabytes) * 1024 * 1024)
+            }
         )
     }
 }

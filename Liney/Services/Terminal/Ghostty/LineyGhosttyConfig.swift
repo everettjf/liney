@@ -70,8 +70,10 @@ enum LineyGhosttyConfigManager {
             lines.append("font-size = \(Int(terminalFontSize.rounded()))")
         }
 
-        if let scrollbackLines = settings.terminalScrollbackLines {
-            lines.append("scrollback-limit = \(scrollbackLines)")
+        // Ghostty's `scrollback-limit` is a byte budget, so emit the stored
+        // byte value directly (see TerminalScrollback).
+        if let scrollbackBytes = settings.terminalScrollbackBytes {
+            lines.append("scrollback-limit = \(scrollbackBytes)")
         }
 
         // Only emit background-opacity when the terminal is meant to be
@@ -102,6 +104,16 @@ enum LineyGhosttyConfigManager {
         lineyStateDirectoryURL(fileManager: fileManager)
             .appendingPathComponent("ghostty", isDirectory: true)
             .appendingPathComponent("liney-managed.config")
+    }
+
+    /// Returns Ghostty's normal user config file, creating it when needed.
+    /// Liney loads this file before its generated managed overrides.
+    static func openUserConfigFileURL() -> URL? {
+        let path = ghostty_config_open_path()
+        defer { ghostty_string_free(path) }
+        guard let pointer = path.ptr, path.len > 0 else { return nil }
+        let bytes = UnsafeRawPointer(pointer).assumingMemoryBound(to: UInt8.self)
+        return URL(fileURLWithPath: String(decoding: UnsafeBufferPointer(start: bytes, count: Int(path.len)), as: UTF8.self))
     }
 
     private static func quotedValue(_ value: String) -> String {

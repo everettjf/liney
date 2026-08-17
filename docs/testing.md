@@ -78,6 +78,20 @@ xcodebuild \
   -only-testing:LineyTests/LineyGhosttyInputSupportTests
 ```
 
+CI also maintains an older-system regression matrix:
+
+- Xcode 26.3 builds an arm64 + x86_64 app at the macOS 14.6 deployment target.
+- A macOS 14 runner ad-hoc signs that artifact and verifies that the app stays
+  alive through startup.
+- macOS 15 with Xcode 26.3 runs the full unit-test suite and exercises Swift
+  concurrency back-deployment behavior.
+
+Terminal diagnostics retain one hour of non-input events. Refresh, display
+metrics, resize, IME composition lengths, scrollback reads, and session/surface
+lifecycle entries include pane and session identifiers. The diagnostics window
+can export a report or open a prefilled GitHub issue while revealing the report
+file in Finder for attachment.
+
 ## Review Checklist
 
 Before sending a test-heavy change for review, check:

@@ -91,6 +91,11 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     private var worktreeStates: [String: WorktreeSessionStateRecord]
     private var worktreeControllers: [String: [UUID: WorkspaceSessionController]]
 
+    // The refresh task captures this model weakly, so deallocation does not
+    // require MainActor cleanup. Avoid the macOS 15 back-deployed actor-deinit
+    // thunk used by Xcode 26.
+    nonisolated deinit {}
+
     init(record: WorkspaceRecord) {
         self.id = record.id
         self.kind = record.kind
