@@ -11,18 +11,13 @@ import Foundation
 /// queue so the main thread never spends time JSON-encoding or calling into
 /// the filesystem. `flushPendingSync` runs from the app-terminate handler to
 /// ensure the latest snapshot is persisted before we exit.
-final class WorkspaceStatePersistence {
+nonisolated final class WorkspaceStatePersistence: @unchecked Sendable {
     private let fileManager = FileManager.default
     private let saveQueue = DispatchQueue(label: "com.liney.workspace-state.save", qos: .utility)
     private let pendingLock = NSLock()
     private var pendingState: PersistedWorkspaceState?
     private var pendingWorkItem: DispatchWorkItem?
     private let saveDebounce: DispatchTimeInterval = .milliseconds(500)
-
-    // Pending work items capture this object weakly and require no actor-
-    // isolated cleanup. Avoid Xcode 26's MainActor deinit back-deployment
-    // thunk, which corrupts task-local state on macOS 15.
-    nonisolated deinit {}
 
     func load() -> PersistedWorkspaceState {
         let url = resolvedStateFileURL()
