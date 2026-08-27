@@ -7,6 +7,7 @@
 
 import Combine
 import Foundation
+import os
 
 @MainActor
 final class WorkspaceModel: ObservableObject, Identifiable {
@@ -672,6 +673,8 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     }
 
     func switchToWorktree(path: String, restartRunning: Bool) {
+        let interval = LineyPerformance.signposter.beginInterval("SwitchWorktree")
+        defer { LineyPerformance.signposter.endInterval("SwitchWorktree", interval) }
         saveActiveWorktreeState()
         activeWorktreePath = path
         ensureActiveWorktreeState()

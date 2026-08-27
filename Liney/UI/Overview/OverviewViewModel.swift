@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os
 
 private func overviewLocalized(_ key: String) -> String {
     LocalizationManager.shared.string(key)
@@ -89,6 +90,8 @@ struct OverviewViewModel {
     let workspaces: [OverviewWorkspaceSnapshot]
 
     init(workspaces: [WorkspaceModel]) {
+        let interval = LineyPerformance.signposter.beginInterval("OverviewSnapshot")
+        defer { LineyPerformance.signposter.endInterval("OverviewSnapshot", interval) }
         self.workspaces = workspaces.map(OverviewWorkspaceSnapshot.init)
     }
 

@@ -15,6 +15,18 @@ extension Notification.Name {
 }
 
 @MainActor
+final class CommandPalettePresentationState: ObservableObject {
+    @Published var isPresented = false
+    @Published var query = ""
+    @Published var selectedItemID: String?
+}
+
+@MainActor
+final class StatusMessagePresentationState: ObservableObject {
+    @Published var message: WorkspaceStatusMessage?
+}
+
+@MainActor
 final class WorkspaceStore: ObservableObject {
     private let activityLogLimit = 120
 
@@ -26,12 +38,30 @@ final class WorkspaceStore: ObservableObject {
     }
     @Published var appSettings = AppSettings()
     @Published var gitHubIntegrationState: GitHubIntegrationState = .disabled
-    @Published var statusMessage: WorkspaceStatusMessage?
+    let statusMessagePresentation = StatusMessagePresentationState()
+
+    var statusMessage: WorkspaceStatusMessage? {
+        get { statusMessagePresentation.message }
+        set { statusMessagePresentation.message = newValue }
+    }
     @Published var isOverviewPresented = false
     @Published var globalCanvasState = GlobalCanvasStateRecord()
-    @Published var isCommandPalettePresented = false
-    @Published var commandPaletteQuery = ""
-    @Published var selectedCommandPaletteItemID: String?
+    let commandPalettePresentation = CommandPalettePresentationState()
+
+    var isCommandPalettePresented: Bool {
+        get { commandPalettePresentation.isPresented }
+        set { commandPalettePresentation.isPresented = newValue }
+    }
+
+    var commandPaletteQuery: String {
+        get { commandPalettePresentation.query }
+        set { commandPalettePresentation.query = newValue }
+    }
+
+    var selectedCommandPaletteItemID: String? {
+        get { commandPalettePresentation.selectedItemID }
+        set { commandPalettePresentation.selectedItemID = newValue }
+    }
     @Published var settingsRequest: WorkspaceSettingsRequest?
     @Published var quickCommandEditorRequest: QuickCommandEditorRequest?
     @Published var workflowEditorRequest: WorkflowEditorRequest?
@@ -841,6 +871,8 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func selectWorkspace(_ workspace: WorkspaceModel) {
+        let interval = LineyPerformance.signposter.beginInterval("SelectWorkspace")
+        defer { LineyPerformance.signposter.endInterval("SelectWorkspace", interval) }
         selectedWorkspaceID = workspace.id
         workspace.bootstrapIfNeeded()
         persist()

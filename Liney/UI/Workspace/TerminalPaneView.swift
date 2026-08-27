@@ -84,8 +84,8 @@ struct TerminalPaneView: View {
             GeometryReader { proxy in
                 paneHeaderContent(for: proxy.size.width)
             }
-            .frame(height: 30)
-            .padding(.horizontal, 10)
+            .frame(height: LineyMetrics.paneHeaderHeight)
+            .padding(.horizontal, LineyMetrics.spacing10)
             .background(isFocused ? LineyTheme.panelRaised : LineyTheme.paneHeaderBackground)
 
             if isSearchPresented {
@@ -103,8 +103,8 @@ struct TerminalPaneView: View {
                     },
                     onClose: closeSearch
                 )
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
+                .padding(.horizontal, LineyMetrics.spacing8)
+                .padding(.bottom, LineyMetrics.spacing8)
                 .background(isFocused ? LineyTheme.panelRaised : LineyTheme.paneHeaderBackground)
             }
 
@@ -127,12 +127,12 @@ struct TerminalPaneView: View {
                 searchLabel: searchStatusLabel
             )
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: LineyMetrics.paneRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: LineyMetrics.paneRadius, style: .continuous)
                 .stroke(isFocused ? LineyTheme.accent.opacity(0.46) : LineyTheme.border, lineWidth: isFocused ? 1.2 : 1)
         )
-        .background(paneFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(paneFill, in: RoundedRectangle(cornerRadius: LineyMetrics.paneRadius, style: .continuous))
         .shadow(color: Color.black.opacity(isFocused ? 0.12 : 0.05), radius: isFocused ? 5 : 2, y: 2)
         .contextMenu {
             Button(localized("menu.edit.copy")) {
@@ -223,13 +223,13 @@ struct TerminalPaneView: View {
     private func paneHeaderContent(for width: CGFloat) -> some View {
         let density = paneHeaderDensity(for: width)
 
-        HStack(spacing: 8) {
+        HStack(spacing: LineyMetrics.spacing8) {
             Circle()
                 .fill(session.hasActiveProcess ? LineyTheme.success : LineyTheme.warning)
                 .frame(width: 7, height: 7)
 
             Text(session.title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(LineyTypography.secondary)
                 .foregroundStyle(LineyTheme.tertiaryText)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -251,7 +251,7 @@ struct TerminalPaneView: View {
 
             Spacer(minLength: 6)
 
-            HStack(spacing: 6) {
+            HStack(spacing: LineyMetrics.spacing6) {
                 PaneHeaderButton(systemName: "magnifyingglass") {
                     workspace.focusPane(paneID)
                     presentSearch()
@@ -372,10 +372,10 @@ private struct PaneTag: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+            .font(LineyTypography.monospacedCaption)
             .foregroundStyle(foreground)
             .lineLimit(1)
-            .padding(.horizontal, 6)
+            .padding(.horizontal, LineyMetrics.spacing6)
             .padding(.vertical, 3)
             .fixedSize(horizontal: true, vertical: false)
             .background(LineyTheme.subtleFill, in: Capsule())
@@ -389,12 +389,12 @@ private struct PaneHeaderButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 10, weight: .semibold))
+                .font(LineyTypography.caption)
                 .frame(width: 18, height: 18)
         }
         .buttonStyle(.plain)
         .foregroundStyle(LineyTheme.secondaryText)
-        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+        .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: LineyMetrics.controlRadius, style: .continuous))
     }
 }
 

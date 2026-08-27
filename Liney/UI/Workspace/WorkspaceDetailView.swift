@@ -723,6 +723,8 @@ final class RenameCancelView: NSView {
 }
 
 private struct WorkspaceBackdrop: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     var body: some View {
         GeometryReader { proxy in
             ZStack {
@@ -732,17 +734,19 @@ private struct WorkspaceBackdrop: View {
                     endPoint: .bottomTrailing
                 )
 
-                Circle()
-                    .fill(LineyTheme.backdropBlue)
-                    .frame(width: proxy.size.width * 0.34)
-                    .blur(radius: 76)
-                    .offset(x: proxy.size.width * 0.24, y: -proxy.size.height * 0.18)
+                if !reduceTransparency {
+                    Circle()
+                        .fill(LineyTheme.backdropBlue)
+                        .frame(width: proxy.size.width * 0.34)
+                        .blur(radius: 64)
+                        .offset(x: proxy.size.width * 0.24, y: -proxy.size.height * 0.18)
 
-                Circle()
-                    .fill(LineyTheme.backdropTeal)
-                    .frame(width: proxy.size.width * 0.24)
-                    .blur(radius: 64)
-                    .offset(x: -proxy.size.width * 0.2, y: proxy.size.height * 0.25)
+                    Circle()
+                        .fill(LineyTheme.backdropTeal)
+                        .frame(width: proxy.size.width * 0.24)
+                        .blur(radius: 54)
+                        .offset(x: -proxy.size.width * 0.2, y: proxy.size.height * 0.25)
+                }
             }
             .ignoresSafeArea()
         }

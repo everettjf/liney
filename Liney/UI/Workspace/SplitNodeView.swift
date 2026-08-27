@@ -31,18 +31,41 @@ struct SplitNodeView: View {
                         Color.clear
                     }
                 case .split(let split):
-                    GeometryReader { geometry in
-                        splitBody(split, in: geometry.size)
-                    }
+                    SplitNodeContainer(
+                        workspace: workspace,
+                        sessionController: sessionController,
+                        split: split
+                    )
                 }
             }
         }
     }
+}
+
+private struct SplitNodeContainer: View {
+    @ObservedObject var workspace: WorkspaceModel
+    @ObservedObject var sessionController: WorkspaceSessionController
+    let split: PaneSplitNode
+
+    /// Keep divider motion local while dragging. Publishing the workspace layout
+    /// for every mouse event caused the entire split tree to rebuild and also
+    /// serialized every terminal session snapshot. Commit once on mouse-up.
+    @State private var transientFraction: Double?
+
+    private var effectiveFraction: Double {
+        min(max(transientFraction ?? split.fraction, 0.12), 0.88)
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            splitBody(in: geometry.size)
+        }
+    }
 
     @ViewBuilder
-    private func splitBody(_ split: PaneSplitNode, in size: CGSize) -> some View {
+    private func splitBody(in size: CGSize) -> some View {
         let dividerThickness: CGFloat = 6
-        let clampedFraction = min(max(split.fraction, 0.12), 0.88)
+        let clampedFraction = effectiveFraction
         let availableWidth = max(size.width - dividerThickness, 1)
         let availableHeight = max(size.height - dividerThickness, 1)
 
@@ -56,10 +79,10 @@ struct SplitNodeView: View {
                 SplitDivider(
                     axis: .vertical,
                     fraction: clampedFraction,
-                    availableLength: availableWidth
-                ) { fraction in
-                    workspace.updateSplitFraction(splitID: split.id, fraction: fraction)
-                }
+                    availableLength: availableWidth,
+                    onUpdate: { transientFraction = $0 },
+                    onCommit: commitFraction
+                )
                     .frame(width: dividerThickness)
                 SplitNodeView(workspace: workspace, sessionController: sessionController, node: split.second)
                     .frame(width: secondWidth)
@@ -74,15 +97,21 @@ struct SplitNodeView: View {
                 SplitDivider(
                     axis: .horizontal,
                     fraction: clampedFraction,
-                    availableLength: availableHeight
-                ) { fraction in
-                    workspace.updateSplitFraction(splitID: split.id, fraction: fraction)
-                }
+                    availableLength: availableHeight,
+                    onUpdate: { transientFraction = $0 },
+                    onCommit: commitFraction
+                )
                     .frame(height: dividerThickness)
                 SplitNodeView(workspace: workspace, sessionController: sessionController, node: split.second)
                     .frame(height: secondHeight)
             }
         }
+    }
+
+    private func commitFraction(_ fraction: Double) {
+        let clamped = min(max(fraction, 0.12), 0.88)
+        workspace.updateSplitFraction(splitID: split.id, fraction: clamped)
+        transientFraction = nil
     }
 }
 
@@ -91,8 +120,10 @@ private struct SplitDivider: View {
     let fraction: Double
     let availableLength: CGFloat
     let onUpdate: (Double) -> Void
+    let onCommit: (Double) -> Void
 
     @State private var dragStartFraction: Double?
+    @State private var latestFraction: Double?
 
     var body: some View {
         ZStack {
@@ -116,10 +147,15 @@ private struct SplitDivider: View {
                     let delta = axis == .vertical
                         ? value.translation.width / max(availableLength, 1)
                         : value.translation.height / max(availableLength, 1)
-                    onUpdate(startFraction + delta)
+                    let updatedFraction = min(max(startFraction + delta, 0.12), 0.88)
+                    latestFraction = updatedFraction
+                    onUpdate(updatedFraction)
                 }
                 .onEnded { _ in
+                    let committedFraction = latestFraction ?? fraction
                     dragStartFraction = nil
+                    latestFraction = nil
+                    onCommit(committedFraction)
                 }
         )
     }

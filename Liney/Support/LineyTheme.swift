@@ -39,3 +39,35 @@ enum LineyTheme {
     static let sidebarHoverFill = NSColor(calibratedRed: 0.11, green: 0.12, blue: 0.16, alpha: 1)
     static let dividerColor = NSColor(calibratedWhite: 1, alpha: 0.08)
 }
+
+/// Shared geometry keeps dense developer-tool surfaces visually consistent.
+/// Values are intentionally compact for macOS and should be preferred over
+/// one-off padding, radius, and control-size literals in new UI.
+enum LineyMetrics {
+    static let controlRadius: CGFloat = 5
+    static let panelRadius: CGFloat = 9
+    static let paneRadius: CGFloat = 8
+    static let compactControlHeight: CGFloat = 24
+    static let toolbarControlHeight: CGFloat = 28
+    static let paneHeaderHeight: CGFloat = 30
+    static let hairline: CGFloat = 1
+
+    static let spacing2: CGFloat = 2
+    static let spacing4: CGFloat = 4
+    static let spacing6: CGFloat = 6
+    static let spacing8: CGFloat = 8
+    static let spacing10: CGFloat = 10
+    static let spacing12: CGFloat = 12
+    static let spacing16: CGFloat = 16
+    static let spacing20: CGFloat = 20
+}
+
+enum LineyTypography {
+    static let micro = Font.system(size: 9, weight: .semibold)
+    static let caption = Font.system(size: 10, weight: .medium)
+    static let secondary = Font.system(size: 11, weight: .medium)
+    static let body = Font.system(size: 12, weight: .medium)
+    static let emphasizedBody = Font.system(size: 12, weight: .semibold)
+    static let title = Font.system(size: 16, weight: .bold)
+    static let monospacedCaption = Font.system(size: 10, weight: .semibold, design: .monospaced)
+}

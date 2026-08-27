@@ -26,3 +26,10 @@ nonisolated enum AppLogger {
     static var isVerbose: Bool { level == .verbose }
     static var isEnabled: Bool { level != .off }
 }
+
+nonisolated enum LineyPerformance {
+    static let signposter = OSSignposter(
+        subsystem: "com.xnuapp.liney",
+        category: "performance"
+    )
+}

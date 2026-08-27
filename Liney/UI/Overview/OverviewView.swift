@@ -13,7 +13,6 @@ struct OverviewView: View {
     let onDismiss: () -> Void
 
     private let columns = [GridItem(.adaptive(minimum: 260, maximum: 340), spacing: 16)]
-    private var model: OverviewViewModel { OverviewViewModel(workspaces: store.workspaces) }
 
     private var uiScale: CGFloat {
         CGFloat(store.appSettings.uiScale)
@@ -28,10 +27,24 @@ struct OverviewView: View {
     }
 
     var body: some View {
+        let model = OverviewViewModel(workspaces: store.workspaces)
+        let workflowLaunchers = model.workflowLaunchers
+        let recentActivities = model.recentActivities
+        let worktreeRows = model.worktreeRows
+        let todayFocusItems = model.todayFocusItems
+        let executionCards = model.executionCards
+        let waitingCards = model.waitingCards
+        let shippingCards = model.shippingCards
+        let pullRequestInboxSections = model.pullRequestInboxSections
+        let readyPullRequestTargets = model.readyPullRequestTargets
+        let behindPullRequestTargets = model.behindPullRequestTargets
+        let releaseContextTargets = model.releaseContextTargets
+        let blockerGroups = model.blockerGroups
+
         VStack(spacing: 0) {
-            overviewHeader
+            overviewHeader(model: model)
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: LineyMetrics.spacing20) {
                     OverviewSummaryCards(
                         totalWorkspaces: model.totalWorkspaces,
                         dirtyRepositories: model.dirtyRepositories,
@@ -39,15 +52,15 @@ struct OverviewView: View {
                         activeSessions: model.totalSessions
                     )
 
-                    if !model.workflowLaunchers.isEmpty {
-                        OverviewWorkflowStrip(items: model.workflowLaunchers) { item in
+                    if !workflowLaunchers.isEmpty {
+                        OverviewWorkflowStrip(items: workflowLaunchers) { item in
                             store.dispatch(.runWorkflow(item.workspaceID, item.workflowID))
                         }
                     }
 
-                    if !model.recentActivities.isEmpty {
+                    if !recentActivities.isEmpty {
                         OverviewTimelinePanel(
-                            items: model.recentActivities,
+                            items: recentActivities,
                             onOpenWorkspace: openWorkspace,
                             onClear: store.clearTimeline,
                             onReplay: { item in
@@ -56,45 +69,45 @@ struct OverviewView: View {
                         )
                     }
 
-                    if !model.worktreeRows.isEmpty {
+                    if !worktreeRows.isEmpty {
                         OverviewWorktreePanel(
-                            items: model.worktreeRows,
+                            items: worktreeRows,
                             onOpenWorkspace: openWorkspace
                         )
                     }
 
-                    if !model.todayFocusItems.isEmpty {
+                    if !todayFocusItems.isEmpty {
                         OverviewTodayFocusPanel(
-                            items: model.todayFocusItems,
+                            items: todayFocusItems,
                             onOpenWorkspace: openWorkspace,
                             onAction: perform
                         )
                     }
 
-                    if !model.executionCards.isEmpty || !model.waitingCards.isEmpty || !model.shippingCards.isEmpty {
+                    if !executionCards.isEmpty || !waitingCards.isEmpty || !shippingCards.isEmpty {
                         OverviewTaskBoard(
-                            executionCards: model.executionCards,
-                            waitingCards: model.waitingCards,
-                            shippingCards: model.shippingCards,
+                            executionCards: executionCards,
+                            waitingCards: waitingCards,
+                            shippingCards: shippingCards,
                             onOpenWorkspace: openWorkspace,
                             onAction: perform
                         )
                     }
 
-                    if !model.pullRequestInboxSections.isEmpty {
+                    if !pullRequestInboxSections.isEmpty {
                         OverviewPullRequestInboxPanel(
-                            sections: model.pullRequestInboxSections,
-                            readyTargets: model.readyPullRequestTargets,
-                            behindTargets: model.behindPullRequestTargets,
-                            releaseContextTargets: model.releaseContextTargets,
+                            sections: pullRequestInboxSections,
+                            readyTargets: readyPullRequestTargets,
+                            behindTargets: behindPullRequestTargets,
+                            releaseContextTargets: releaseContextTargets,
                             onOpenWorkspace: openWorkspace,
                             onAction: perform
                         )
                     }
 
-                    if !model.blockerGroups.isEmpty {
+                    if !blockerGroups.isEmpty {
                         OverviewBlockerPanel(
-                            groups: model.blockerGroups,
+                            groups: blockerGroups,
                             onOpenWorkspace: openWorkspace,
                             onAction: perform
                         )
@@ -109,7 +122,7 @@ struct OverviewView: View {
                         }
                     }
                 }
-                .padding(20)
+                .padding(LineyMetrics.spacing20)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -117,13 +130,13 @@ struct OverviewView: View {
         .scaleEffect(uiScale)
     }
 
-    private var overviewHeader: some View {
+    private func overviewHeader(model: OverviewViewModel) -> some View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                 Text(localized("main.overview.title"))
-                    .font(.system(size: 16, weight: .bold))
+                    .font(LineyTypography.title)
                 Text(localizedFormat("overview.header.sessionsAndDesksFormat", model.totalWorkspaces, model.totalSessions))
-                    .font(.system(size: 11, weight: .medium))
+                    .font(LineyTypography.secondary)
                     .foregroundStyle(LineyTheme.mutedText)
             }
             Spacer()
@@ -134,11 +147,11 @@ struct OverviewView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(LineyTheme.mutedText)
                     .frame(width: 24, height: 24)
-                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: 3))
+                    .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: LineyMetrics.controlRadius))
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, LineyMetrics.spacing20)
         .padding(.vertical, 14)
         .background(LineyTheme.sidebarBackground)
         .overlay(alignment: .bottom) {

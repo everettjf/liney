@@ -57,66 +57,8 @@ struct MainWindowView: View {
         store.availableHAPIInstallation
     }
 
-    private var externalEditorHelpText: String {
-        if let editor = effectiveExternalEditor {
-            return localizedFormat("main.toolbar.openCurrentWorkspaceInFormat", editor.editor.displayName)
-        }
-        return localized("main.toolbar.openCurrentWorkspaceInExternalEditor")
-    }
-
-    private var hapiHelpText: String {
-        availableHAPIInstallation?.primaryActionHelpText ?? localized("main.hapi.defaultHelpText")
-    }
-
-    @ViewBuilder
-    private func hapiToolbarControl(using installation: HAPIInstallationStatus) -> some View {
-        ToolbarSegmentedControl(
-            backgroundColor: LineyTheme.chromeBackground.opacity(0.96),
-            borderColor: LineyTheme.border,
-            leadingAction: { anchorView in
-                present(menu: makeHAPIMenu(using: installation), from: anchorView)
-            },
-            trailingAction: { anchorView in
-                present(menu: makeHAPIMenu(using: installation), from: anchorView)
-            },
-            isLeadingDisabled: !hasSelectedWorkspace,
-            isTrailingDisabled: !hasSelectedWorkspace,
-            leadingAccessibilityLabel: installation.primaryActionTitle,
-            leadingHelp: hapiHelpText,
-            trailingAccessibilityLabel: localized("main.hapi.actions"),
-            trailingHelp: localized("main.hapi.quickStartActions"),
-            leadingContent: {
-                HStack(spacing: 6) {
-                    ToolbarFeatureIcon(
-                        systemName: "dot.radiowaves.left.and.right",
-                        tint: LineyTheme.accent
-                    )
-                }
-            },
-            trailingContent: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(LineyTheme.secondaryText)
-            }
-        )
-    }
-
     private var sleepPreventionIconName: String {
         store.sleepPreventionSession == nil ? "moon.zzz" : "moon.zzz.fill"
-    }
-
-    private var sleepPreventionSplitButtonBackground: Color {
-        if store.sleepPreventionSession == nil {
-            return LineyTheme.chromeBackground.opacity(0.96)
-        }
-        return LineyTheme.warning.opacity(0.14)
-    }
-
-    private var sleepPreventionSplitButtonBorder: Color {
-        if store.sleepPreventionSession == nil {
-            return LineyTheme.border
-        }
-        return LineyTheme.warning.opacity(0.42)
     }
 
     private func dismissCanvas(restoreFocus: Bool = true) {
@@ -211,12 +153,9 @@ struct MainWindowView: View {
                 .zIndex(1)
             }
 
-            if store.isCommandPalettePresented {
-                CommandPaletteView()
-                    .environmentObject(store)
-                    .transition(.opacity)
-                    .zIndex(3)
-            }
+            CommandPaletteOverlay(presentation: store.commandPalettePresentation)
+                .environmentObject(store)
+                .zIndex(3)
 
         }
         // Float the status banner as a size-neutral overlay rather than a
@@ -225,11 +164,7 @@ struct MainWindowView: View {
         // height and the host window resizes/shifts downward. An overlay never
         // affects the host's measured size, so the window stays put.
         .overlay(alignment: .top) {
-            if let statusMessage = store.statusMessage {
-                StatusBanner(message: statusMessage)
-                    .padding(.top, 10)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
+            StatusMessageOverlay(presentation: store.statusMessagePresentation)
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -308,58 +243,28 @@ struct MainWindowView: View {
                     }
                     )
 
-                    if let hapiInstallation = availableHAPIInstallation, store.appSettings.showHAPIToolbarButton {
-                        hapiToolbarControl(using: hapiInstallation)
-                    }
-
                     ToolbarSegmentedControl(
-                    backgroundColor: LineyTheme.chromeBackground.opacity(0.96),
-                    borderColor: LineyTheme.border,
-                    leadingAction: { _ in
-                        store.openSelectedWorkspaceInPreferredExternalEditor()
-                    },
-                    trailingAction: { anchorView in
-                        present(menu: makeExternalEditorMenu(), from: anchorView)
-                    },
-                    isLeadingDisabled: !hasSelectedWorkspace || effectiveExternalEditor == nil,
-                    isTrailingDisabled: !hasSelectedWorkspace,
-                    leadingAccessibilityLabel: externalEditorHelpText,
-                    leadingHelp: externalEditorHelpText,
-                    trailingAccessibilityLabel: localized("main.toolbar.chooseExternalEditor"),
-                    trailingHelp: localized("main.toolbar.chooseExternalEditorDefault"),
-                    leadingContent: {
-                        HStack(spacing: 6) {
-                            ToolbarFeatureIcon(
-                                systemName: "arrow.up.forward.app.fill",
-                                tint: LineyTheme.accent
-                            )
-                        }
-                    },
-                    trailingContent: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(LineyTheme.secondaryText)
-                    }
-                    )
-
-                    ToolbarSegmentedControl(
-                        backgroundColor: sleepPreventionSplitButtonBackground,
-                        borderColor: sleepPreventionSplitButtonBorder,
-                        leadingAction: { _ in
-                            store.performPrimarySleepPreventionAction()
+                        backgroundColor: store.sleepPreventionSession == nil
+                            ? LineyTheme.chromeBackground.opacity(0.96)
+                            : LineyTheme.warning.opacity(0.14),
+                        borderColor: store.sleepPreventionSession == nil
+                            ? LineyTheme.border
+                            : LineyTheme.warning.opacity(0.42),
+                        leadingAction: { anchorView in
+                            present(menu: makeUtilitiesMenu(), from: anchorView)
                         },
                         trailingAction: { anchorView in
-                            present(menu: makeSleepPreventionMenu(), from: anchorView)
+                            present(menu: makeUtilitiesMenu(), from: anchorView)
                         },
                         isLeadingDisabled: false,
                         isTrailingDisabled: false,
-                        leadingAccessibilityLabel: store.sleepPreventionPrimaryActionLabel,
-                        leadingHelp: store.sleepPreventionPrimaryActionHelpText,
-                        trailingAccessibilityLabel: store.sleepPreventionStatusText,
-                        trailingHelp: store.sleepPreventionStatusText,
+                        leadingAccessibilityLabel: localized("main.menu.moreActions"),
+                        leadingHelp: localized("main.menu.moreActions"),
+                        trailingAccessibilityLabel: localized("main.menu.moreActions"),
+                        trailingHelp: localized("main.menu.moreActions"),
                         leadingContent: {
                             ToolbarFeatureIcon(
-                                systemName: sleepPreventionIconName,
+                                systemName: "wrench.and.screwdriver",
                                 tint: store.sleepPreventionSession == nil ? LineyTheme.secondaryText : LineyTheme.warning
                             )
                         },
@@ -745,8 +650,6 @@ struct MainWindowView: View {
         } message: { request in
             Text(request.detailMessage)
         }
-        .animation(.easeInOut(duration: 0.18), value: store.statusMessage?.id)
-        .animation(.easeInOut(duration: 0.18), value: store.isCommandPalettePresented)
     }
 
     private func openDiffWindow() {
@@ -1050,6 +953,60 @@ struct MainWindowView: View {
         }
 
         return menu
+    }
+
+    private func makeUtilitiesMenu() -> NSMenu {
+        let menu = NSMenu()
+
+        let editorItem = NSMenuItem(title: localized("main.toolbar.chooseExternalEditor"), action: nil, keyEquivalent: "")
+        editorItem.image = NSImage(systemSymbolName: "arrow.up.forward.app.fill", accessibilityDescription: nil)
+        editorItem.submenu = makeExternalEditorMenu()
+        editorItem.isEnabled = hasSelectedWorkspace
+        menu.addItem(editorItem)
+
+        if let installation = availableHAPIInstallation, store.appSettings.showHAPIToolbarButton {
+            let hapiItem = NSMenuItem(title: localized("main.hapi.actions"), action: nil, keyEquivalent: "")
+            hapiItem.image = NSImage(systemSymbolName: "dot.radiowaves.left.and.right", accessibilityDescription: nil)
+            hapiItem.submenu = makeHAPIMenu(using: installation)
+            hapiItem.isEnabled = hasSelectedWorkspace
+            menu.addItem(hapiItem)
+        }
+
+        let sleepItem = NSMenuItem(title: store.sleepPreventionStatusText, action: nil, keyEquivalent: "")
+        sleepItem.image = NSImage(systemSymbolName: sleepPreventionIconName, accessibilityDescription: nil)
+        sleepItem.submenu = makeSleepPreventionMenu()
+        menu.addItem(sleepItem)
+
+        return menu
+    }
+}
+
+private struct CommandPaletteOverlay: View {
+    @ObservedObject var presentation: CommandPalettePresentationState
+
+    var body: some View {
+        Group {
+            if presentation.isPresented {
+                CommandPaletteView(presentation: presentation)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: presentation.isPresented)
+    }
+}
+
+private struct StatusMessageOverlay: View {
+    @ObservedObject var presentation: StatusMessagePresentationState
+
+    var body: some View {
+        Group {
+            if let message = presentation.message {
+                StatusBanner(message: message)
+                    .padding(.top, LineyMetrics.spacing10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: presentation.message?.id)
     }
 }
 

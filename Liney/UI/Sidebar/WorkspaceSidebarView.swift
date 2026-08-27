@@ -7,6 +7,7 @@
 
 import AppKit
 import SwiftUI
+import os
 
 struct WorkspaceSidebarView: View {
     @EnvironmentObject private var store: WorkspaceStore
@@ -23,7 +24,7 @@ struct WorkspaceSidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
+            HStack(spacing: LineyMetrics.spacing8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11 * uiScale, weight: .regular))
                     .foregroundStyle(LineyTheme.mutedText.opacity(0.8))
@@ -41,9 +42,9 @@ struct WorkspaceSidebarView: View {
             }
             .padding(.horizontal, 9 * uiScale)
             .padding(.vertical, 5 * uiScale)
-            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: LineyMetrics.controlRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                RoundedRectangle(cornerRadius: LineyMetrics.controlRadius, style: .continuous)
                     .strokeBorder(LineyTheme.border, lineWidth: 1)
             )
             .padding(.horizontal, 8 * uiScale)
@@ -270,7 +271,8 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
     private var isUserDrivenSelection = false
     private var suppressSelectionSync = false
     private var pinnedSelectionNodeID: String?
-    private var lastDataFingerprint: String = ""
+    private var lastDataFingerprint: Int?
+    private var lastSelectedRows = IndexSet()
 
     init(store: WorkspaceStore) {
         self.store = store
@@ -308,6 +310,8 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
         let dataChanged = fingerprint != lastDataFingerprint
 
         if dataChanged {
+            let interval = LineyPerformance.signposter.beginInterval("SidebarRebuild")
+            defer { LineyPerformance.signposter.endInterval("SidebarRebuild", interval) }
             lastDataFingerprint = fingerprint
             currentQuery = trimmedQuery
             rootNodes = buildNodes(from: workspaces)
@@ -315,6 +319,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
 
             isApplyingSelection = true
             container?.reloadOutlineData()
+            lastSelectedRows.removeAll()
             guard let outlineView = container?.outlineView else { isApplyingSelection = false; return }
             isRestoringExpansion = true
             restoreExpansionState(on: outlineView)
@@ -328,47 +333,54 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
         }
     }
 
-    private func dataFingerprint(workspaces: [WorkspaceModel], query: String) -> String {
-        var parts: [String] = [query]
+    private func dataFingerprint(workspaces: [WorkspaceModel], query: String) -> Int {
+        var hasher = Hasher()
+        hasher.combine(query)
         if let settings = store?.appSettings {
-            let groupFingerprint = settings.workspaceGroups.map { g in
-                "\(g.id)|\(g.name)|\(g.icon.symbolName)|\(g.icon.palette.rawValue)|\(g.isExpanded)|\(g.workspaceIDs.map(\.uuidString).joined(separator: ","))"
-            }.joined(separator: ";")
-            parts.append("groups:\(groupFingerprint)")
-            let rootOrderFingerprint = settings.sidebarRootOrder.map { "\($0)" }.joined(separator: ",")
-            parts.append("rootOrder:\(rootOrderFingerprint)")
-            parts.append(
-                [
-                    settings.sidebarShowsSecondaryLabels.description,
-                    settings.sidebarShowsWorkspaceBadges.description,
-                    settings.sidebarShowsWorktreeBadges.description,
-                    settings.defaultRepositoryIcon.symbolName,
-                    settings.defaultRepositoryIcon.palette.rawValue,
-                    settings.defaultRepositoryIcon.fillStyle.rawValue,
-                    settings.defaultLocalTerminalIcon.symbolName,
-                    settings.defaultLocalTerminalIcon.palette.rawValue,
-                    settings.defaultLocalTerminalIcon.fillStyle.rawValue,
-                    settings.defaultWorktreeIcon.symbolName,
-                    settings.defaultWorktreeIcon.palette.rawValue,
-                    settings.defaultWorktreeIcon.fillStyle.rawValue,
-                ]
-                .joined(separator: "|")
-            )
+            for group in settings.workspaceGroups {
+                hasher.combine(group.id)
+                hasher.combine(group.name)
+                hasher.combine(group.icon)
+                hasher.combine(group.isExpanded)
+                hasher.combine(group.workspaceIDs)
+            }
+            hasher.combine(settings.sidebarRootOrder)
+            hasher.combine(settings.sidebarShowsSecondaryLabels)
+            hasher.combine(settings.sidebarShowsWorkspaceBadges)
+            hasher.combine(settings.sidebarShowsWorktreeBadges)
+            hasher.combine(settings.defaultRepositoryIcon)
+            hasher.combine(settings.defaultLocalTerminalIcon)
+            hasher.combine(settings.defaultWorktreeIcon)
         }
-        let archivedIDs = store?.archivedWorkspaces.map(\.id.uuidString).joined(separator: ",") ?? ""
-        parts.append("archived:\(archivedIDs)")
-        parts.append("showArchived:\(store?.appSettings.showArchivedWorkspaces.description ?? "nil")")
+        hasher.combine(store?.archivedWorkspaces.map(\.id) ?? [])
+        hasher.combine(store?.appSettings.showArchivedWorkspaces)
         for ws in workspaces {
-                parts.append("\(ws.id)|\(ws.name)|\(ws.currentBranch)|\(ws.activeWorktreePath)|\(ws.hasUncommittedChanges)|\(ws.changedFileCount)|\(ws.aheadCount)|\(ws.behindCount)|\(ws.worktrees.count)|\(ws.activeSessionCount)|\(ws.isPinned)|\(ws.isArchived)|\(ws.workspaceIconOverride?.symbolName ?? "-")|\(ws.workspaceIconOverride?.palette.rawValue ?? "-")|\(ws.workspaceIconOverride?.fillStyle.rawValue ?? "-")|\(ws.runScript)|\(ws.workflows.map(\.name).joined(separator: ","))")
-                for wt in ws.worktrees {
-                    let icon = ws.iconOverride(for: wt.path)
-                    parts.append("  \(wt.path)|\(wt.branch ?? "-")|\(wt.isLocked)|\(icon?.symbolName ?? "-")|\(icon?.palette.rawValue ?? "-")|\(icon?.fillStyle.rawValue ?? "-")")
-                }
-                if let status = ws.worktreeStatuses.values.first {
-                    parts.append("  s:\(status.hasUncommittedChanges)|\(status.changedFileCount)")
+            hasher.combine(ws.id)
+            hasher.combine(ws.name)
+            hasher.combine(ws.currentBranch)
+            hasher.combine(ws.activeWorktreePath)
+            hasher.combine(ws.hasUncommittedChanges)
+            hasher.combine(ws.changedFileCount)
+            hasher.combine(ws.aheadCount)
+            hasher.combine(ws.behindCount)
+            hasher.combine(ws.activeSessionCount)
+            hasher.combine(ws.isPinned)
+            hasher.combine(ws.isArchived)
+            hasher.combine(ws.workspaceIconOverride)
+            hasher.combine(ws.runScript)
+            hasher.combine(ws.workflows.map(\.name))
+            for worktree in ws.worktrees {
+                hasher.combine(worktree.path)
+                hasher.combine(worktree.branch)
+                hasher.combine(worktree.isLocked)
+                hasher.combine(ws.iconOverride(for: worktree.path))
+            }
+            if let status = ws.worktreeStatuses.values.first {
+                hasher.combine(status.hasUncommittedChanges)
+                hasher.combine(status.changedFileCount)
             }
         }
-        return parts.joined(separator: "\n")
+        return hasher.finalize()
     }
 
         private func buildNodes(from workspaces: [WorkspaceModel]) -> [SidebarNodeItem] {
@@ -513,8 +525,20 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             guard let row else { return }
 
             isApplyingSelection = true
+            let previousRows = lastSelectedRows
             outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            lastSelectedRows = IndexSet(integer: row)
             isApplyingSelection = false
+            reloadSelectionRows(previousRows.union(lastSelectedRows), in: outlineView)
+        }
+
+        private func reloadSelectionRows(_ rows: IndexSet, in outlineView: NSOutlineView) {
+            let validRows = rows.filter { $0 >= 0 && $0 < outlineView.numberOfRows }
+            guard !validRows.isEmpty else { return }
+            outlineView.reloadData(
+                forRowIndexes: IndexSet(validRows),
+                columnIndexes: IndexSet(integer: 0)
+            )
         }
 
         private func selectedNodes(from outlineView: NSOutlineView) -> [SidebarNodeItem] {
@@ -1280,10 +1304,9 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             guard !isApplyingSelection,
                   let outlineView = notification.object as? NSOutlineView else { return }
 
-            let rowIndexes = IndexSet(integersIn: 0..<outlineView.numberOfRows)
-            if !rowIndexes.isEmpty {
-                outlineView.reloadData(forRowIndexes: rowIndexes, columnIndexes: IndexSet(integer: 0))
-            }
+            let currentRows = outlineView.selectedRowIndexes
+            reloadSelectionRows(lastSelectedRows.union(currentRows), in: outlineView)
+            lastSelectedRows = currentRows
 
             let nodes = selectedNodes(from: outlineView)
             guard nodes.count == 1, let node = nodes.first else { return }

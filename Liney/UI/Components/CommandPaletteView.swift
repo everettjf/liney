@@ -9,6 +9,7 @@ import SwiftUI
 
 struct CommandPaletteView: View {
     @EnvironmentObject private var store: WorkspaceStore
+    @ObservedObject var presentation: CommandPalettePresentationState
     @ObservedObject private var localization = LocalizationManager.shared
     @FocusState private var isSearchFocused: Bool
 
@@ -35,12 +36,12 @@ struct CommandPaletteView: View {
                     TextField(
                         localized("main.commandPalette.searchPlaceholder"),
                         text: Binding(
-                            get: { store.commandPaletteQuery },
+                            get: { presentation.query },
                             set: { store.updateCommandPaletteQuery($0) }
                         )
                     )
                         .textFieldStyle(.plain)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 14, weight: .semibold))
                         .focused($isSearchFocused)
                         .onSubmit {
                             store.activateSelectedCommandPaletteItem()
@@ -56,7 +57,7 @@ struct CommandPaletteView: View {
                     LazyVStack(spacing: 12) {
                         if store.commandPaletteSections.allSatisfy({ $0.items.isEmpty }) {
                             Text(localized("main.commandPalette.noMatches"))
-                                .font(.system(size: 12, weight: .medium))
+                                .font(LineyTypography.body)
                                 .foregroundStyle(LineyTheme.mutedText)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(16)
@@ -64,7 +65,7 @@ struct CommandPaletteView: View {
                             ForEach(store.commandPaletteSections) { section in
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(section.group.title.uppercased())
-                                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                        .font(LineyTypography.monospacedCaption)
                                         .foregroundStyle(LineyTheme.mutedText)
                                         .padding(.horizontal, 8)
 
@@ -74,7 +75,7 @@ struct CommandPaletteView: View {
                                         } label: {
                                             CommandPaletteRow(
                                                 item: item,
-                                                isSelected: item.id == store.selectedCommandPaletteItemID
+                                                isSelected: item.id == presentation.selectedItemID
                                             )
                                         }
                                         .buttonStyle(.plain)
@@ -88,9 +89,9 @@ struct CommandPaletteView: View {
                 .frame(maxHeight: 380)
             }
             .frame(width: 640)
-            .background(LineyTheme.canvasBackground, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .background(LineyTheme.canvasBackground, in: RoundedRectangle(cornerRadius: LineyMetrics.panelRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: LineyMetrics.panelRadius, style: .continuous)
                     .stroke(LineyTheme.border, lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.28), radius: 30, y: 14)
@@ -98,13 +99,13 @@ struct CommandPaletteView: View {
         }
         .task {
             isSearchFocused = true
-            store.updateCommandPaletteQuery(store.commandPaletteQuery)
+            store.updateCommandPaletteQuery(presentation.query)
         }
         .background(CommandPaletteEventMonitor())
     }
 
     private func activate(_ item: CommandPaletteItem) {
-        store.selectedCommandPaletteItemID = item.id
+        presentation.selectedItemID = item.id
         store.activateSelectedCommandPaletteItem()
     }
 }
