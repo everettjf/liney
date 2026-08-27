@@ -10,31 +10,32 @@ import XCTest
 @MainActor
 final class PresentationStateTests: XCTestCase {
     func testCommandPaletteStatePublishesOnlyItsOwnChanges() {
-        let state = CommandPalettePresentationState()
-        var changeCount = 0
-        let cancellable = state.objectWillChange.sink { changeCount += 1 }
+        let store = WorkspaceStore(persistsWorkspaceState: false)
+        var storeChangeCount = 0
+        let cancellable = store.objectWillChange.sink { storeChangeCount += 1 }
 
-        state.isPresented = true
-        state.query = "worktree"
-        state.selectedItemID = "command:new-tab"
+        store.commandPalettePresentation.isPresented = true
+        store.commandPalettePresentation.query = "worktree"
+        store.commandPalettePresentation.selectedItemID = "command:new-tab"
 
-        XCTAssertEqual(changeCount, 3)
-        XCTAssertTrue(state.isPresented)
-        XCTAssertEqual(state.query, "worktree")
-        XCTAssertEqual(state.selectedItemID, "command:new-tab")
+        XCTAssertEqual(storeChangeCount, 0)
+        XCTAssertTrue(store.isCommandPalettePresented)
+        XCTAssertEqual(store.commandPaletteQuery, "worktree")
+        XCTAssertEqual(store.selectedCommandPaletteItemID, "command:new-tab")
         withExtendedLifetime(cancellable) {}
     }
 
-    func testStatusMessageStateCanClearAnExistingBanner() {
-        let state = StatusMessagePresentationState()
-        var changeCount = 0
-        let cancellable = state.objectWillChange.sink { changeCount += 1 }
+    func testStatusMessageStateDoesNotPublishThroughWorkspaceStore() {
+        let store = WorkspaceStore(persistsWorkspaceState: false)
+        var storeChangeCount = 0
+        let cancellable = store.objectWillChange.sink { storeChangeCount += 1 }
 
-        state.message = WorkspaceStatusMessage(text: "Saved", tone: .success)
-        state.message = nil
+        store.statusMessage = WorkspaceStatusMessage(text: "Saved", tone: .success)
+        XCTAssertEqual(store.statusMessage?.text, "Saved")
+        store.statusMessage = nil
 
-        XCTAssertEqual(changeCount, 2)
-        XCTAssertNil(state.message)
+        XCTAssertEqual(storeChangeCount, 0)
+        XCTAssertNil(store.statusMessage)
         withExtendedLifetime(cancellable) {}
     }
 }
