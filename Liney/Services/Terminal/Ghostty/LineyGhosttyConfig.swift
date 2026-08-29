@@ -70,11 +70,11 @@ enum LineyGhosttyConfigManager {
             lines.append("font-size = \(Int(terminalFontSize.rounded()))")
         }
 
-        // Ghostty's `scrollback-limit` is a byte budget, so emit the stored
-        // byte value directly (see TerminalScrollback).
-        if let scrollbackBytes = settings.terminalScrollbackBytes {
-            lines.append("scrollback-limit = \(scrollbackBytes)")
-        }
+        // Ghostty's `scrollback-limit` is a byte budget. Always emit Liney's
+        // larger development-oriented default unless the user chose a custom
+        // budget; otherwise Ghostty falls back to its smaller 10 MB default.
+        let scrollbackBytes = settings.terminalScrollbackBytes ?? TerminalScrollback.defaultBytes
+        lines.append("scrollback-limit = \(scrollbackBytes)")
 
         // Only emit background-opacity when the terminal is meant to be
         // translucent. At full opacity we leave it unset so Ghostty keeps its

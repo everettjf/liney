@@ -340,9 +340,11 @@ nonisolated enum TerminalScrollback {
     /// bounds worst-case per-surface memory use.
     static let maxBytes = 1024 * 1024 * 1024     // 1 GB
 
-    /// Budget used when the custom limit is first enabled. Matches Ghostty's own
-    /// stock default so enabling the toggle never shrinks scrollback.
-    static let defaultBytes = 10 * 1024 * 1024   // 10 MB
+    /// Liney's default budget. At the calibrated average this retains roughly
+    /// 35,000 rows, while remaining bounded and predictable for multi-pane
+    /// workspaces. Ghostty itself defaults to 10 MB, which is too small for the
+    /// long-running development sessions Liney is designed around.
+    static let defaultBytes = 64 * 1024 * 1024   // 64 MB
 
     /// Upper bound applied when migrating a legacy line-count setting. Honors the
     /// user's intent of "more history" without letting a large legacy line count
@@ -393,8 +395,9 @@ struct AppSettings: Codable, Hashable {
     var terminalFontFamily: String?
     var terminalFontSize: Double?
     var terminalTheme: String?
-    /// Terminal scrollback budget in **bytes** (Ghostty's `scrollback-limit`
-    /// unit). `nil` leaves Ghostty on its own default. See ``TerminalScrollback``.
+    /// Optional custom terminal scrollback budget in **bytes** (Ghostty's
+    /// `scrollback-limit` unit). `nil` uses Liney's 64 MB default. See
+    /// ``TerminalScrollback``.
     var terminalScrollbackBytes: Int?
     var terminalBackgroundOpacity: Double
     var terminalBackgroundBlur: Bool

@@ -21,13 +21,10 @@ final class LineyGhosttyConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("font-size = 14"))
     }
 
-    func testManagedConfigContentsOnlyContainHeaderWithoutOverrides() {
+    func testManagedConfigContentsIncludeLineyDefaultScrollbackWithoutOverrides() {
         let contents = LineyGhosttyConfigManager.managedConfigContents(settings: AppSettings())
 
-        XCTAssertEqual(
-            contents,
-            "# Managed by Liney. Manual edits will be overwritten.\n"
-        )
+        XCTAssertTrue(contents.contains("scrollback-limit = \(TerminalScrollback.defaultBytes)"))
     }
 
     func testManagedConfigEmitsScrollbackLimitInBytes() {
@@ -41,10 +38,10 @@ final class LineyGhosttyConfigTests: XCTestCase {
         XCTAssertTrue(contents.contains("scrollback-limit = \(bytes)"))
     }
 
-    func testManagedConfigOmitsScrollbackLimitWhenUnset() {
+    func testManagedConfigUsesLineyDefaultScrollbackWhenUnset() {
         let contents = LineyGhosttyConfigManager.managedConfigContents(settings: AppSettings())
 
-        XCTAssertFalse(contents.contains("scrollback-limit"))
+        XCTAssertTrue(contents.contains("scrollback-limit = \(64 * 1024 * 1024)"))
     }
 
     // MARK: - Scrollback migration
