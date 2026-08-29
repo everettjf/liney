@@ -58,7 +58,7 @@ brew update && brew install --cask everettjf/tap/liney
 - Releases: <https://github.com/everettjf/liney/releases>
 - Windows 移植版（测试版）: <https://github.com/everettjf/liney-win>
 - Issues: <https://github.com/everettjf/liney/issues>
-- Discord: <https://discord.com/invite/eGzEaP6TzR>
+- Discord: <https://discord.gg/eGzEaP6TzR>
 
 进阶功能：
 

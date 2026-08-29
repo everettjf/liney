@@ -58,7 +58,7 @@ Download the latest signed `.dmg` from GitHub Releases:
 - Releases: <https://github.com/everettjf/liney/releases>
 - Windows port (beta): <https://github.com/everettjf/liney-win>
 - Issues: <https://github.com/everettjf/liney/issues>
-- Discord: <https://discord.com/invite/eGzEaP6TzR>
+- Discord: <https://discord.gg/eGzEaP6TzR>
 
 Power features:
 
@@ -82,4 +82,3 @@ Development setup, build commands, testing, repo layout, and release docs live i
 ## License
 
 Released under the Apache License 2.0. See [`LICENSE`](./LICENSE).
-
