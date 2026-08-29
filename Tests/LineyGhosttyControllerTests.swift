@@ -128,6 +128,31 @@ final class LineyGhosttyControllerTests: XCTestCase {
         )
     }
 
+    func testCommandFinishedResultPreservesExitCodeAndNanosecondDuration() {
+        let result = lineyTerminalCommandResult(
+            ghostty_action_command_finished_s(
+                exit_code: 7,
+                duration: 2_500_000_000
+            )
+        )
+
+        XCTAssertEqual(result.exitCode, 7)
+        XCTAssertEqual(result.duration, 2.5, accuracy: 0.000_001)
+        XCTAssertTrue(result.isFailure)
+    }
+
+    func testCommandFinishedResultTreatsMissingExitCodeAsUnknownSuccessState() {
+        let result = lineyTerminalCommandResult(
+            ghostty_action_command_finished_s(
+                exit_code: -1,
+                duration: 10
+            )
+        )
+
+        XCTAssertNil(result.exitCode)
+        XCTAssertFalse(result.isFailure)
+    }
+
     func testSurfaceCloseWhileProcessIsAliveDoesNotReportProcessExit() {
         XCTAssertFalse(lineyGhosttyShouldReportProcessExitForSurfaceClose(processAlive: true))
     }

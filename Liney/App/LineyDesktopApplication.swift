@@ -455,6 +455,24 @@ public final class LineyDesktopApplication: NSObject {
         session.resetTerminal()
     }
 
+    func jumpToPreviousPromptInFocusedPane() {
+        focusedTerminalSession()?.jumpToPreviousPrompt()
+    }
+
+    func jumpToNextPromptInFocusedPane() {
+        focusedTerminalSession()?.jumpToNextPrompt()
+    }
+
+    func scrollFocusedPaneToBottom() {
+        focusedTerminalSession()?.scrollToBottom()
+    }
+
+    private func focusedTerminalSession() -> ShellSession? {
+        guard let workspace = activeStore?.selectedWorkspace,
+              let paneID = workspace.sessionController.focusedPaneID else { return nil }
+        return workspace.sessionController.session(for: paneID)
+    }
+
     /// Smart close: close focused pane if multiple panes exist, otherwise close the tab.
     func closeFocusedPaneOrTab() {
         guard let store = activeStore,

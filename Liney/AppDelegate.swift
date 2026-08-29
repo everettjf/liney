@@ -527,6 +527,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                  .splitDown,
                  .duplicatePane,
                  .togglePaneZoom,
+                 .previousTerminalPrompt,
+                 .nextTerminalPrompt,
+                 .scrollTerminalToBottom,
                  .closePane,
                  .resetTerminal:
                 return desktopApplication.hasFocusedPane
@@ -662,6 +665,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         case .togglePaneZoom:
             desktopApplication?.toggleFocusedPaneZoom()
+
+        case .previousTerminalPrompt:
+            desktopApplication?.jumpToPreviousPromptInFocusedPane()
+
+        case .nextTerminalPrompt:
+            desktopApplication?.jumpToNextPromptInFocusedPane()
+
+        case .scrollTerminalToBottom:
+            desktopApplication?.scrollFocusedPaneToBottom()
 
         case .closePane:
             desktopApplication?.closeFocusedPane()

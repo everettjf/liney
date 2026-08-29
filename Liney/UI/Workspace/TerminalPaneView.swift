@@ -69,9 +69,27 @@ struct TerminalPaneView: View {
         return "\(Int(progress * 100))%"
     }
 
+    private var isAwayFromLatestOutput: Bool {
+        guard let progress = session.surfaceStatus.viewport?.progress else { return false }
+        return progress < 0.98
+    }
+
+    private var commandResultLabel: String? {
+        guard let result = session.lastCommandResult else { return nil }
+        let duration = formattedCommandDuration(result.duration)
+        if let exitCode = result.exitCode, exitCode != 0 {
+            return localizedFormat("terminal.commandResult.failureFormat", exitCode, duration)
+        }
+        return localizedFormat("terminal.commandResult.successFormat", duration)
+    }
+
     private var paneHeaderStatusTag: (text: String, tone: PaneTag.Tone)? {
         if let exitCode = session.exitCode, session.lifecycle == .exited {
             return (localizedFormat("terminal.status.exitFormat", exitCode), .warning)
+        }
+        if session.lastCommandResult?.isFailure == true,
+           let commandResultLabel {
+            return (commandResultLabel, .warning)
         }
         if isFocused {
             return (localized("terminal.status.active"), .accent)
@@ -118,13 +136,25 @@ struct TerminalPaneView: View {
                         .padding(.trailing, 2)
                         .padding(.vertical, 2)
                 }
+                .overlay(alignment: .bottomTrailing) {
+                    if isAwayFromLatestOutput {
+                        ReturnToLatestButton(label: localized("terminal.action.returnToLatest")) {
+                            workspace.focusPane(paneID)
+                            session.scrollToBottom()
+                        }
+                        .padding(.trailing, 14)
+                        .padding(.bottom, 10)
+                    }
+                }
 
             PaneStatusStrip(
                 backendLabel: session.backendLabel,
                 sizeLabel: "\(session.cols)x\(session.rows)",
                 viewportLabel: viewportLabel,
                 rendererHealthy: session.surfaceStatus.rendererHealthy,
-                searchLabel: searchStatusLabel
+                searchLabel: searchStatusLabel,
+                commandResultLabel: commandResultLabel,
+                commandFailed: session.lastCommandResult?.isFailure == true
             )
         }
         .clipShape(RoundedRectangle(cornerRadius: LineyMetrics.paneRadius, style: .continuous))
@@ -165,6 +195,18 @@ struct TerminalPaneView: View {
             Button(localized("terminal.menu.find")) {
                 workspace.focusPane(paneID)
                 presentSearch()
+            }
+            Button(localized("terminal.menu.previousPrompt")) {
+                workspace.focusPane(paneID)
+                session.jumpToPreviousPrompt()
+            }
+            Button(localized("terminal.menu.nextPrompt")) {
+                workspace.focusPane(paneID)
+                session.jumpToNextPrompt()
+            }
+            Button(localized("terminal.action.returnToLatest")) {
+                workspace.focusPane(paneID)
+                session.scrollToBottom()
             }
             Button(session.surfaceStatus.isReadOnly ? localized("terminal.menu.disableReadOnly") : localized("terminal.menu.enableReadOnly")) {
                 workspace.focusPane(paneID)
@@ -347,6 +389,36 @@ struct TerminalPaneView: View {
             store.closePane(in: workspace, paneID: paneID)
         }
     }
+
+    private func formattedCommandDuration(_ duration: TimeInterval) -> String {
+        if duration < 1 {
+            return String(format: "%.0f ms", duration * 1_000)
+        }
+        if duration < 10 {
+            return String(format: "%.1f s", duration)
+        }
+        return String(format: "%.0f s", duration)
+    }
+}
+
+private struct ReturnToLatestButton: View {
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "arrow.down.to.line")
+                .font(LineyTypography.caption)
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(LineyTheme.tertiaryText)
+        .background(.ultraThinMaterial, in: Circle())
+        .overlay(Circle().stroke(LineyTheme.border, lineWidth: 1))
+        .shadow(color: .black.opacity(0.14), radius: 3, y: 1)
+        .accessibilityLabel(label)
+        .help(label)
+    }
 }
 
 private struct PaneTag: View {
@@ -384,6 +456,7 @@ private struct PaneTag: View {
 
 private struct PaneHeaderButton: View {
     let systemName: String
+    var accessibilityLabel: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -395,6 +468,7 @@ private struct PaneHeaderButton: View {
         .buttonStyle(.plain)
         .foregroundStyle(LineyTheme.secondaryText)
         .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: LineyMetrics.controlRadius, style: .continuous))
+        .accessibilityLabel(accessibilityLabel ?? systemName)
     }
 }
 
@@ -417,6 +491,7 @@ private struct PaneSearchBar: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .focused(isFocused)
+                .onSubmit(onNext)
                 .onExitCommand(perform: onClose)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
@@ -448,6 +523,8 @@ private struct PaneStatusStrip: View {
     let viewportLabel: String?
     let rendererHealthy: Bool
     let searchLabel: String?
+    let commandResultLabel: String?
+    let commandFailed: Bool
 
     private func localized(_ key: String) -> String {
         localization.string(key)
@@ -464,6 +541,10 @@ private struct PaneStatusStrip: View {
 
             if let searchLabel {
                 PaneTag(text: searchLabel, tone: .accent)
+            }
+
+            if let commandResultLabel {
+                PaneTag(text: commandResultLabel, tone: commandFailed ? .warning : .neutral)
             }
 
             if !rendererHealthy {

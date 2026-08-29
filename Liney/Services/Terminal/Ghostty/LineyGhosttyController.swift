@@ -20,6 +20,7 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
     var onWorkingDirectoryChange: ((String?) -> Void)?
     var onFocus: (() -> Void)?
     var onStatusChange: ((TerminalSurfaceStatusSnapshot) -> Void)?
+    var onCommandFinished: ((TerminalCommandResult) -> Void)?
     var onProcessExit: ((Int32?) -> Void)?
     var onWorkspaceAction: ((TerminalWorkspaceAction) -> Void)?
 
@@ -111,6 +112,17 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         // the scrollback, so invert the sign.
         guard let surface = terminalView.surface else { return }
         ghostty_surface_mouse_scroll(surface, 0, Double(-clamped), ghostty_input_scroll_mods_t(0))
+    }
+
+    func jumpToPrompt(_ direction: TerminalPromptNavigation) {
+        focus()
+        let action = direction == .previous ? "jump_to_prompt:-1" : "jump_to_prompt:1"
+        _ = terminalView.performBindingAction(action)
+    }
+
+    func scrollToBottom() {
+        focus()
+        _ = terminalView.performBindingAction("scroll_to_bottom")
     }
 
     func focus() {
@@ -322,6 +334,10 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         // exit. Treating this as a process exit causes normal commands such as
         // `clear` to close panes or tabs unexpectedly.
         _ = lineyGhosttyShouldReportProcessExitForCommandFinished(action)
+        let result = lineyTerminalCommandResult(action)
+        DispatchQueue.main.async { [weak self] in
+            self?.onCommandFinished?(result)
+        }
     }
 
     func completeClipboardRequest(_ text: String, state: UnsafeMutableRawPointer?, confirmed: Bool) {
@@ -464,6 +480,15 @@ func lineyGhosttyShouldReportProcessExitForCommandFinished(
     _: ghostty_action_command_finished_s
 ) -> Bool {
     false
+}
+
+func lineyTerminalCommandResult(
+    _ action: ghostty_action_command_finished_s
+) -> TerminalCommandResult {
+    TerminalCommandResult(
+        exitCode: action.exit_code >= 0 ? Int(action.exit_code) : nil,
+        durationNanoseconds: action.duration
+    )
 }
 
 func lineyGhosttyShouldRefreshSurface(

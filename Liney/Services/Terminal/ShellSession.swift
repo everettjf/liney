@@ -86,6 +86,7 @@ final class ShellSession: ObservableObject, Identifiable {
     @Published var rows: Int = 24
     @Published var cols: Int = 80
     @Published var surfaceStatus = TerminalSurfaceStatusSnapshot()
+    @Published private(set) var lastCommandResult: TerminalCommandResult?
     @Published var searchFocusRequestCount: Int = 0
 
     var onWorkspaceAction: ((TerminalWorkspaceAction) -> Void)?
@@ -168,6 +169,9 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.onStatusChange = { [weak self] status in
             self?.surfaceStatus = status
         }
+        surfaceController.onCommandFinished = { [weak self] result in
+            self?.lastCommandResult = result
+        }
 
         surfaceController.onProcessExit = { [weak self] exitCode in
             guard let self else { return }
@@ -249,6 +253,7 @@ final class ShellSession: ObservableObject, Identifiable {
         title = launchConfiguration.command.displayName
 
         exitCode = nil
+        lastCommandResult = nil
         lifecycle = .starting
         surfaceController.updateLaunchConfiguration(launchConfiguration)
         surfaceController.startManagedSessionIfNeeded()
@@ -273,6 +278,7 @@ final class ShellSession: ObservableObject, Identifiable {
         surfaceController.updateLaunchConfiguration(launchConfiguration)
         processReaper(previousLaunchConfiguration)
         exitCode = nil
+        lastCommandResult = nil
         lifecycle = .starting
         surfaceController.restartManagedSession()
         surfaceController.setFocused(isFocusedInWorkspace)
@@ -363,6 +369,18 @@ final class ShellSession: ObservableObject, Identifiable {
 
     func scrollByLines(_ delta: Int) {
         surfaceController.scrollByLines(delta)
+    }
+
+    func jumpToPreviousPrompt() {
+        surfaceController.jumpToPrompt(.previous)
+    }
+
+    func jumpToNextPrompt() {
+        surfaceController.jumpToPrompt(.next)
+    }
+
+    func scrollToBottom() {
+        surfaceController.scrollToBottom()
     }
 
     func insertText(_ text: String) {

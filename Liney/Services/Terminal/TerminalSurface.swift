@@ -29,6 +29,25 @@ struct TerminalSurfaceStatusSnapshot: Equatable {
     var viewport: TerminalViewportStatus?
 }
 
+struct TerminalCommandResult: Equatable {
+    var exitCode: Int?
+    var durationNanoseconds: UInt64
+
+    var isFailure: Bool {
+        guard let exitCode else { return false }
+        return exitCode != 0
+    }
+
+    var duration: TimeInterval {
+        TimeInterval(durationNanoseconds) / 1_000_000_000
+    }
+}
+
+enum TerminalPromptNavigation: Equatable {
+    case previous
+    case next
+}
+
 @MainActor
 protocol TerminalSurfaceController: AnyObject {
     var resolvedEngine: TerminalEngineKind { get }
@@ -38,6 +57,7 @@ protocol TerminalSurfaceController: AnyObject {
     var onWorkingDirectoryChange: ((String?) -> Void)? { get set }
     var onFocus: (() -> Void)? { get set }
     var onStatusChange: ((TerminalSurfaceStatusSnapshot) -> Void)? { get set }
+    var onCommandFinished: ((TerminalCommandResult) -> Void)? { get set }
     func sendText(_ text: String)
     func sendReturn()
     func focus()
@@ -51,6 +71,8 @@ protocol TerminalSurfaceController: AnyObject {
     func copySelection()
     func toggleReadOnly()
     func scrollByLines(_ delta: Int)
+    func jumpToPrompt(_ direction: TerminalPromptNavigation)
+    func scrollToBottom()
     func resetTerminal()
 }
 
@@ -104,6 +126,7 @@ private final class LineyTestManagedTerminalSurfaceController: ManagedTerminalSe
     var onWorkingDirectoryChange: ((String?) -> Void)?
     var onFocus: (() -> Void)?
     var onStatusChange: ((TerminalSurfaceStatusSnapshot) -> Void)?
+    var onCommandFinished: ((TerminalCommandResult) -> Void)?
     var onProcessExit: ((Int32?) -> Void)?
 
     var managedPID: Int32?
@@ -147,6 +170,10 @@ private final class LineyTestManagedTerminalSurfaceController: ManagedTerminalSe
     func toggleReadOnly() {}
 
     func scrollByLines(_ delta: Int) {}
+
+    func jumpToPrompt(_ direction: TerminalPromptNavigation) {}
+
+    func scrollToBottom() {}
 
     func resetTerminal() {}
 

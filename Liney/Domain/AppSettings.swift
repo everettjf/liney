@@ -995,6 +995,9 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
     case splitDown
     case duplicatePane
     case togglePaneZoom
+    case previousTerminalPrompt
+    case nextTerminalPrompt
+    case scrollTerminalToBottom
     case closePane
     case resetTerminal
     case minimizeWindow
@@ -1045,6 +1048,9 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
              .splitDown,
              .duplicatePane,
              .togglePaneZoom,
+             .previousTerminalPrompt,
+             .nextTerminalPrompt,
+             .scrollTerminalToBottom,
              .closePane,
              .resetTerminal:
             return .panes
@@ -1134,6 +1140,12 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.duplicatePane.title")
         case .togglePaneZoom:
             return lineyLocalizedSettingsString("settings.shortcuts.action.togglePaneZoom.title")
+        case .previousTerminalPrompt:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.previousTerminalPrompt.title")
+        case .nextTerminalPrompt:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.nextTerminalPrompt.title")
+        case .scrollTerminalToBottom:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.scrollTerminalToBottom.title")
         case .closePane:
             return lineyLocalizedSettingsString("settings.shortcuts.action.closePane.title")
         case .resetTerminal:
@@ -1225,6 +1237,12 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.duplicatePane.subtitle")
         case .togglePaneZoom:
             return lineyLocalizedSettingsString("settings.shortcuts.action.togglePaneZoom.subtitle")
+        case .previousTerminalPrompt:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.previousTerminalPrompt.subtitle")
+        case .nextTerminalPrompt:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.nextTerminalPrompt.subtitle")
+        case .scrollTerminalToBottom:
+            return lineyLocalizedSettingsString("settings.shortcuts.action.scrollTerminalToBottom.subtitle")
         case .closePane:
             return lineyLocalizedSettingsString("settings.shortcuts.action.closePane.subtitle")
         case .resetTerminal:
@@ -1316,6 +1334,12 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return StoredShortcut(key: "d", command: true, shift: false, option: true, control: false)
         case .togglePaneZoom:
             return StoredShortcut(key: "\r", command: true, shift: true, option: false, control: false)
+        case .previousTerminalPrompt:
+            return StoredShortcut(key: "↑", command: true, shift: true, option: false, control: false)
+        case .nextTerminalPrompt:
+            return StoredShortcut(key: "↓", command: true, shift: true, option: false, control: false)
+        case .scrollTerminalToBottom:
+            return nil
         case .closePane:
             return nil
         case .resetTerminal:

@@ -452,6 +452,41 @@ final class ShellSessionTests: XCTestCase {
         }
     }
 
+    func testPromptNavigationAndScrollToBottomDelegateToSurfaceController() async {
+        await MainActor.run {
+            let surface = FakeManagedTerminalSurfaceController()
+            let session = ShellSession(
+                snapshot: PaneSnapshot.makeDefault(cwd: "/tmp/liney-shell-session-navigation"),
+                surfaceController: surface
+            )
+
+            session.jumpToPreviousPrompt()
+            session.jumpToNextPrompt()
+            session.scrollToBottom()
+
+            XCTAssertEqual(surface.promptNavigation, [.previous, .next])
+            XCTAssertEqual(surface.scrollToBottomCallCount, 1)
+        }
+    }
+
+    func testCommandFinishedUpdatesLastCommandResultWithoutExitingShell() async {
+        await MainActor.run {
+            let surface = FakeManagedTerminalSurfaceController()
+            let session = ShellSession(
+                snapshot: PaneSnapshot.makeDefault(cwd: "/tmp/liney-shell-session-command-result"),
+                surfaceController: surface
+            )
+            session.startIfNeeded()
+
+            let result = TerminalCommandResult(exitCode: 2, durationNanoseconds: 750_000_000)
+            surface.emitCommandFinished(result)
+
+            XCTAssertEqual(session.lastCommandResult, result)
+            XCTAssertEqual(session.lifecycle, .running)
+            XCTAssertTrue(session.hasActiveProcess)
+        }
+    }
+
     func testSnapshotPromotesLocalTmuxSessionToRestorableLaunch() async {
         await MainActor.run {
             let surface = FakeManagedTerminalSurfaceController()
@@ -573,6 +608,7 @@ private final class FakeManagedTerminalSurfaceController: ManagedTerminalSession
     var onWorkingDirectoryChange: ((String?) -> Void)?
     var onFocus: (() -> Void)?
     var onStatusChange: ((TerminalSurfaceStatusSnapshot) -> Void)?
+    var onCommandFinished: ((TerminalCommandResult) -> Void)?
     var onProcessExit: ((Int32?) -> Void)?
 
     var managedPID: Int32? = nil
@@ -585,6 +621,8 @@ private final class FakeManagedTerminalSurfaceController: ManagedTerminalSession
     private(set) var sentTexts: [String] = []
     private(set) var sendReturnCallCount = 0
     private(set) var copySelectionCallCount = 0
+    private(set) var promptNavigation: [TerminalPromptNavigation] = []
+    private(set) var scrollToBottomCallCount = 0
     var selectedTextValue: String?
 
     func updateLaunchConfiguration(_ configuration: TerminalLaunchConfiguration) {}
@@ -626,7 +664,17 @@ private final class FakeManagedTerminalSurfaceController: ManagedTerminalSession
     }
     func toggleReadOnly() {}
     func scrollByLines(_ delta: Int) {}
+    func jumpToPrompt(_ direction: TerminalPromptNavigation) {
+        promptNavigation.append(direction)
+    }
+    func scrollToBottom() {
+        scrollToBottomCallCount += 1
+    }
     func resetTerminal() {}
+
+    func emitCommandFinished(_ result: TerminalCommandResult) {
+        onCommandFinished?(result)
+    }
 
     func emitProcessExit(_ exitCode: Int32?) {
         needsConfirmQuit = false

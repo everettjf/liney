@@ -163,6 +163,10 @@ final class ApplicationMenuController: NSObject {
         addShortcutItem(title: localized("menu.view.focusPaneUp"), shortcutAction: .focusPaneUp, to: viewMenu, target: target)
         addShortcutItem(title: localized("menu.view.focusPaneDown"), shortcutAction: .focusPaneDown, to: viewMenu, target: target)
         viewMenu.addItem(.separator())
+        addShortcutItem(title: localized("terminal.menu.previousPrompt"), shortcutAction: .previousTerminalPrompt, to: viewMenu, target: target)
+        addShortcutItem(title: localized("terminal.menu.nextPrompt"), shortcutAction: .nextTerminalPrompt, to: viewMenu, target: target)
+        addShortcutItem(title: localized("terminal.action.returnToLatest"), shortcutAction: .scrollTerminalToBottom, to: viewMenu, target: target)
+        viewMenu.addItem(.separator())
         addShortcutItem(title: localized("menu.view.enterFullScreen"), shortcutAction: .enterFullScreen, to: viewMenu, target: target)
 
         let workspaceMenu = NSMenu(title: localized("menu.workspace"))
