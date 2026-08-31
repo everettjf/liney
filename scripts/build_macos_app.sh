@@ -93,7 +93,21 @@ EOF
   exit 1
 fi
 
-VENDORED_GHOSTTY_ARCHS="$(lipo -archs "$ROOT_DIR/Liney/Vendor/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a" 2>/dev/null || true)"
+GHOSTTY_XCFRAMEWORK="$ROOT_DIR/Liney/Vendor/GhosttyKit.xcframework"
+GHOSTTY_LIBRARY_IDENTIFIER="macos-arm64_x86_64"
+GHOSTTY_BINARY_NAME="$(
+  /usr/libexec/PlistBuddy \
+    -c 'Print :AvailableLibraries:0:BinaryPath' \
+    "$GHOSTTY_XCFRAMEWORK/Info.plist" 2>/dev/null || true
+)"
+GHOSTTY_BINARY_PATH="$GHOSTTY_XCFRAMEWORK/$GHOSTTY_LIBRARY_IDENTIFIER/$GHOSTTY_BINARY_NAME"
+
+if [[ -z "$GHOSTTY_BINARY_NAME" || ! -f "$GHOSTTY_BINARY_PATH" ]]; then
+  echo "Unable to locate the vendored Ghostty binary from the XCFramework manifest." >&2
+  exit 1
+fi
+
+VENDORED_GHOSTTY_ARCHS="$(lipo -archs "$GHOSTTY_BINARY_PATH" 2>/dev/null || true)"
 IFS=' ' read -r -a ARCHS <<< "$RELEASE_ARCHS"
 if [[ ${#ARCHS[@]} -eq 0 ]]; then
   echo "RELEASE_ARCHS must contain at least one architecture" >&2
