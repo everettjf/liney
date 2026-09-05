@@ -58,6 +58,7 @@ sparkle_tool_path() {
     -scheme "$tool_name" \
     -configuration Release \
     -derivedDataPath "$derived_data_path" \
+    MACOSX_DEPLOYMENT_TARGET=12.0 \
     CODE_SIGNING_ALLOWED=NO \
     build >/dev/null
 
