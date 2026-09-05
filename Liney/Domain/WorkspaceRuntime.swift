@@ -417,6 +417,9 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         guard kind == .repository else { return false }
         saveActiveWorktreeState()
         let previousActiveWorktreePath = activeWorktreePath
+        let resolvedActiveWorktreePath = snapshot.worktrees.contains { $0.path == activeWorktreePath }
+            ? activeWorktreePath
+            : snapshot.rootPath
         var changed = false
         if currentBranch != snapshot.currentBranch { currentBranch = snapshot.currentBranch; changed = true }
         if head != snapshot.head { head = snapshot.head; changed = true }
@@ -438,13 +441,19 @@ final class WorkspaceModel: ObservableObject, Identifiable {
             remoteBranches = snapshot.status.remoteBranches
             changed = true
         }
-        if worktreeStatuses[activeWorktreePath] != snapshot.status {
-            worktreeStatuses[activeWorktreePath] = snapshot.status
+        if worktreeStatuses[resolvedActiveWorktreePath] != snapshot.status {
+            worktreeStatuses[resolvedActiveWorktreePath] = snapshot.status
             changed = true
         }
         if worktrees != snapshot.worktrees { worktrees = snapshot.worktrees; changed = true }
-        if !worktrees.contains(where: { $0.path == activeWorktreePath }) {
-            activeWorktreePath = snapshot.rootPath
+        let validWorktreePaths = Set(worktrees.map(\.path))
+        let prunedStatuses = worktreeStatuses.filter { validWorktreePaths.contains($0.key) }
+        if worktreeStatuses != prunedStatuses {
+            worktreeStatuses = prunedStatuses
+            changed = true
+        }
+        if activeWorktreePath != resolvedActiveWorktreePath {
+            activeWorktreePath = resolvedActiveWorktreePath
             changed = true
         }
         ensureKnownWorktreeStates()
@@ -997,6 +1006,8 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         let targets = Set(paths)
         guard !targets.isEmpty else { return }
 
+        worktrees.removeAll { targets.contains($0.path) }
+
         if targets.contains(activeWorktreePath) {
             activeWorktreePath = repositoryRoot
         }
@@ -1010,6 +1021,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
             worktreeStatuses.removeValue(forKey: path)
         }
 
+        pruneWorktreeCustomizations()
         ensureActiveWorktreeState()
         loadActiveWorktreeState()
         saveActiveWorktreeState()

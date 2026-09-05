@@ -103,6 +103,7 @@ final class WorkspaceStore: ObservableObject {
     private var lastRemoteRefreshTime: Date = .distantPast
     private var cachedWorkspaceIcons: [UUID: SidebarItemIcon] = [:]
     private var cachedWorktreeIcons: [UUID: [String: SidebarItemIcon]] = [:]
+    private var workspaceRefreshGenerations: [UUID: UInt] = [:]
 
     private func localized(_ key: String) -> String {
         LocalizationManager.shared.string(key)
@@ -1403,17 +1404,16 @@ final class WorkspaceStore: ObservableObject {
             }
             return
         }
+        let refreshGeneration = nextRefreshGeneration(for: workspace.id)
         do {
             let previousWorktreePaths = Set(workspace.worktrees.map(\.path))
-            let snapshot = try await gitRepositoryService.inspectRepository(at: workspace.activeWorktreePath, repositoryRoot: workspace.repositoryRoot)
+            let snapshot = try await gitRepositoryService.inspectRepository(
+                at: workspace.activeWorktreePath,
+                repositoryRoot: workspace.repositoryRoot,
+                fallbackWorktrees: workspace.worktrees
+            )
+            guard isCurrentRefresh(refreshGeneration, for: workspace.id) else { return }
             var changed = workspace.apply(snapshot: snapshot)
-            // Only refresh the active worktree's status. Background worktrees
-            // keep their last known status until the user switches to them or
-            // something external (file watcher) invalidates them. Running
-            // status for every worktree on every tick was a significant chunk
-            // of the refresh cost on workspaces with many worktrees.
-            let statuses = try await gitRepositoryService.repositoryStatuses(for: [workspace.activeWorktreePath])
-            if workspace.mergeWorktreeStatuses(statuses) { changed = true }
             if !workspace.gitHubStatuses.isEmpty {
                 workspace.gitHubStatuses = [:]
                 changed = true
@@ -1435,8 +1435,23 @@ final class WorkspaceStore: ObservableObject {
                 }
             }
         } catch {
+            guard isCurrentRefresh(refreshGeneration, for: workspace.id) else { return }
             presentError(title: localized("main.error.refreshRepository.title"), message: error.localizedDescription)
         }
+    }
+
+    private func nextRefreshGeneration(for workspaceID: UUID) -> UInt {
+        let generation = (workspaceRefreshGenerations[workspaceID] ?? 0) &+ 1
+        workspaceRefreshGenerations[workspaceID] = generation
+        return generation
+    }
+
+    private func isCurrentRefresh(_ generation: UInt, for workspaceID: UUID) -> Bool {
+        workspaceRefreshGenerations[workspaceID] == generation
+    }
+
+    private func invalidateRefreshes(for workspaceID: UUID) {
+        _ = nextRefreshGeneration(for: workspaceID)
     }
 
     private func refreshSSHWorkspace(_ workspace: WorkspaceModel, persistAfterRefresh: Bool) async {
@@ -2634,6 +2649,7 @@ final class WorkspaceStore: ObservableObject {
 
         Task { @MainActor in
             do {
+                invalidateRefreshes(for: workspace.id)
                 workspace.prepareForWorktreeRemoval(paths: pendingWorktreeRemoval.worktreePaths)
                 if workspace.isRemote, let sshConfig = workspace.sshTarget {
                     for path in pendingWorktreeRemoval.worktreePaths {

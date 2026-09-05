@@ -102,6 +102,38 @@ final class GitRepositoryServiceTests: XCTestCase {
         )
     }
 
+    func testInspectRepositoryFallsBackToRootAfterActiveWorktreeWasRemoved() async throws {
+        let directoryURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let repo = directoryURL.appendingPathComponent("repo", isDirectory: true)
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "init", "-b", "main"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.email", "test@example.com"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "config", "user.name", "Test"], currentDirectory: repo.path)
+        try Data("hello\n".utf8).write(to: repo.appendingPathComponent("a.txt"))
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "add", "."], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "commit", "-m", "init"], currentDirectory: repo.path)
+
+        let removedWorktree = directoryURL.appendingPathComponent("removed", isDirectory: true)
+        let survivingWorktree = directoryURL.appendingPathComponent("surviving", isDirectory: true)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "worktree", "add", "--detach", removedWorktree.path, "HEAD"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "worktree", "add", "--detach", survivingWorktree.path, "HEAD"], currentDirectory: repo.path)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "worktree", "remove", removedWorktree.path], currentDirectory: repo.path)
+
+        let snapshot = try await GitRepositoryService().inspectRepository(
+            at: removedWorktree.path,
+            repositoryRoot: repo.path
+        )
+
+        XCTAssertEqual(snapshot.rootPath, repo.path)
+        XCTAssertEqual(snapshot.currentBranch, "main")
+        XCTAssertEqual(
+            Set(snapshot.worktrees.map { URL(fileURLWithPath: $0.path).standardizedFileURL.resolvingSymlinksInPath().path }),
+            Set([repo, survivingWorktree].map { $0.standardizedFileURL.resolvingSymlinksInPath().path })
+        )
+    }
+
     func testDiffNameStatusSupportsEmptyGitRepositories() async throws {
         let directoryURL = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directoryURL) }

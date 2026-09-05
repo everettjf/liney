@@ -96,7 +96,11 @@ actor GitRepositoryService {
     private var statusCache: [String: StatusCacheEntry] = [:]
     private static let statusCacheTTL: TimeInterval = 120
 
-    func inspectRepository(at path: String, repositoryRoot: String? = nil) async throws -> RepositorySnapshot {
+    func inspectRepository(
+        at path: String,
+        repositoryRoot: String? = nil,
+        fallbackWorktrees: [WorktreeModel] = []
+    ) async throws -> RepositorySnapshot {
         let log = AppLogger.git
 
         if AppLogger.isVerbose {
@@ -117,45 +121,51 @@ actor GitRepositoryService {
             }
         }
 
-        let branch: String
-        do {
-            if AppLogger.isVerbose { log.debug("Reading current branch...") }
-            branch = try await currentBranch(for: path, timeout: Self.inspectTimeout)
-            if AppLogger.isVerbose { log.info("Current branch: \(branch, privacy: .public)") }
-        } catch {
-            if AppLogger.isEnabled { log.error("Failed to read current branch: \(error.localizedDescription, privacy: .public)") }
-            throw inspectionError(path: path, step: "Read current branch", underlying: error)
-        }
-
-        let head: String
-        do {
-            if AppLogger.isVerbose { log.debug("Reading HEAD commit...") }
-            head = try await headCommit(for: path, timeout: Self.inspectTimeout)
-            if AppLogger.isVerbose { log.info("HEAD commit: \(head, privacy: .public)") }
-        } catch {
-            if AppLogger.isEnabled { log.error("Failed to read HEAD commit: \(error.localizedDescription, privacy: .public)") }
-            throw inspectionError(path: path, step: "Read HEAD commit", underlying: error)
-        }
-
         // Worktree listing and status can be slow on large repos — use timeouts
-        // and degrade gracefully so the workspace still opens.
-        let worktrees: [WorktreeModel]
+        // and preserve the last trustworthy list if a transient failure occurs.
+        // Never replace a multi-worktree workspace with a synthetic one-item
+        // list: doing so makes every sibling disappear from the sidebar.
+        let listedWorktrees: [WorktreeModel]?
         do {
             if AppLogger.isVerbose { log.debug("Listing worktrees...") }
-            worktrees = try await listWorktrees(for: rootPath, timeout: Self.inspectTimeout)
+            let worktrees = try await listWorktrees(for: rootPath, timeout: Self.inspectTimeout)
+            listedWorktrees = worktrees
             if AppLogger.isVerbose { log.info("Found \(worktrees.count) worktree(s)") }
-        } catch is ShellCommandError {
-            if AppLogger.isEnabled { log.warning("Worktree listing timed out or failed, falling back to single worktree") }
-            worktrees = [WorktreeModel(path: rootPath, branch: branch, head: head, isMainWorktree: true, isLocked: false)]
         } catch {
-            if AppLogger.isEnabled { log.error("Failed to list worktrees: \(error.localizedDescription, privacy: .public)") }
-            throw inspectionError(path: path, step: "List worktrees", underlying: error)
+            if AppLogger.isEnabled {
+                log.warning("Worktree listing failed; preserving the previous list: \(error.localizedDescription, privacy: .public)")
+            }
+            listedWorktrees = nil
         }
+
+        let knownWorktrees = listedWorktrees ?? fallbackWorktrees
+        let requestedPathIsKnown = knownWorktrees.contains { $0.path == path }
+        let requestedPathExists = FileManager.default.fileExists(atPath: path)
+        let inspectionPath = requestedPathIsKnown && requestedPathExists ? path : rootPath
+
+        let branch: String
+        let head: String
+        var statusPath = inspectionPath
+        do {
+            (branch, head) = try await repositoryIdentity(at: inspectionPath)
+        } catch {
+            guard inspectionPath != rootPath else { throw error }
+            if AppLogger.isEnabled {
+                log.warning("Selected worktree became unavailable during refresh; retrying at repository root")
+            }
+            (branch, head) = try await repositoryIdentity(at: rootPath)
+            statusPath = rootPath
+        }
+
+        let worktrees = listedWorktrees
+            ?? (fallbackWorktrees.isEmpty
+                ? [WorktreeModel(path: rootPath, branch: branch, head: head, isMainWorktree: true, isLocked: false)]
+                : fallbackWorktrees)
 
         let status: RepositoryStatusSnapshot
         do {
             if AppLogger.isVerbose { log.debug("Reading repository status...") }
-            status = try await repositoryStatus(for: path, timeout: Self.inspectTimeout)
+            status = try await repositoryStatus(for: statusPath, timeout: Self.inspectTimeout)
             if AppLogger.isVerbose { log.info("Status: \(status.changedFileCount) changed files, ahead=\(status.aheadCount), behind=\(status.behindCount)") }
         } catch {
             if AppLogger.isEnabled { log.warning("Repository status failed, using empty status: \(error.localizedDescription, privacy: .public)") }
@@ -178,6 +188,29 @@ actor GitRepositoryService {
             worktrees: worktrees,
             status: status
         )
+    }
+
+    private func repositoryIdentity(at path: String) async throws -> (branch: String, head: String) {
+        let log = AppLogger.git
+        let branch: String
+        do {
+            if AppLogger.isVerbose { log.debug("Reading current branch...") }
+            branch = try await currentBranch(for: path, timeout: Self.inspectTimeout)
+            if AppLogger.isVerbose { log.info("Current branch: \(branch, privacy: .public)") }
+        } catch {
+            if AppLogger.isEnabled { log.error("Failed to read current branch: \(error.localizedDescription, privacy: .public)") }
+            throw inspectionError(path: path, step: "Read current branch", underlying: error)
+        }
+
+        do {
+            if AppLogger.isVerbose { log.debug("Reading HEAD commit...") }
+            let head = try await headCommit(for: path, timeout: Self.inspectTimeout)
+            if AppLogger.isVerbose { log.info("HEAD commit: \(head, privacy: .public)") }
+            return (branch, head)
+        } catch {
+            if AppLogger.isEnabled { log.error("Failed to read HEAD commit: \(error.localizedDescription, privacy: .public)") }
+            throw inspectionError(path: path, step: "Read HEAD commit", underlying: error)
+        }
     }
 
     func repositoryRoot(for path: String, timeout: TimeInterval? = nil) async throws -> String {
