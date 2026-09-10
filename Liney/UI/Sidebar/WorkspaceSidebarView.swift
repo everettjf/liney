@@ -1328,7 +1328,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             guard let node = item as? SidebarNodeItem else { return 48 }
             switch node.kind {
             case .group:
-                return 34 * CGFloat(store?.appSettings.uiScale ?? 1)
+                return 28 * CGFloat(store?.appSettings.uiScale ?? 1)
             case .archiveGroup:
                 return 22
             case .workspace:
@@ -1866,66 +1866,34 @@ private struct GroupRowContent: View {
     let childCount: Int
     let store: WorkspaceStore?
     let isSelected: Bool
-    @State private var isHovering = false
-
-    private var appSettings: AppSettings {
-        store?.appSettings ?? AppSettings()
-    }
 
     private var uiScale: CGFloat {
-        CGFloat(appSettings.uiScale)
-    }
-
-    private var iconPalette: SidebarIconPaletteDescriptor {
-        group.icon.palette.descriptor
+        CGFloat(store?.appSettings.uiScale ?? 1)
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6 * uiScale) {
-                Image(systemName: group.icon.symbolName)
-                    .font(.system(size: 11 * uiScale, weight: .medium))
-                    .foregroundStyle(iconPalette.foreground.opacity(0.85))
+        HStack(spacing: 6 * uiScale) {
+            Image(systemName: group.icon.symbolName)
+                .font(.system(size: 11 * uiScale, weight: .medium))
+                .foregroundStyle(group.icon.palette.descriptor.foreground.opacity(0.8))
+                .frame(width: 14 * uiScale)
 
-                Text(group.name)
-                    .font(.system(size: 12 * uiScale, weight: .semibold))
-                    .tracking(0.5)
-                    .foregroundStyle(isSelected ? LineyTheme.tertiaryText : LineyTheme.secondaryText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            Text(group.name)
+                .font(.system(size: 11 * uiScale, weight: .semibold))
+                .foregroundStyle(isSelected ? LineyTheme.tertiaryText : LineyTheme.secondaryText)
+                .lineLimit(1)
+                .truncationMode(.tail)
 
-                Spacer(minLength: 4)
+            Spacer(minLength: 4 * uiScale)
 
-                Text("\(childCount)")
-                    .font(.system(size: 9 * uiScale, weight: .medium, design: .monospaced))
-                    .foregroundStyle(LineyTheme.secondaryText)
-                    .padding(.horizontal, 5 * uiScale)
-                    .padding(.vertical, 2 * uiScale)
-                    .background(iconPalette.foreground.opacity(0.12), in: Capsule())
-            }
-            .padding(.vertical, 6 * uiScale)
-            .padding(.leading, 8 * uiScale)
-            .padding(.trailing, 8 * uiScale)
-
-            Rectangle()
-                .fill(LineyTheme.border.opacity(0.5))
-                .frame(height: 0.5)
-                .padding(.leading, 8 * uiScale)
-                .padding(.trailing, 8 * uiScale)
+            Text("\(childCount)")
+                .font(.system(size: 10 * uiScale))
+                .monospacedDigit()
+                .foregroundStyle(LineyTheme.mutedText)
         }
-        .background(
-            iconPalette.foreground.opacity(isHovering ? 0.14 : 0.07),
-            in: RoundedRectangle(cornerRadius: 3, style: .continuous)
-        )
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(iconPalette.foreground)
-                .frame(width: 3 * uiScale)
-        }
-        .padding(.vertical, 3 * uiScale)
-        .onHover { isInside in
-            isHovering = isInside
-        }
+        .padding(.leading, 2 * uiScale)
+        .padding(.trailing, 8 * uiScale)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
