@@ -67,6 +67,7 @@ protocol TerminalSurfaceController: AnyObject {
     func searchNext()
     func searchPrevious()
     func endSearch()
+    func readScreenText(scrollback: Bool) -> String?
     func selectedText() -> String?
     func copySelection()
     func toggleReadOnly()

@@ -60,7 +60,7 @@ struct WorkspaceSidebarView: View {
             SidebarRunningProjectsStrip()
                 .environmentObject(store)
 
-            WorkspaceOutlineSidebar(query: query, onOpenRepository: store.addWorkspaceFromOpenPanel, onConnectSSH: { store.presentConnectSSH() })
+            WorkspaceOutlineSidebar(query: query, onOpenRepository: { store.addWorkspaceFromOpenPanel() }, onConnectSSH: { store.presentConnectSSH() })
                 .environmentObject(store)
         }
         .background(LineyTheme.sidebarBackground)
@@ -632,7 +632,7 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             let groups = store?.appSettings.workspaceGroups ?? []
             addMenuItem(to: menu, title: localized("sidebar.menu.group.createGroupFromSelected"), action: #selector(createGroupForWorkspace(_:)), representedObject: workspaceIDs)
             if !groups.isEmpty {
-                let groupItem = NSMenuItem(title: localized("sidebar.menu.moveToGroup"), action: nil, keyEquivalent: "")
+                let groupItem = NSMenuItem(title: String(format: localized("sidebar.menu.moveSelectedToGroup"), workspaceIDs.count), action: nil, keyEquivalent: "")
                 let groupSubmenu = NSMenu()
                 for group in groups {
                     addMenuItem(to: groupSubmenu, title: group.name, action: #selector(moveWorkspaceToGroup(_:)), representedObject: SidebarActionMoveToGroup(workspaceIDs: workspaceIDs, groupID: group.id))
@@ -649,6 +649,8 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
         private func makeGroupMenu(group: WorkspaceGroup) -> NSMenu {
             let menu = NSMenu()
 
+            addMenuItem(to: menu, title: localized("sidebar.menu.group.addProjects"), action: #selector(addProjectsToGroup(_:)), representedObject: group.id)
+            menu.addItem(.separator())
             addMenuItem(to: menu, title: localized("sidebar.menu.group.refresh"), action: #selector(refreshGroup(_:)), representedObject: group.id)
             addMenuItem(to: menu, title: localized("sidebar.menu.group.fetch"), action: #selector(fetchGroup(_:)), representedObject: group.id)
 
@@ -660,6 +662,43 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             addMenuItem(to: menu, title: localized("sidebar.menu.group.remove"), action: #selector(removeGroup(_:)), representedObject: group.id)
 
             return menu
+        }
+
+        @objc private func addProjectsToGroup(_ sender: NSMenuItem) {
+            guard let groupID = sender.representedObject as? UUID,
+                  let store,
+                  let group = store.appSettings.workspaceGroups.first(where: { $0.id == groupID }) else { return }
+            let candidates = store.workspaces.filter { !group.workspaceIDs.contains($0.id) }
+            let alert = NSAlert()
+            alert.messageText = localized("sidebar.menu.group.addProjects")
+            alert.informativeText = String(format: localized("sidebar.group.addDescription"), group.name)
+            alert.addButton(withTitle: localized("sidebar.group.addSelected"))
+            alert.addButton(withTitle: localized("common.cancel"))
+            alert.addButton(withTitle: localized("sidebar.group.chooseFolders"))
+            let stack = NSStackView()
+            stack.orientation = .vertical
+            stack.alignment = .leading
+            stack.spacing = 8
+            let checkboxes = candidates.map { workspace in
+                let button = NSButton(checkboxWithTitle: workspace.name, target: nil, action: nil)
+                button.toolTip = workspace.repositoryRoot
+                stack.addArrangedSubview(button)
+                return button
+            }
+            let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 380, height: 240))
+            scrollView.hasVerticalScroller = true
+            stack.frame = NSRect(x: 0, y: 0, width: 360, height: max(240, candidates.count * 28))
+            scrollView.documentView = stack
+            alert.accessoryView = scrollView
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                let ids = zip(candidates, checkboxes).compactMap { workspace, button in
+                    button.state == .on ? workspace.id : nil
+                }
+                store.assignWorkspaces(ids: ids, toGroup: groupID)
+            } else if response == .alertThirdButtonReturn {
+                store.addWorkspaceFromOpenPanel(toGroup: groupID)
+            }
         }
 
         @objc private func refreshGroup(_ sender: NSMenuItem) {
@@ -1288,7 +1327,9 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
         func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
             guard let node = item as? SidebarNodeItem else { return 48 }
             switch node.kind {
-            case .group, .archiveGroup:
+            case .group:
+                return 34 * CGFloat(store?.appSettings.uiScale ?? 1)
+            case .archiveGroup:
                 return 22
             case .workspace:
                 // 显示二级标签时为两行文本,需要更高的行以避免文字贴住选中框
@@ -1843,13 +1884,13 @@ private struct GroupRowContent: View {
         VStack(spacing: 0) {
             HStack(spacing: 6 * uiScale) {
                 Image(systemName: group.icon.symbolName)
-                    .font(.system(size: 8 * uiScale, weight: .medium))
+                    .font(.system(size: 11 * uiScale, weight: .medium))
                     .foregroundStyle(iconPalette.foreground.opacity(0.85))
 
-                Text(group.name.uppercased())
-                    .font(.system(size: 10 * uiScale, weight: .semibold))
+                Text(group.name)
+                    .font(.system(size: 12 * uiScale, weight: .semibold))
                     .tracking(0.5)
-                    .foregroundStyle(isSelected ? LineyTheme.tertiaryText : LineyTheme.mutedText)
+                    .foregroundStyle(isSelected ? LineyTheme.tertiaryText : LineyTheme.secondaryText)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
@@ -1857,22 +1898,31 @@ private struct GroupRowContent: View {
 
                 Text("\(childCount)")
                     .font(.system(size: 9 * uiScale, weight: .medium, design: .monospaced))
-                    .foregroundStyle(LineyTheme.mutedText.opacity(0.6))
+                    .foregroundStyle(LineyTheme.secondaryText)
+                    .padding(.horizontal, 5 * uiScale)
+                    .padding(.vertical, 2 * uiScale)
+                    .background(iconPalette.foreground.opacity(0.12), in: Capsule())
             }
-            .padding(.vertical, 4 * uiScale)
-            .padding(.leading, 2 * uiScale)
+            .padding(.vertical, 6 * uiScale)
+            .padding(.leading, 8 * uiScale)
             .padding(.trailing, 8 * uiScale)
 
             Rectangle()
                 .fill(LineyTheme.border.opacity(0.5))
                 .frame(height: 0.5)
-                .padding(.leading, 2 * uiScale)
+                .padding(.leading, 8 * uiScale)
                 .padding(.trailing, 8 * uiScale)
         }
         .background(
-            LineyTheme.subtleFill.opacity(isHovering ? 0.8 : 0),
+            iconPalette.foreground.opacity(isHovering ? 0.14 : 0.07),
             in: RoundedRectangle(cornerRadius: 3, style: .continuous)
         )
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(iconPalette.foreground)
+                .frame(width: 3 * uiScale)
+        }
+        .padding(.vertical, 3 * uiScale)
         .onHover { isInside in
             isHovering = isInside
         }

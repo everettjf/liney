@@ -523,23 +523,13 @@ public final class LineyDesktopApplication: NSObject {
     }
 
     func openDiffWindow() {
-        let workspace = activeStore?.selectedWorkspace
-        let supportsDiff = workspace?.supportsRepositoryFeatures == true
-        DiffWindowManager.shared.show(
-            worktreePath: supportsDiff ? workspace?.activeWorktreePath : nil,
-            branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
-            emptyStateMessage: diffEmptyStateMessage(for: workspace, supportsDiff: supportsDiff)
-        )
+        guard let store = activeStore else { return }
+        DiffWindowManager.shared.show(for: store)
     }
 
     func openHistoryWindow() {
-        let workspace = activeStore?.selectedWorkspace
-        let supportsHistory = workspace?.supportsRepositoryFeatures == true
-        HistoryWindowManager.shared.show(
-            worktreePath: supportsHistory ? workspace?.activeWorktreePath : nil,
-            branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
-            emptyStateMessage: historyEmptyStateMessage(for: workspace, supportsHistory: supportsHistory)
-        )
+        guard let store = activeStore else { return }
+        HistoryWindowManager.shared.show(for: store)
     }
 
     /// Opens the cross-worktree agent orchestration panel (roadmap item 5): a
@@ -626,25 +616,9 @@ public final class LineyDesktopApplication: NSObject {
         activeStore?.appSettings ?? hotKeyWindowSettings
     }
 
-    private func diffEmptyStateMessage(for workspace: WorkspaceModel?, supportsDiff: Bool) -> String {
-        guard let workspace else {
-            return LocalizationManager.shared.string("main.diff.selectWorkspace")
-        }
-        if supportsDiff {
-            return LocalizationManager.shared.string("main.diff.workingDirectoryClean")
-        }
-        return l10nFormat(LocalizationManager.shared.string("main.diff.noContextFormat"), arguments: [workspace.name])
-    }
 
-    private func historyEmptyStateMessage(for workspace: WorkspaceModel?, supportsHistory: Bool) -> String {
-        guard let workspace else {
-            return LocalizationManager.shared.string("main.history.selectWorkspace")
-        }
-        if supportsHistory {
-            return LocalizationManager.shared.string("main.history.noCommits")
-        }
-        return l10nFormat(LocalizationManager.shared.string("main.history.noContextFormat"), arguments: [workspace.name])
-    }
+
+
 
     static var sharedWindowTabbingIdentifier: String {
         windowTabbingIdentifier
@@ -751,6 +725,7 @@ public final class LineyDesktopApplication: NSObject {
     }
 
     private func removeWindowContext(_ context: WindowContext) {
+        context.store.flushPendingPersistence()
         let wasPrimary = context.persistsWorkspaceState
         if wasPrimary {
             lastPrimaryWindowState = context.store.currentStateSnapshot()

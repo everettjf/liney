@@ -85,6 +85,7 @@ final class ShellSession: ObservableObject, Identifiable {
     @Published var detectedTmuxSession: String?
     @Published var rows: Int = 24
     @Published var cols: Int = 80
+    @Published var restoredHistory: String?
     @Published var surfaceStatus = TerminalSurfaceStatusSnapshot()
     @Published private(set) var lastCommandResult: TerminalCommandResult?
     @Published var searchFocusRequestCount: Int = 0
@@ -119,6 +120,7 @@ final class ShellSession: ObservableObject, Identifiable {
         self.surfaceController = surface
         self.processReaper = LineyTerminalManagedProcessReaper.reap
         configureSurfaceCallbacks()
+        TerminalHistoryCoordinator.shared.register(self, restored: snapshot.restoredFromDisk)
     }
 
     init(
@@ -295,6 +297,7 @@ final class ShellSession: ObservableObject, Identifiable {
     }
 
     func terminate() {
+        TerminalHistoryCoordinator.shared.capture(self)
         let currentLaunchConfiguration = launchConfiguration
         recordDiagnosticLifecycle("session-terminate")
         surfaceController.terminateManagedSession()

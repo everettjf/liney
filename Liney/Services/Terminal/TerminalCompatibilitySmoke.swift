@@ -87,6 +87,34 @@ enum TerminalCompatibilitySmoke {
             return fail("terminal output was not readable")
         }
 
+        let historyDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("liney-history-smoke-\(UUID().uuidString)")
+        let historyStore = TerminalHistoryPersistence(directory: historyDirectory)
+        let history = TerminalHistoryCoordinator(persistence: historyStore)
+        let snapshot = PaneSnapshot.makeDefault(id: paneID, cwd: configuration.workingDirectory)
+        let session = ShellSession(snapshot: snapshot, surfaceController: controller, processReaper: { _ in })
+        history.configure(enabled: true)
+        defer { history.configure(enabled: false) }
+        history.register(session, restored: false)
+        history.flush()
+        guard TerminalHistoryPersistence(directory: historyDirectory).load(paneID)?.contains("liney-compatibility-smoke") == true else {
+            return fail("terminal history was not persisted through the session adapter")
+        }
+
+        let restoredHistory = TerminalHistoryCoordinator(
+            persistence: TerminalHistoryPersistence(directory: historyDirectory)
+        )
+        restoredHistory.configure(enabled: true)
+        restoredHistory.register(session, restored: true)
+        guard session.restoredHistory?.contains("liney-compatibility-smoke") == true else {
+            restoredHistory.configure(enabled: false)
+            return fail("terminal history was not restored from a fresh persistence instance")
+        }
+        restoredHistory.configure(enabled: false)
+        guard session.restoredHistory == nil,
+              TerminalHistoryPersistence(directory: historyDirectory).load(paneID) == nil else {
+            return fail("disabling terminal history did not clear restored output and disk state")
+        }
+
         controller.terminateManagedSession()
         window.orderOut(nil)
         guard controller.currentSurface == nil else {

@@ -240,6 +240,42 @@ final class ShellSessionTests: XCTestCase {
         XCTAssertNil(launchConfiguration.initialInput)
     }
 
+    @MainActor
+    func testTerminalHistoryOptInRestoreAndDiscardNeverSendShellInput() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let persistence = TerminalHistoryPersistence(directory: root)
+        let coordinator = TerminalHistoryCoordinator(persistence: persistence)
+        let snapshot = PaneSnapshot.makeDefault(cwd: "/tmp")
+        let surface = FakeManagedTerminalSurfaceController()
+        surface.screenText = "previous output; this must never become shell input"
+        let session = ShellSession(snapshot: snapshot, surfaceController: surface, processReaper: { _ in })
+        coordinator.configure(enabled: false)
+        coordinator.register(session, restored: false)
+        coordinator.flush()
+        XCTAssertNil(persistence.load(snapshot.id))
+        coordinator.configure(enabled: true)
+        coordinator.flush()
+        XCTAssertEqual(persistence.load(snapshot.id), surface.screenText)
+        let restoredSurface = FakeManagedTerminalSurfaceController()
+        let restored = ShellSession(snapshot: snapshot, surfaceController: restoredSurface, processReaper: { _ in })
+        coordinator.register(restored, restored: true)
+        XCTAssertEqual(restored.restoredHistory, surface.screenText)
+        XCTAssertTrue(restoredSurface.sentTexts.isEmpty)
+        coordinator.discard([snapshot.id])
+        restoredSurface.screenText = "must not recreate a closed pane snapshot"
+        coordinator.capture(restored)
+        coordinator.flush()
+        XCTAssertNil(persistence.load(snapshot.id))
+        XCTAssertNil(restored.restoredHistory)
+        coordinator.register(restored, restored: false)
+        coordinator.flush()
+        XCTAssertNotNil(persistence.load(snapshot.id))
+        coordinator.configure(enabled: false)
+        XCTAssertNil(restored.restoredHistory)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
+    }
+
     func testStartIfNeededOnlyAutoStartsIdleSession() async {
         await MainActor.run {
             let surface = FakeManagedTerminalSurfaceController()
@@ -623,6 +659,8 @@ private final class FakeManagedTerminalSurfaceController: ManagedTerminalSession
     private(set) var copySelectionCallCount = 0
     private(set) var promptNavigation: [TerminalPromptNavigation] = []
     private(set) var scrollToBottomCallCount = 0
+    var screenText: String?
+    func readScreenText(scrollback: Bool) -> String? { screenText }
     var selectedTextValue: String?
 
     func updateLaunchConfiguration(_ configuration: TerminalLaunchConfiguration) {}

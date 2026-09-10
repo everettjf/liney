@@ -18,6 +18,7 @@ struct TerminalPaneView: View {
     @ObservedObject private var localization = LocalizationManager.shared
     @ObservedObject var workspace: WorkspaceModel
     @ObservedObject var sessionController: WorkspaceSessionController
+    @State private var isShowingHistory = false
     @ObservedObject var session: ShellSession
     let paneID: UUID
 
@@ -124,6 +125,34 @@ struct TerminalPaneView: View {
                 .padding(.horizontal, LineyMetrics.spacing8)
                 .padding(.bottom, LineyMetrics.spacing8)
                 .background(isFocused ? LineyTheme.panelRaised : LineyTheme.paneHeaderBackground)
+            }
+
+            if session.restoredHistory != nil {
+                HStack {
+                    Label(localized("terminal.history.previous"), systemImage: "clock.arrow.circlepath")
+                    Spacer()
+                    Button(localized("terminal.history.view")) { isShowingHistory = true }
+                }
+                .font(.system(size: 11))
+                .padding(8)
+                .background(LineyTheme.panelRaised)
+                .sheet(isPresented: $isShowingHistory) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(localized("terminal.history.previous")).font(.headline)
+                        ScrollView([.horizontal, .vertical]) {
+                            Text(verbatim: session.restoredHistory ?? "")
+                                .font(.system(size: 12, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        HStack {
+                            Spacer()
+                            Button(localized("terminal.history.close")) { isShowingHistory = false }
+                        }
+                    }
+                    .padding(20)
+                    .frame(minWidth: 640, minHeight: 440)
+                }
             }
 
             TerminalHostView(session: session, shouldRestoreFocus: isFocused)
