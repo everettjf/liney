@@ -633,7 +633,7 @@ final class DiffWindowState: ObservableObject {
         let gitRepositoryService = GitRepositoryService()
         if file.status == .added, file.oldPath == nil {
             DiffDiagnostics.log("Using synthetic patch for added file \(file.displayPath)")
-            let newContents = Self.readFile(at: URL(fileURLWithPath: worktreePath).appendingPathComponent(file.displayPath))
+            let newContents = try Self.readFile(at: URL(fileURLWithPath: worktreePath).appendingPathComponent(file.displayPath))
             return Self.syntheticPatch(for: file, oldContents: "", newContents: newContents)
         }
 
@@ -667,39 +667,22 @@ final class DiffWindowState: ObservableObject {
 
     nonisolated private static let maxFileReadBytes = 1_000_000
 
-    nonisolated private static func readFile(at url: URL) -> String {
-        let start = DiffDiagnostics.now()
-        guard let data = try? Data(contentsOf: url) else {
-            DiffDiagnostics.error("Reading file failed for \(url.path)")
-            return ""
+    nonisolated private static func readFile(at url: URL) throws -> String {
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+        guard values.isRegularFile == true else {
+            throw CocoaError(.fileReadUnsupportedScheme)
         }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        let data = try handle.read(upToCount: maxFileReadBytes + 1) ?? Data()
         if data.contains(0) {
-            DiffDiagnostics.log(
-                "Read binary file \(url.path) in \(DiffDiagnostics.formatMilliseconds(DiffDiagnostics.elapsedMilliseconds(since: start))) [\(data.count)B]"
-            )
             return "<<Binary file>>"
         }
         if data.count > maxFileReadBytes {
-            DiffDiagnostics.log(
-                "File too large for inline diff \(url.path) [\(data.count)B exceeds \(maxFileReadBytes)B limit]"
-            )
-            let truncatedData = data.prefix(maxFileReadBytes)
-            let partial = String(decoding: truncatedData, as: UTF8.self)
-            let totalLines = data.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false).count
-            let keptLines = DiffDiagnostics.lineCount(in: partial)
-            return partial + "\n\n… \(totalLines - keptLines) additional lines omitted (file too large, \(data.count / 1024)KB)"
+            let partial = String(decoding: data.prefix(maxFileReadBytes), as: UTF8.self)
+            return partial + "\n\n… Additional content omitted (file too large)"
         }
-        if let string = String(data: data, encoding: .utf8) {
-            DiffDiagnostics.log(
-                "Read file \(url.path) in \(DiffDiagnostics.formatMilliseconds(DiffDiagnostics.elapsedMilliseconds(since: start))) [\(data.count)B/\(DiffDiagnostics.lineCount(in: string)) lines]"
-            )
-            return string
-        }
-        let string = String(decoding: data, as: UTF8.self)
-        DiffDiagnostics.log(
-            "Read non-UTF8 file \(url.path) in \(DiffDiagnostics.formatMilliseconds(DiffDiagnostics.elapsedMilliseconds(since: start))) [\(data.count)B/\(DiffDiagnostics.lineCount(in: string)) lines]"
-        )
-        return string
+        return String(decoding: data, as: UTF8.self)
     }
 
     nonisolated private static func syntheticPatch(

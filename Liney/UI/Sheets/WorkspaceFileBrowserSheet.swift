@@ -155,7 +155,7 @@ struct WorkspaceFileBrowserSheet: View {
                             .disabled(!hasUnsavedChanges)
 
                             Button {
-                                store.saveWorkspaceFileBrowserText(contents: editableContents, to: entry.path)
+                                guard store.saveWorkspaceFileBrowserText(contents: editableContents, to: entry.path) else { return }
                                 lastLoadedContents = editableContents
                                 previewState = .text(editableContents)
                             } label: {

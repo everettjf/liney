@@ -1575,7 +1575,8 @@ final class WorkspaceStore: ObservableObject {
         }
     }
 
-    func saveWorkspaceFileBrowserText(contents: String, to path: String) {
+    @discardableResult
+    func saveWorkspaceFileBrowserText(contents: String, to path: String) -> Bool {
         do {
             try WorkspaceFileBrowserSupport.saveTextFile(contents: contents, to: path)
             receive(
@@ -1585,11 +1586,13 @@ final class WorkspaceStore: ObservableObject {
                     deliverSystemNotification: false
                 )
             )
+            return true
         } catch {
             presentError(
                 title: localized("sheet.fileBrowser.saveErrorTitle"),
                 message: localizedFormat("sheet.fileBrowser.saveErrorMessageFormat", URL(fileURLWithPath: path).lastPathComponent, error.localizedDescription)
             )
+            return false
         }
     }
 

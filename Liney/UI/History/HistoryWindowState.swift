@@ -125,6 +125,9 @@ final class HistoryWindowState: ObservableObject {
         documentCache = [:]
         hasMoreCommits = true
         cancelAll()
+        changedFiles = []
+        selectedFileID = nil
+        document = nil
         branchTask = Task { await loadBranches(for: worktreePath) }
 
         switch viewMode {
@@ -191,6 +194,8 @@ final class HistoryWindowState: ObservableObject {
     func exitRangeComparison() {
         rangeStartCommitID = nil
         if case .rangeComparison = viewMode {
+            cancelAll()
+            documentCache = [:]
             viewMode = .commitHistory
             changedFiles = []
             selectedFileID = nil
@@ -242,6 +247,7 @@ final class HistoryWindowState: ObservableObject {
     }
 
     func exitBlame() {
+        cancelAll()
         viewMode = .commitHistory
         blameLines = []
         blameTask?.cancel()
@@ -372,6 +378,12 @@ final class HistoryWindowState: ObservableObject {
         fileListTask?.cancel()
         documentTask?.cancel()
         blameTask?.cancel()
+        isLoadingCommits = false
+        isLoadingFiles = false
+        isLoadingDocument = false
+        isLoadingBlame = false
+        loadErrorMessage = nil
+        documentLoadErrorMessage = nil
     }
 
     private func reloadCommitList(for worktreePath: String, skip: Int, append: Bool = false) async {
@@ -567,6 +579,7 @@ final class HistoryWindowState: ObservableObject {
             DiffDiagnostics.error("Range diff file list failed: \(error.localizedDescription)")
             changedFiles = []
             isLoadingFiles = false
+            loadErrorMessage = error.localizedDescription.nonEmptyOrFallback("Unable to load comparison.")
         }
     }
 
@@ -632,6 +645,7 @@ final class HistoryWindowState: ObservableObject {
             DiffDiagnostics.error("Blame failed for \(filePath): \(error.localizedDescription)")
             blameLines = []
             isLoadingBlame = false
+            loadErrorMessage = error.localizedDescription.nonEmptyOrFallback("Unable to load blame information.")
         }
     }
 
