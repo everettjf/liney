@@ -153,3 +153,10 @@ history again. This also exposed a misleading middle-panel “No Changes” stat
 which was changed to show the failure. Save-failure behavior is covered by the
 store test and UI code review; a full interactive save-failure and sidebar/IME
 matrix has not been completed in this pass.
+
+CI additionally identified macOS 15 MainActor deinit back-deployment crashes in
+`StatusMessagePresentationState` and the fake terminal surface. The presentation
+state, terminal history coordinator, and fake surface now follow the existing
+nonisolated deinit convention. The related WorkspaceStore, ShellSession, and
+ShellCommandRunner tests passed locally; the older-system CI is authoritative
+for this runtime compatibility fix.
