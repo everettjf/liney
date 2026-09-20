@@ -15,7 +15,7 @@ nonisolated final class TerminalHistoryPersistence: @unchecked Sendable {
 
     static func boundedText(_ text: String, limit: Int = paneLimit) -> String {
         let bytes = Array(text.utf8.suffix(limit))
-        let start = bytes.firstIndex { $0 & 0xc0 != 0x80 } ?? bytes.endIndex
+        guard let start = bytes.firstIndex(where: { $0 & 0xc0 != 0x80 }) else { return "" }
         return String(decoding: bytes[start...], as: UTF8.self)
     }
 
