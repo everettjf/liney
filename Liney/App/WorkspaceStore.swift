@@ -19,11 +19,18 @@ final class CommandPalettePresentationState: ObservableObject {
     @Published var isPresented = false
     @Published var query = ""
     @Published var selectedItemID: String?
+
+    // This value-only presentation state needs no MainActor deinit hop.
+    nonisolated deinit {}
 }
 
 @MainActor
 final class StatusMessagePresentationState: ObservableObject {
     @Published var message: WorkspaceStatusMessage?
+
+    // No executor-bound cleanup; avoid Xcode 26's MainActor deinit
+    // back-deployment thunk corrupting task-local state on macOS 15.
+    nonisolated deinit {}
 }
 
 @MainActor

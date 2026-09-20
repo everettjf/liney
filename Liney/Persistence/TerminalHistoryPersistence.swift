@@ -87,6 +87,10 @@ final class TerminalHistoryCoordinator {
         self.persistence = persistence
     }
 
+    // Lifecycle cleanup is explicit in configure(enabled:); avoid the
+    // Xcode 26 MainActor deinit back-deployment thunk on macOS 15.
+    nonisolated deinit {}
+
     func configure(enabled: Bool) {
         guard !configured || self.enabled != enabled else { return }
         configured = true

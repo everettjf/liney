@@ -636,6 +636,9 @@ nonisolated private final class LockedTestArray<Element>: @unchecked Sendable {
 
 @MainActor
 private final class FakeManagedTerminalSurfaceController: ManagedTerminalSessionSurfaceController {
+    // Match the production test surface's macOS 15 deinit workaround.
+    nonisolated deinit {}
+
     let resolvedEngine: TerminalEngineKind = .libghosttyPreferred
     let view = NSView()
 
