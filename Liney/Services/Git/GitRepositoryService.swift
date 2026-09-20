@@ -478,6 +478,14 @@ actor GitRepositoryService {
         return result.stdout
     }
 
+    func emptyTreeHash(for path: String) async throws -> String {
+        let result = try await git(arguments: ["hash-object", "-t", "tree", "/dev/null"], currentDirectory: path)
+        guard result.exitCode == 0 else {
+            throw GitServiceError.commandFailed(result.stderr.nonEmptyOrFallback("Unable to resolve empty tree."))
+        }
+        return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     func diffNameStatusBetweenCommits(for path: String, fromCommit: String, toCommit: String) async throws -> String {
         let result = try await git(
             arguments: ["diff", "--find-renames", "--find-copies", "--name-status", fromCommit, toCommit, "--"],

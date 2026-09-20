@@ -90,6 +90,7 @@ final class WorkspaceSessionController: ObservableObject {
         }
 
         for removed in existing.subtracting(wanted) {
+            TerminalHistoryCoordinator.shared.discard([removed])
             sessions[removed]?.terminate()
             sessions.removeValue(forKey: removed)
         }
@@ -114,6 +115,7 @@ final class WorkspaceSessionController: ObservableObject {
     }
 
     func closePane(_ paneID: UUID) {
+        TerminalHistoryCoordinator.shared.discard([paneID])
         sessions[paneID]?.terminate()
         sessions.removeValue(forKey: paneID)
         if focusedPaneID == paneID {

@@ -653,13 +653,7 @@ struct MainWindowView: View {
     }
 
     private func openDiffWindow() {
-        let workspace = store.selectedWorkspace
-        let supportsDiff = workspace?.supportsRepositoryFeatures == true
-        DiffWindowManager.shared.show(
-            worktreePath: supportsDiff ? workspace?.activeWorktreePath : nil,
-            branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
-            emptyStateMessage: diffEmptyStateMessage(for: workspace, supportsDiff: supportsDiff)
-        )
+        DiffWindowManager.shared.show(for: store)
     }
 
     private func openReviewWindow() {
@@ -672,34 +666,12 @@ struct MainWindowView: View {
     }
 
     private func openHistoryWindow() {
-        let workspace = store.selectedWorkspace
-        let supportsHistory = workspace?.supportsRepositoryFeatures == true
-        HistoryWindowManager.shared.show(
-            worktreePath: supportsHistory ? workspace?.activeWorktreePath : nil,
-            branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
-            emptyStateMessage: historyEmptyStateMessage(for: workspace, supportsHistory: supportsHistory)
-        )
+        HistoryWindowManager.shared.show(for: store)
     }
 
-    private func historyEmptyStateMessage(for workspace: WorkspaceModel?, supportsHistory: Bool) -> String {
-        guard let workspace else {
-            return localized("main.history.selectWorkspace")
-        }
-        if supportsHistory {
-            return localized("main.history.noCommits")
-        }
-        return localizedFormat("main.history.noContextFormat", workspace.name)
-    }
 
-    private func diffEmptyStateMessage(for workspace: WorkspaceModel?, supportsDiff: Bool) -> String {
-        guard let workspace else {
-            return localized("main.diff.selectWorkspace")
-        }
-        if supportsDiff {
-            return localized("main.diff.workingDirectoryClean")
-        }
-        return localizedFormat("main.diff.noContextFormat", workspace.name)
-    }
+
+
 
     private func present(menu: NSMenu, from anchorView: NSView?) {
         guard let anchorView else { return }

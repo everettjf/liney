@@ -16,7 +16,6 @@ private enum DiffPresentationStyle: String {
 struct DiffWindowContentView: View {
     @ObservedObject var state: DiffWindowState
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
-    @State private var listSelection: String?
     @AppStorage("liney.diff.viewStyle") private var diffStyleRaw = DiffPresentationStyle.split.rawValue
     @AppStorage("liney.diff.zoom") private var zoomLevel: Double = 1.0
     @State private var isShowingCommitSheet = false
@@ -28,7 +27,6 @@ struct DiffWindowContentView: View {
 
     init(state: DiffWindowState) {
         self.state = state
-        _listSelection = State(initialValue: state.selectedFileID)
     }
 
     var body: some View {
@@ -55,15 +53,6 @@ struct DiffWindowContentView: View {
                     Rectangle().fill(LineyTheme.border).frame(height: 1)
                 }
             }
-        }
-        .onChange(of: listSelection) { _, newValue in
-            guard state.selectedFileID != newValue else { return }
-            state.selectedFileID = newValue
-            state.updateDocumentSelection(for: newValue)
-        }
-        .onChange(of: state.selectedFileID) { _, newValue in
-            guard listSelection != newValue else { return }
-            listSelection = newValue
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -217,7 +206,10 @@ struct DiffWindowContentView: View {
     }
 
     private var fileListSidebar: some View {
-        List(selection: $listSelection) {
+        List(selection: Binding<String?>(
+            get: { state.selectedFileID },
+            set: { state.selectFile($0) }
+        )) {
             ForEach(state.changedFiles) { file in
                 DiffFileRow(file: file)
                     .tag(file.id)
@@ -228,11 +220,7 @@ struct DiffWindowContentView: View {
             if state.isLoadingFiles && state.changedFiles.isEmpty {
                 ProgressView()
             } else if let loadErrorMessage = state.loadErrorMessage {
-                ContentUnavailableView(
-                    "Unable to Load Changes",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(loadErrorMessage)
-                )
+                GitLoadFailureView(title: "Unable to Load Changes", message: loadErrorMessage, retry: state.refresh)
             } else if !state.isLoadingFiles && state.changedFiles.isEmpty {
                 ContentUnavailableView(
                     "No Changes",
@@ -245,7 +233,9 @@ struct DiffWindowContentView: View {
 
     private var diffDetail: some View {
         Group {
-            if state.isLoadingDocument && state.document == nil {
+            if let error = state.documentLoadErrorMessage {
+                GitLoadFailureView(title: "Unable to Load Diff", message: error, retry: state.refresh)
+            } else if state.isLoadingDocument && state.document == nil {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let document = state.document {
@@ -466,7 +456,7 @@ private struct DiffYiTongDocumentView: View {
     let diffStyle: DiffPresentationStyle
 
     var body: some View {
-        DiffView(
+        RecoverableDiffView(
             document: yiTongDocument,
             configuration: yiTongConfiguration
         )

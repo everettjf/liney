@@ -900,7 +900,8 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         saveActiveWorktreeState()
         var state = activeWorktreeState
 
-        guard state.tabs.contains(where: { $0.id == tabID }) else { return }
+        guard let closingTab = state.tabs.first(where: { $0.id == tabID }) else { return }
+        TerminalHistoryCoordinator.shared.discard(Set(closingTab.panes.map(\.id)))
         if state.tabs.count == 1 {
             let replacement = WorkspaceTabStateRecord.makeDefault(for: activeWorktreePath)
             state = WorktreeSessionStateRecord(
@@ -1013,6 +1014,9 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         }
 
         for path in targets {
+            if let state = worktreeStates[path] {
+                TerminalHistoryCoordinator.shared.discard(Set(state.tabs.flatMap { $0.panes.map(\.id) }))
+            }
             worktreeStates.removeValue(forKey: path)
             let controllers = worktreeControllers.removeValue(forKey: path)?.map(\.value) ?? []
             for controller in controllers {

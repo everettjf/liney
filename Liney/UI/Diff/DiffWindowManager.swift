@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import Combine
 import SwiftUI
 import WebKit
 
@@ -15,14 +16,47 @@ final class DiffWindowManager: NSObject, NSWindowDelegate {
 
     let state = DiffWindowState()
     private var window: NSWindow?
+    private var readinessSubscription: AnyCancellable?
     private var skipNextFocusRefresh = false
     private var localEventMonitor: Any?
 
     private override init() {}
 
+    func show(for store: WorkspaceStore) {
+        guard store.isWorkspaceStateReady else {
+            show(worktreePath: nil, branchName: "", emptyStateMessage: LocalizationManager.shared.string("git.loading.workspace"))
+            state.isLoadingFiles = true
+            readinessSubscription = store.$isWorkspaceStateReady
+                .filter { $0 }
+                .first()
+                .receive(on: RunLoop.main)
+                .sink { [weak self, weak store] _ in
+                    guard let self, let store else { return }
+                    self.show(for: store)
+                }
+            Task { await store.loadIfNeeded() }
+            return
+        }
+        let workspace = store.selectedWorkspace
+        let supportsGit = workspace?.supportsRepositoryFeatures == true
+        show(
+            worktreePath: supportsGit ? workspace?.activeWorktreePath : nil,
+            branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
+            emptyStateMessage: emptyStateMessage(for: workspace)
+        )
+    }
+
+    private func emptyStateMessage(for workspace: WorkspaceModel?) -> String {
+        let localization = LocalizationManager.shared
+        guard let workspace else { return localization.string("main.diff.selectWorkspace") }
+        if workspace.supportsRepositoryFeatures { return localization.string("main.diff.workingDirectoryClean") }
+        return l10nFormat(localization.string("main.diff.noContextFormat"), arguments: [workspace.name])
+    }
+
     func show(worktreePath: String?, branchName: String, emptyStateMessage: String) {
+        readinessSubscription = nil
         state.load(worktreePath: worktreePath, branchName: branchName, emptyStateMessage: emptyStateMessage)
-        skipNextFocusRefresh = true
+        skipNextFocusRefresh = window?.isKeyWindow != true
 
         if let existingWindow = window {
             existingWindow.title = windowTitle(branchName: branchName)
@@ -73,6 +107,7 @@ final class DiffWindowManager: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        readinessSubscription = nil
         window = nil
         if let localEventMonitor {
             NSEvent.removeMonitor(localEventMonitor)

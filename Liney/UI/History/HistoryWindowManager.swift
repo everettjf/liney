@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
@@ -14,14 +15,47 @@ final class HistoryWindowManager: NSObject, NSWindowDelegate {
 
     let state = HistoryWindowState()
     private var window: NSWindow?
+    private var readinessSubscription: AnyCancellable?
     private var skipNextFocusRefresh = false
     private var localEventMonitor: Any?
 
     private override init() {}
 
+    func show(for store: WorkspaceStore) {
+        guard store.isWorkspaceStateReady else {
+            show(worktreePath: nil, branchName: "", emptyStateMessage: LocalizationManager.shared.string("git.loading.workspace"))
+            state.isLoadingCommits = true
+            readinessSubscription = store.$isWorkspaceStateReady
+                .filter { $0 }
+                .first()
+                .receive(on: RunLoop.main)
+                .sink { [weak self, weak store] _ in
+                    guard let self, let store else { return }
+                    self.show(for: store)
+                }
+            Task { await store.loadIfNeeded() }
+            return
+        }
+        let workspace = store.selectedWorkspace
+        let supportsGit = workspace?.supportsRepositoryFeatures == true
+        show(
+            worktreePath: supportsGit ? workspace?.activeWorktreePath : nil,
+            branchName: workspace?.activeWorktree?.branchLabel ?? workspace?.currentBranch ?? "",
+            emptyStateMessage: emptyStateMessage(for: workspace)
+        )
+    }
+
+    private func emptyStateMessage(for workspace: WorkspaceModel?) -> String {
+        let localization = LocalizationManager.shared
+        guard let workspace else { return localization.string("main.history.selectWorkspace") }
+        if workspace.supportsRepositoryFeatures { return localization.string("main.history.noCommits") }
+        return l10nFormat(localization.string("main.history.noContextFormat"), arguments: [workspace.name])
+    }
+
     func show(worktreePath: String?, branchName: String, emptyStateMessage: String) {
+        readinessSubscription = nil
         state.load(worktreePath: worktreePath, branchName: branchName, emptyStateMessage: emptyStateMessage)
-        skipNextFocusRefresh = true
+        skipNextFocusRefresh = window?.isKeyWindow != true
 
         if let existingWindow = window {
             existingWindow.title = windowTitle(branchName: branchName)
@@ -72,6 +106,7 @@ final class HistoryWindowManager: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        readinessSubscription = nil
         window = nil
         if let localEventMonitor {
             NSEvent.removeMonitor(localEventMonitor)
@@ -96,7 +131,7 @@ final class HistoryWindowManager: NSObject, NSWindowDelegate {
         let emptyMessage = "No commit history for this file."
         state.load(worktreePath: worktreePath, branchName: branchName, emptyStateMessage: emptyMessage)
         state.showFileHistory(filePath: filePath)
-        skipNextFocusRefresh = true
+        skipNextFocusRefresh = window?.isKeyWindow != true
 
         if let existingWindow = window {
             existingWindow.title = "File History — \(URL(fileURLWithPath: filePath).lastPathComponent)"

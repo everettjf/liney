@@ -15,8 +15,6 @@ private enum HistoryDiffPresentationStyle: String {
 
 struct HistoryWindowContentView: View {
     @ObservedObject var state: HistoryWindowState
-    @State private var commitSelection: String?
-    @State private var fileSelection: String?
     @AppStorage("liney.history.viewStyle") private var diffStyleRaw = HistoryDiffPresentationStyle.split.rawValue
 
     private var diffStyle: HistoryDiffPresentationStyle {
@@ -25,8 +23,6 @@ struct HistoryWindowContentView: View {
 
     init(state: HistoryWindowState) {
         self.state = state
-        _commitSelection = State(initialValue: state.selectedCommitID)
-        _fileSelection = State(initialValue: state.selectedFileID)
     }
 
     var body: some View {
@@ -44,25 +40,6 @@ struct HistoryWindowContentView: View {
             }
         }
         .background(LineyTheme.appBackground)
-        .onChange(of: commitSelection) { _, newValue in
-            guard state.selectedCommitID != newValue else { return }
-            state.selectedCommitID = newValue
-            state.updateCommitSelection(for: newValue)
-            fileSelection = nil
-        }
-        .onChange(of: state.selectedCommitID) { _, newValue in
-            guard commitSelection != newValue else { return }
-            commitSelection = newValue
-        }
-        .onChange(of: fileSelection) { _, newValue in
-            guard state.selectedFileID != newValue else { return }
-            state.selectedFileID = newValue
-            state.updateDocumentSelection(for: newValue)
-        }
-        .onChange(of: state.selectedFileID) { _, newValue in
-            guard fileSelection != newValue else { return }
-            fileSelection = newValue
-        }
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
                 viewModeBackButton
@@ -221,7 +198,10 @@ struct HistoryWindowContentView: View {
             }
 
             // Commit list
-            List(selection: $commitSelection) {
+            List(selection: Binding<String?>(
+                get: { state.selectedCommitID },
+                set: { state.selectCommit($0) }
+            )) {
                 ForEach(state.filteredCommits) { commit in
                     HistoryCommitRow(
                         commit: commit,
@@ -251,11 +231,7 @@ struct HistoryWindowContentView: View {
                 if state.isLoadingCommits && state.commits.isEmpty {
                     ProgressView()
                 } else if let loadErrorMessage = state.loadErrorMessage {
-                    ContentUnavailableView(
-                        "Unable to Load History",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(loadErrorMessage)
-                    )
+                    GitLoadFailureView(title: "Unable to Load History", message: loadErrorMessage, retry: state.refresh)
                 } else if !state.isLoadingCommits && state.filteredCommits.isEmpty && !state.searchQuery.isEmpty {
                     ContentUnavailableView(
                         "No Matches",
@@ -308,7 +284,10 @@ struct HistoryWindowContentView: View {
                 HistoryCommitDetailHeader(commit: commit)
             }
 
-            List(selection: $fileSelection) {
+            List(selection: Binding<String?>(
+                get: { state.selectedFileID },
+                set: { state.selectFile($0) }
+            )) {
                 ForEach(state.changedFiles) { file in
                     HistoryFileRow(file: file)
                         .tag(file.id)
@@ -412,7 +391,9 @@ struct HistoryWindowContentView: View {
 
     private var diffDetailPanel: some View {
         Group {
-            if state.isLoadingDocument && state.document == nil {
+            if let error = state.documentLoadErrorMessage {
+                GitLoadFailureView(title: "Unable to Load Diff", message: error, retry: state.refresh)
+            } else if state.isLoadingDocument && state.document == nil {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let document = state.document {
@@ -429,6 +410,8 @@ struct HistoryWindowContentView: View {
                     systemImage: "clock.arrow.circlepath",
                     description: Text("Choose a commit from the history to view changes.")
                 )
+            } else if let error = state.loadErrorMessage {
+                GitLoadFailureView(title: "Unable to Load History", message: error, retry: state.refresh)
             } else if state.changedFiles.isEmpty && !state.isLoadingFiles {
                 ContentUnavailableView(
                     "No Changes",
@@ -716,7 +699,7 @@ private struct HistoryYiTongDocumentView: View {
     let diffStyle: HistoryDiffPresentationStyle
 
     var body: some View {
-        DiffView(
+        RecoverableDiffView(
             document: yiTongDocument,
             configuration: yiTongConfiguration
         )

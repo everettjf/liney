@@ -15,6 +15,37 @@ final class WorkspaceStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    func testBatchImportDeduplicatesAndGroupsSuccessfulRepositoriesDespiteFailure() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directories = [root.appendingPathComponent("a"), root.appendingPathComponent("b")]
+        for directory in directories {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try runProcess(executable: "/usr/bin/git", arguments: ["init", "-b", "main"], currentDirectory: directory.path)
+        }
+        let persistence = WorkspacePersistenceCoordinator(
+            workspacePersistence: WorkspaceStatePersistence(stateDirectoryURL: root.appendingPathComponent("state")),
+            settingsPersistence: AppSettingsPersistence(stateDirectoryURL: root.appendingPathComponent("state"))
+        )
+        let history = TerminalHistoryCoordinator(persistence: TerminalHistoryPersistence(directory: root.appendingPathComponent("history")))
+        let store = WorkspaceStore(persistsWorkspaceState: false, persistenceCoordinator: persistence, terminalHistoryCoordinator: history)
+        let group = WorkspaceGroup(name: "Components", workspaceIDs: [])
+        store.appSettings.workspaceGroups = [group]
+        await store.addWorkspaces(at: [directories[0], root.appendingPathComponent("missing"), directories[0], directories[1]], toGroup: group.id)
+        XCTAssertEqual(store.workspaces.count, 2)
+        XCTAssertEqual(store.appSettings.workspaceGroups[0].workspaceIDs.count, 2)
+        XCTAssertEqual(Set(store.appSettings.workspaceGroups[0].workspaceIDs), Set(store.workspaces.map(\.id)))
+        XCTAssertTrue(store.presentedError?.message.contains("missing") == true)
+        let before = store.appSettings.workspaceGroups
+        store.assignWorkspaces(ids: store.workspaces.map(\.id), toGroup: UUID())
+        XCTAssertEqual(store.appSettings.workspaceGroups, before)
+        let firstID = try XCTUnwrap(store.workspaces.first?.id)
+        store.assignWorkspaces(ids: [firstID, firstID, UUID()], toGroup: group.id)
+        XCTAssertEqual(store.appSettings.workspaceGroups[0].workspaceIDs.filter { $0 == firstID }.count, 1)
+        persistence.flushPendingSync()
+        XCTAssertEqual(persistence.loadAppSettings().value.workspaceGroups, store.appSettings.workspaceGroups)
+    }
+
     func testOpenWorkspaceAsRepositoryAddsRepositoryWorkspaceWithoutChangingLocalWorkspace() async throws {
         let directoryURL = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directoryURL) }

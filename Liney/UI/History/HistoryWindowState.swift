@@ -48,6 +48,7 @@ final class HistoryWindowState: ObservableObject {
     // Diff document for selected file
     @Published var document: DiffFileDocument?
     @Published var isLoadingDocument = false
+    @Published var documentLoadErrorMessage: String?
 
     // Blame
     @Published var blameLines: [GitBlameLine] = []
@@ -56,6 +57,7 @@ final class HistoryWindowState: ObservableObject {
     @Published var loadErrorMessage: String?
 
     private let gitRepositoryService = GitRepositoryService()
+    private var loadGeneration = UUID()
     private var documentCache: [String: DiffFileDocument] = [:]
     private var commitListTask: Task<Void, Never>?
     private var numstatTask: Task<Void, Never>?
@@ -71,7 +73,20 @@ final class HistoryWindowState: ObservableObject {
         return commits.filter { $0.matches(query: searchQuery) }
     }
 
+    func selectCommit(_ id: String?) {
+        guard selectedCommitID != id else { return }
+        selectedCommitID = id
+        updateCommitSelection(for: id)
+    }
+
+    func selectFile(_ id: String?) {
+        guard selectedFileID != id else { return }
+        selectedFileID = id
+        updateDocumentSelection(for: id)
+    }
+
     func load(worktreePath: String?, branchName: String, emptyStateMessage: String) {
+        documentLoadErrorMessage = nil
         DiffDiagnostics.log("Loading history window state for branch \(branchName) at \(worktreePath ?? "<nil>")")
         self.worktreePath = worktreePath
         self.branchName = branchName
@@ -96,16 +111,21 @@ final class HistoryWindowState: ObservableObject {
             isLoadingDocument = false
             return
         }
+        isLoadingCommits = true
+        isLoadingFiles = false
+        isLoadingDocument = false
         commitListTask = Task { await reloadCommitList(for: worktreePath, skip: 0) }
         branchTask = Task { await loadBranches(for: worktreePath) }
     }
 
     func refresh() {
+        documentLoadErrorMessage = nil
         guard let worktreePath else { return }
         DiffDiagnostics.log("Refreshing history for \(worktreePath)")
         documentCache = [:]
         hasMoreCommits = true
         cancelAll()
+        branchTask = Task { await loadBranches(for: worktreePath) }
 
         switch viewMode {
         case .commitHistory:
@@ -233,6 +253,8 @@ final class HistoryWindowState: ObservableObject {
     // MARK: - Commit Selection
 
     func updateCommitSelection(for id: String?) {
+        documentLoadErrorMessage = nil
+        loadErrorMessage = nil
         fileListTask?.cancel()
         documentTask?.cancel()
         DiffDiagnostics.log("Selecting history commit id \(id ?? "<nil>")")
@@ -266,6 +288,7 @@ final class HistoryWindowState: ObservableObject {
     // MARK: - File Selection
 
     func updateDocumentSelection(for id: String?) {
+        documentLoadErrorMessage = nil
         documentTask?.cancel()
         DiffDiagnostics.log("Selecting history file id \(id ?? "<nil>")")
 
@@ -310,6 +333,7 @@ final class HistoryWindowState: ObservableObject {
 
         document = nil
         isLoadingDocument = true
+        let generation = loadGeneration
         documentTask = Task {
             let start = DiffDiagnostics.now()
             do {
@@ -321,7 +345,7 @@ final class HistoryWindowState: ObservableObject {
                         toCommit: toCommit
                     )
                 }.value
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, generation == loadGeneration else { return }
                 documentCache[cacheKey] = loadedDocument
                 document = loadedDocument
                 isLoadingDocument = false
@@ -329,12 +353,10 @@ final class HistoryWindowState: ObservableObject {
                     "Finished history diff load for \(file.displayPath) in \(DiffDiagnostics.formatMilliseconds(DiffDiagnostics.elapsedMilliseconds(since: start)))"
                 )
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, generation == loadGeneration else { return }
                 DiffDiagnostics.error("History diff load failed for \(file.displayPath): \(error.localizedDescription)")
-                document = DiffWindowState.makeDocument(
-                    file: file,
-                    unifiedPatch: error.localizedDescription.nonEmptyOrFallback("Unable to load diff.")
-                )
+                document = nil
+                documentLoadErrorMessage = error.localizedDescription.nonEmptyOrFallback("Unable to load diff.")
                 isLoadingDocument = false
             }
         }
@@ -343,6 +365,8 @@ final class HistoryWindowState: ObservableObject {
     // MARK: - Private Helpers
 
     private func cancelAll() {
+        loadGeneration = UUID()
+        branchTask?.cancel()
         commitListTask?.cancel()
         numstatTask?.cancel()
         fileListTask?.cancel()
@@ -351,6 +375,8 @@ final class HistoryWindowState: ObservableObject {
     }
 
     private func reloadCommitList(for worktreePath: String, skip: Int, append: Bool = false) async {
+        guard !Task.isCancelled else { return }
+        let generation = loadGeneration
         let start = DiffDiagnostics.now()
         DiffDiagnostics.log("Loading commit history for \(worktreePath) (skip=\(skip), branch=\(selectedBranch ?? "current"))")
         isLoadingCommits = true
@@ -365,7 +391,7 @@ final class HistoryWindowState: ObservableObject {
                 skip: skip
             )
 
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
 
             let parsed = GitHistoryCommit.parseLog(logOutput)
 
@@ -397,7 +423,7 @@ final class HistoryWindowState: ObservableObject {
                 )
             }
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             DiffDiagnostics.error("Loading commit history failed: \(error.localizedDescription)")
             if !append { commits = [] }
             isLoadingCommits = false
@@ -408,6 +434,8 @@ final class HistoryWindowState: ObservableObject {
 
     /// Loads numstat in background and merges stats into existing commits without blocking the UI.
     private func loadNumstatInBackground(for worktreePath: String, skip: Int, branch: String?, commitHashes: Set<String>) async {
+        guard !Task.isCancelled else { return }
+        let generation = loadGeneration
         let start = DiffDiagnostics.now()
         do {
             let numstatOutput = try await gitRepositoryService.commitLogNumstat(
@@ -416,7 +444,7 @@ final class HistoryWindowState: ObservableObject {
                 branch: branch,
                 skip: skip
             )
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
 
             // Merge stats into existing commits
             let enriched = GitHistoryCommit.enrichWithStats(commits, numstatOutput: numstatOutput)
@@ -426,12 +454,14 @@ final class HistoryWindowState: ObservableObject {
             )
         } catch {
             // numstat failure is non-critical — commits still show without stats
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             DiffDiagnostics.error("Numstat load failed (non-critical): \(error.localizedDescription)")
         }
     }
 
     private func reloadFileHistory(for worktreePath: String, filePath: String) async {
+        guard !Task.isCancelled else { return }
+        let generation = loadGeneration
         let start = DiffDiagnostics.now()
         DiffDiagnostics.log("Loading file history for \(filePath)")
         isLoadingCommits = true
@@ -442,7 +472,7 @@ final class HistoryWindowState: ObservableObject {
                 for: worktreePath,
                 filePath: filePath
             )
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             let parsed = GitHistoryCommit.parseLog(output)
             commits = parsed
             hasMoreCommits = false  // file history loads all at once
@@ -454,7 +484,7 @@ final class HistoryWindowState: ObservableObject {
                 updateCommitSelection(for: first.id)
             }
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             DiffDiagnostics.error("File history failed: \(error.localizedDescription)")
             commits = []
             isLoadingCommits = false
@@ -463,6 +493,12 @@ final class HistoryWindowState: ObservableObject {
     }
 
     private func reloadFileList(for worktreePath: String, commit: GitHistoryCommit) async {
+        guard !Task.isCancelled else { return }
+        let generation = loadGeneration
+        if commit.parentCount == 0 {
+            await reloadFileListForRootCommit(worktreePath: worktreePath, commit: commit)
+            return
+        }
         let start = DiffDiagnostics.now()
         DiffDiagnostics.log("Loading changed files for commit \(commit.shortHash)")
         isLoadingFiles = true
@@ -474,7 +510,7 @@ final class HistoryWindowState: ObservableObject {
                 fromCommit: parentCommit,
                 toCommit: commit.hash
             )
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
 
             let files = DiffChangedFile.parseNameStatus(output).sorted {
                 $0.displayPath.localizedStandardCompare($1.displayPath) == .orderedAscending
@@ -491,17 +527,17 @@ final class HistoryWindowState: ObservableObject {
                 updateDocumentSelection(for: first.id)
             }
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             DiffDiagnostics.error("Loading changed files for commit \(commit.shortHash) failed: \(error.localizedDescription)")
             changedFiles = []
             isLoadingFiles = false
-            if error.localizedDescription.contains("unknown revision") {
-                await reloadFileListForRootCommit(worktreePath: worktreePath, commit: commit)
-            }
+            loadErrorMessage = error.localizedDescription.nonEmptyOrFallback("Unable to load commit files.")
         }
     }
 
     private func reloadRangeFileList(for worktreePath: String, fromCommit: String, toCommit: String) async {
+        guard !Task.isCancelled else { return }
+        let generation = loadGeneration
         let start = DiffDiagnostics.now()
         DiffDiagnostics.log("Loading range diff \(String(fromCommit.prefix(7)))..\(String(toCommit.prefix(7)))")
         isLoadingFiles = true
@@ -512,7 +548,7 @@ final class HistoryWindowState: ObservableObject {
                 fromCommit: fromCommit,
                 toCommit: toCommit
             )
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
 
             let files = DiffChangedFile.parseNameStatus(output).sorted {
                 $0.displayPath.localizedStandardCompare($1.displayPath) == .orderedAscending
@@ -527,7 +563,7 @@ final class HistoryWindowState: ObservableObject {
                 updateDocumentSelection(for: first.id)
             }
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             DiffDiagnostics.error("Range diff file list failed: \(error.localizedDescription)")
             changedFiles = []
             isLoadingFiles = false
@@ -535,16 +571,18 @@ final class HistoryWindowState: ObservableObject {
     }
 
     private func reloadFileListForRootCommit(worktreePath: String, commit: GitHistoryCommit) async {
+        guard !Task.isCancelled else { return }
+        let generation = loadGeneration
         DiffDiagnostics.log("Retrying file list for root commit \(commit.shortHash) using empty tree")
         isLoadingFiles = true
         do {
-            let emptyTree = "4b825dc642cb6eb9a060e54bf899d69f7cb46208"
+            let emptyTree = try await gitRepositoryService.emptyTreeHash(for: worktreePath)
             let output = try await gitRepositoryService.diffNameStatusBetweenCommits(
                 for: worktreePath,
                 fromCommit: emptyTree,
                 toCommit: commit.hash
             )
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
 
             let files = DiffChangedFile.parseNameStatus(output).sorted {
                 $0.displayPath.localizedStandardCompare($1.displayPath) == .orderedAscending
@@ -558,17 +596,20 @@ final class HistoryWindowState: ObservableObject {
                 updateDocumentSelection(for: first.id)
             }
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             DiffDiagnostics.error("Root commit file list also failed: \(error.localizedDescription)")
+            loadErrorMessage = error.localizedDescription.nonEmptyOrFallback("Unable to load commit files.")
             changedFiles = []
             isLoadingFiles = false
         }
     }
 
     private func loadBranches(for worktreePath: String) async {
+        guard !Task.isCancelled else { return }
+        let generation = loadGeneration
         do {
             let local = try await gitRepositoryService.localBranches(for: worktreePath)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             branches = local
         } catch {
             DiffDiagnostics.error("Failed to load branches: \(error.localizedDescription)")
@@ -576,16 +617,18 @@ final class HistoryWindowState: ObservableObject {
     }
 
     private func loadBlame(for worktreePath: String, filePath: String, commit: String) async {
+        guard !Task.isCancelled else { return }
+        let generation = loadGeneration
         DiffDiagnostics.log("Loading blame for \(filePath) at \(commit)")
         isLoadingBlame = true
         do {
             let output = try await gitRepositoryService.blame(for: worktreePath, filePath: filePath, commit: commit)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             blameLines = GitBlameLine.parseLinePorcelain(output)
             isLoadingBlame = false
             DiffDiagnostics.log("Loaded \(blameLines.count) blame lines for \(filePath)")
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             DiffDiagnostics.error("Blame failed for \(filePath): \(error.localizedDescription)")
             blameLines = []
             isLoadingBlame = false

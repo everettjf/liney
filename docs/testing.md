@@ -102,3 +102,32 @@ Before sending a test-heavy change for review, check:
 - The test names explain the branch being covered.
 - Fixtures are local to the file unless they are reused enough to justify extraction.
 - The assertions are not overspecified.
+
+## Session history and Git window regression checks
+
+Focused coverage lives in `TerminalHistoryPersistenceTests`,
+`GitWindowLoadingTests`, `ShellSessionTests`, and
+`WorkspaceStoreTests.testBatchImportDeduplicatesAndGroupsSuccessfulRepositoriesDespiteFailure`.
+The `compatibility-smoke` executable subcommand also captures a real Ghostty
+surface through `ShellSession` and verifies that its output reaches a history
+snapshot in an isolated temporary directory.
+
+For manual verification, use disposable repositories with both committed files
+and uncommitted changes:
+
+- Open Diff immediately after launching Liney, and open Git History on a root
+  commit. Both should select and display the first file without reopening.
+  Refresh, switch repository context, and commit fixture changes; stale content
+  should not reappear, and failures must offer a retry.
+- Create a group, use **Add Projects… → Choose Folders…** to select several
+  component directories including an already-open repository, and verify the
+  group count and deduplication. Check collapse/expand, project switching,
+  multiselection, context menus, and drag ordering.
+- Confirm **Restore terminal history after restart** is off by default. Enable
+  it, print a unique marker in a terminal, allow a periodic save, quit and
+  relaunch, and use **Previous session history → View History**. The marker must
+  be readable and selectable without being executed in the new shell.
+- Repeat with multiple panes/tabs and after force-quitting. Only the latest
+  snapshot for each pane should survive; output since the last periodic save
+  may be lost after a force-quit. Closing a pane/tab removes its history, and
+  disabling the setting clears saved snapshots and loaded historical text.

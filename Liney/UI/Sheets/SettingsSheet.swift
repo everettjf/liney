@@ -914,6 +914,12 @@ struct SettingsSheet: View {
 
                     Divider()
 
+                    Toggle(localized("settings.terminal.restoreHistory"), isOn: $appSettings.restoreTerminalHistory)
+                    Text(localized("settings.terminal.restoreHistoryHint"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Divider()
+
                     Toggle(localized("settings.general.terminal.useCustomScrollback"), isOn: terminalScrollbackEnabledBinding)
 
                     HStack {

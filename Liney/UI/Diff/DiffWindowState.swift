@@ -97,6 +97,7 @@ final class DiffWindowState: ObservableObject {
     @Published var document: DiffFileDocument?
     @Published var isLoadingFiles = false
     @Published var isLoadingDocument = false
+    @Published var documentLoadErrorMessage: String?
     @Published var loadErrorMessage: String?
     @Published var isCommitting = false
     @Published var commitErrorMessage: String?
@@ -116,6 +117,7 @@ final class DiffWindowState: ObservableObject {
     @Published var compareTarget: WorktreeApplyTarget?
 
     private let gitRepositoryService = GitRepositoryService()
+    private var loadGeneration = UUID()
     private var documentCache: [String: DiffFileDocument] = [:]
     private var fileListTask: Task<Void, Never>?
     private var documentTask: Task<Void, Never>?
@@ -126,7 +128,15 @@ final class DiffWindowState: ObservableObject {
     private var compareBaseTree: String?
     private var compareTargetTree: String?
 
+    func selectFile(_ id: String?) {
+        guard selectedFileID != id else { return }
+        selectedFileID = id
+        updateDocumentSelection(for: id)
+    }
+
     func load(worktreePath: String?, branchName: String, emptyStateMessage: String) {
+        documentLoadErrorMessage = nil
+        loadGeneration = UUID()
         DiffDiagnostics.log("Loading diff window state for branch \(branchName) at \(worktreePath ?? "<nil>")")
         self.worktreePath = worktreePath
         self.branchName = branchName
@@ -141,6 +151,7 @@ final class DiffWindowState: ObservableObject {
         compareBaseTree = nil
         compareTargetTree = nil
         resetApplyFlow()
+        targetsTask?.cancel()
         fileListTask?.cancel()
         documentTask?.cancel()
         guard let worktreePath else {
@@ -148,11 +159,15 @@ final class DiffWindowState: ObservableObject {
             isLoadingDocument = false
             return
         }
+        isLoadingFiles = true
+        isLoadingDocument = false
         fileListTask = Task { await reloadFileList(for: worktreePath) }
         reloadTargets(for: worktreePath)
     }
 
     func refresh() {
+        documentLoadErrorMessage = nil
+        loadGeneration = UUID()
         guard let worktreePath else { return }
         DiffDiagnostics.log("Refreshing diff file list for \(worktreePath)")
         documentCache = [:]
@@ -195,6 +210,7 @@ final class DiffWindowState: ObservableObject {
     }
 
     func updateDocumentSelection(for id: String?) {
+        documentLoadErrorMessage = nil
         documentTask?.cancel()
         DiffDiagnostics.log("Selecting diff file id \(id ?? "<nil>")")
 
@@ -223,7 +239,9 @@ final class DiffWindowState: ObservableObject {
 
         document = nil
         isLoadingDocument = true
+        let generation = loadGeneration
         documentTask = Task {
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             let start = DiffDiagnostics.now()
             DiffDiagnostics.log("Starting diff load for \(file.displayPath)")
             do {
@@ -238,7 +256,7 @@ final class DiffWindowState: ObservableObject {
                     }
                     return try await Self.loadDocument(for: file, worktreePath: worktreePath)
                 }.value
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, generation == loadGeneration else { return }
                 documentCache[file.id] = loadedDocument
                 document = loadedDocument
                 isLoadingDocument = false
@@ -246,14 +264,12 @@ final class DiffWindowState: ObservableObject {
                     "Finished diff load for \(file.displayPath) in \(DiffDiagnostics.formatMilliseconds(DiffDiagnostics.elapsedMilliseconds(since: start))) [patchBytes=\(loadedDocument.unifiedPatch.utf8.count)]"
                 )
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, generation == loadGeneration else { return }
                 DiffDiagnostics.error(
                     "Diff load failed for \(file.displayPath) after \(DiffDiagnostics.formatMilliseconds(DiffDiagnostics.elapsedMilliseconds(since: start))): \(error.localizedDescription)"
                 )
-                document = Self.makeDocument(
-                    file: file,
-                    unifiedPatch: error.localizedDescription.nonEmptyOrFallback("Unable to load diff.")
-                )
+                document = nil
+                documentLoadErrorMessage = error.localizedDescription.nonEmptyOrFallback("Unable to load diff.")
                 isLoadingDocument = false
             }
         }
@@ -262,10 +278,12 @@ final class DiffWindowState: ObservableObject {
     // MARK: - Apply To Worktree
 
     private func reloadTargets(for worktreePath: String) {
+        let generation = loadGeneration
         targetsTask?.cancel()
         targetsTask = Task {
             let worktrees = (try? await gitRepositoryService.listWorktrees(for: worktreePath)) ?? []
             guard !Task.isCancelled else { return }
+            guard generation == loadGeneration else { return }
             availableTargets = worktrees
                 .filter { $0.path != worktreePath }
                 .map { WorktreeApplyTarget(path: $0.path, displayName: $0.displayName, branch: $0.branch) }
@@ -443,6 +461,8 @@ final class DiffWindowState: ObservableObject {
 
     /// Switches the window into A/B compare mode against `target`.
     func startCompare(with target: WorktreeApplyTarget) {
+        documentLoadErrorMessage = nil
+        loadGeneration = UUID()
         guard worktreePath != nil else { return }
         resetApplyFlow()
         compareTarget = target
@@ -459,6 +479,8 @@ final class DiffWindowState: ObservableObject {
 
     /// Leaves compare mode and returns to showing changes vs HEAD.
     func endCompare() {
+        documentLoadErrorMessage = nil
+        loadGeneration = UUID()
         guard let worktreePath else { return }
         compareTarget = nil
         compareBaseTree = nil
@@ -473,13 +495,15 @@ final class DiffWindowState: ObservableObject {
     }
 
     private func reloadCompareFileList() async {
+        guard !Task.isCancelled else { return }
+        let generation = loadGeneration
         guard let worktreePath, let compareTarget else { return }
         isLoadingFiles = true
         loadErrorMessage = nil
         do {
             let base = try await gitRepositoryService.worktreeContentTree(for: worktreePath)
             let target = try await gitRepositoryService.worktreeContentTree(for: compareTarget.path)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             compareBaseTree = base
             compareTargetTree = target
 
@@ -491,7 +515,7 @@ final class DiffWindowState: ObservableObject {
             let files = DiffChangedFile.parseNameStatus(nameStatus).sorted {
                 $0.displayPath.localizedStandardCompare($1.displayPath) == .orderedAscending
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             changedFiles = files
             isLoadingFiles = false
 
@@ -499,7 +523,7 @@ final class DiffWindowState: ObservableObject {
             selectedFileID = nextSelectionID
             updateDocumentSelection(for: nextSelectionID)
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             changedFiles = []
             document = nil
             selectedFileID = nil
@@ -510,6 +534,8 @@ final class DiffWindowState: ObservableObject {
     }
 
     private func reloadFileList(for worktreePath: String) async {
+        guard !Task.isCancelled else { return }
+        let generation = loadGeneration
         let start = DiffDiagnostics.now()
         DiffDiagnostics.log("Loading changed files for \(worktreePath)")
         isLoadingFiles = true
@@ -528,7 +554,7 @@ final class DiffWindowState: ObservableObject {
                 $0.displayPath.localizedStandardCompare($1.displayPath) == .orderedAscending
             }
 
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
 
             changedFiles = allFiles
             isLoadingFiles = false
@@ -545,7 +571,7 @@ final class DiffWindowState: ObservableObject {
                 updateDocumentSelection(for: nextSelectionID)
             }
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             DiffDiagnostics.error(
                 "Loading changed files failed after \(DiffDiagnostics.formatMilliseconds(DiffDiagnostics.elapsedMilliseconds(since: start))): \(error.localizedDescription)"
             )

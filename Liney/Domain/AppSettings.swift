@@ -398,6 +398,7 @@ struct AppSettings: Codable, Hashable {
     /// Optional custom terminal scrollback budget in **bytes** (Ghostty's
     /// `scrollback-limit` unit). `nil` uses Liney's 64 MB default. See
     /// ``TerminalScrollback``.
+    var restoreTerminalHistory: Bool
     var terminalScrollbackBytes: Int?
     var terminalBackgroundOpacity: Double
     var terminalBackgroundBlur: Bool
@@ -449,6 +450,7 @@ struct AppSettings: Codable, Hashable {
         terminalFontFamily: String? = nil,
         terminalFontSize: Double? = nil,
         terminalTheme: String? = nil,
+        restoreTerminalHistory: Bool = false,
         terminalScrollbackBytes: Int? = nil,
         terminalBackgroundOpacity: Double = 1,
         terminalBackgroundBlur: Bool = false,
@@ -507,6 +509,7 @@ struct AppSettings: Codable, Hashable {
         self.terminalTheme = terminalTheme?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
+        self.restoreTerminalHistory = restoreTerminalHistory
         self.terminalScrollbackBytes = terminalScrollbackBytes.map(TerminalScrollback.clampBytes)
         self.terminalBackgroundOpacity = min(max(terminalBackgroundOpacity, 0.5), 1)
         self.terminalBackgroundBlur = terminalBackgroundBlur
@@ -578,6 +581,7 @@ extension AppSettings {
         case terminalFontFamily
         case terminalFontSize
         case terminalTheme
+        case restoreTerminalHistory
         case terminalScrollbackBytes
         case terminalBackgroundOpacity
         case terminalBackgroundBlur
@@ -664,6 +668,7 @@ extension AppSettings {
             terminalFontFamily: try container.decodeIfPresent(String.self, forKey: .terminalFontFamily),
             terminalFontSize: try container.decodeIfPresent(Double.self, forKey: .terminalFontSize),
             terminalTheme: try container.decodeIfPresent(String.self, forKey: .terminalTheme),
+            restoreTerminalHistory: try container.decodeIfPresent(Bool.self, forKey: .restoreTerminalHistory) ?? false,
             terminalScrollbackBytes: terminalScrollbackBytes,
             terminalBackgroundOpacity: try container.decodeIfPresent(Double.self, forKey: .terminalBackgroundOpacity) ?? 1,
             terminalBackgroundBlur: try container.decodeIfPresent(Bool.self, forKey: .terminalBackgroundBlur) ?? false,

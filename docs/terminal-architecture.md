@@ -97,3 +97,29 @@ Add unit coverage when changing:
 - session lifecycle transitions in `ShellSession`
 
 For UI-heavy terminal changes, pair unit tests with a small manual smoke test note covering focus, typing, split operations, and search if those behaviors were touched.
+
+## Optional history snapshots
+
+Settings → Terminal → **Restore terminal history after restart** is global and
+opt-in. The default remains off; workspace layout and working-directory
+restoration do not require it. `restoreTerminalHistory` decodes as `false` for
+older settings files.
+
+`TerminalHistoryCoordinator` tracks live sessions weakly and captures changed
+rendered text about every 10 seconds. `WorkspaceStore.flushPendingPersistence()`
+flushes a final snapshot on normal app exit. `TerminalHistoryPersistence` writes
+one atomic UTF-8 snapshot per pane ID under the state directory's
+`terminal-history/` folder. It keeps the newest complete characters within 2 MiB
+per pane and evicts the oldest files above 100 MiB globally. The directory is
+owner-only (0700), and snapshots are owner-readable/writable (0600).
+
+After relaunch, a pane with a saved snapshot offers **Previous session history →
+View History** in a read-only, selectable view. The existing Ghostty bridge
+exposes rendered text reads but no scrollback import operation. Saved text is
+never passed to `sendText` or executed, and no running process is restored.
+Force-killing the app may lose output since the last periodic snapshot.
+
+Explicitly closing a pane/tab or removing its workspace discards its snapshots.
+Disabling the setting removes all snapshots and clears loaded history. Queued
+writes and deletes are serialized so a pending save cannot resurrect deleted
+history. Normal app exit retains the latest snapshots for the next launch.

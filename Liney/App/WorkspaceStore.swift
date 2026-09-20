@@ -19,11 +19,18 @@ final class CommandPalettePresentationState: ObservableObject {
     @Published var isPresented = false
     @Published var query = ""
     @Published var selectedItemID: String?
+
+    // This value-only presentation state needs no MainActor deinit hop.
+    nonisolated deinit {}
 }
 
 @MainActor
 final class StatusMessagePresentationState: ObservableObject {
     @Published var message: WorkspaceStatusMessage?
+
+    // No executor-bound cleanup; avoid Xcode 26's MainActor deinit
+    // back-deployment thunk corrupting task-local state on macOS 15.
+    nonisolated deinit {}
 }
 
 @MainActor
@@ -82,7 +89,8 @@ final class WorkspaceStore: ObservableObject {
     @Published private(set) var hapiIntegrationState: HAPIIntegrationState = .unavailable
     @Published private(set) var availableExternalEditors: [ExternalEditorDescriptor] = []
 
-    private let persistenceCoordinator = WorkspacePersistenceCoordinator()
+    private let persistenceCoordinator: WorkspacePersistenceCoordinator
+    private let terminalHistoryCoordinator: TerminalHistoryCoordinator
     private let initialWorkspaceState: PersistedWorkspaceState?
     private let initialAppSettings: AppSettings?
     private let gitRepositoryService = GitRepositoryService()
@@ -91,6 +99,7 @@ final class WorkspaceStore: ObservableObject {
     private let remoteSessionCoordinator = RemoteSessionCoordinator()
     private let metadataWatchService = WorkspaceMetadataWatchService.shared
     private let sleepPreventionController = SleepPreventionController()
+    @Published private(set) var isWorkspaceStateReady = false
     private var persistsWorkspaceState: Bool
     private var hasLoaded = false
     private var hasConfiguredUpdater = false
@@ -116,8 +125,12 @@ final class WorkspaceStore: ObservableObject {
     init(
         initialWorkspaceState: PersistedWorkspaceState? = nil,
         initialAppSettings: AppSettings? = nil,
-        persistsWorkspaceState: Bool = true
+        persistsWorkspaceState: Bool = true,
+        persistenceCoordinator: WorkspacePersistenceCoordinator = WorkspacePersistenceCoordinator(),
+        terminalHistoryCoordinator: TerminalHistoryCoordinator = .shared
     ) {
+        self.persistenceCoordinator = persistenceCoordinator
+        self.terminalHistoryCoordinator = terminalHistoryCoordinator
         self.initialWorkspaceState = initialWorkspaceState
         self.initialAppSettings = initialAppSettings
         self.persistsWorkspaceState = persistsWorkspaceState
@@ -708,6 +721,7 @@ final class WorkspaceStore: ObservableObject {
             PersistenceLoadResult(value: $0, source: .primary)
         } ?? persistenceCoordinator.loadAppSettings()
         appSettings = settingsLoadResult.value
+        terminalHistoryCoordinator.configure(enabled: appSettings.restoreTerminalHistory)
         appSettings.githubIntegrationEnabled = false
         LocalizationManager.shared.updateSelectedLanguage(appSettings.appLanguage)
         AppLogger.updateLevel(appSettings.logLevel)
@@ -721,6 +735,7 @@ final class WorkspaceStore: ObservableObject {
         ensureDefaultWorkspace()
         removeDefaultLocalWorkspaceIfNeeded()
         selectedWorkspaceID = state.selectedWorkspaceID ?? workspaces.first?.id
+        isWorkspaceStateReady = true
 
         for workspace in workspaces {
             if workspace.supportsRepositoryFeatures || workspace.kind == .sshTerminal {
@@ -794,18 +809,52 @@ final class WorkspaceStore: ObservableObject {
         return workspace
     }
 
-    func addWorkspaceFromOpenPanel() {
+    func addWorkspaceFromOpenPanel(toGroup groupID: UUID? = nil) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.prompt = localized("main.openPanel.prompt")
         panel.message = localized("main.openPanel.message")
 
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        if AppLogger.isVerbose { AppLogger.workspace.info("Selected folder: \(url.path, privacy: .public)") }
+        guard panel.runModal() == .OK else { return }
+        let urls = panel.urls
         Task { @MainActor in
-            await addWorkspace(at: url)
+            await addWorkspaces(at: urls, toGroup: groupID)
+        }
+    }
+
+    func addWorkspaces(at urls: [URL], toGroup groupID: UUID? = nil) async {
+        var seenPaths = Set<String>()
+        var addedIDs: [UUID] = []
+        var failures: [String] = []
+        for url in urls {
+            let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+            guard seenPaths.insert(path).inserted else { continue }
+            do {
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+                      isDirectory.boolValue else {
+                    throw CocoaError(.fileReadNoSuchFile)
+                }
+                do {
+                    try await openRepositoryWorkspace(at: path, persistAfterChange: false)
+                } catch GitServiceError.notAGitRepository {
+                    addLocalWorkspace(atPath: path)
+                }
+                if let id = selectedWorkspaceID, !addedIDs.contains(id) {
+                    addedIDs.append(id)
+                }
+            } catch {
+                failures.append("\(path): \(error.localizedDescription)")
+            }
+        }
+        if let groupID, !addedIDs.isEmpty {
+            assignWorkspaces(ids: addedIDs, toGroup: groupID)
+        }
+        persist()
+        if !failures.isEmpty {
+            presentError(title: localized("main.error.openRepository.title"), message: failures.joined(separator: "\n"))
         }
     }
 
@@ -846,6 +895,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func removeWorkspace(_ workspace: WorkspaceModel) {
+        terminalHistoryCoordinator.discard(Set(workspace.snapshot().worktreeStates.flatMap { $0.tabs.flatMap { $0.panes.map(\.id) } }))
         workspace.sessionController.sessions.values.forEach { $0.terminate() }
         workspaces.removeAll(where: { $0.id == workspace.id })
         if selectedWorkspaceID == workspace.id {
@@ -860,6 +910,7 @@ final class WorkspaceStore: ObservableObject {
         let selectedIDs = Set(ids)
         let targets = workspaces.filter { selectedIDs.contains($0.id) }
         for workspace in targets {
+            terminalHistoryCoordinator.discard(Set(workspace.snapshot().worktreeStates.flatMap { $0.tabs.flatMap { $0.panes.map(\.id) } }))
             workspace.sessionController.sessions.values.forEach { $0.terminate() }
         }
         workspaces.removeAll { selectedIDs.contains($0.id) }
@@ -1002,6 +1053,7 @@ final class WorkspaceStore: ObservableObject {
             terminalFontFamily: settings.terminalFontFamily,
             terminalFontSize: settings.terminalFontSize,
             terminalTheme: settings.terminalTheme,
+            restoreTerminalHistory: settings.restoreTerminalHistory,
             terminalScrollbackBytes: settings.terminalScrollbackBytes,
             terminalBackgroundOpacity: settings.terminalBackgroundOpacity,
             terminalBackgroundBlur: settings.terminalBackgroundBlur,
@@ -1629,12 +1681,15 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func assignWorkspaces(ids: [UUID], toGroup groupID: UUID) {
-        let idsToAssign = Set(ids)
+        guard appSettings.workspaceGroups.contains(where: { $0.id == groupID }) else { return }
+        let validIDs = Set(workspaces.map(\.id))
+        var idsToAssign = Set<UUID>()
+        let uniqueIDs = ids.filter { validIDs.contains($0) && idsToAssign.insert($0).inserted }
         for i in appSettings.workspaceGroups.indices {
             appSettings.workspaceGroups[i].workspaceIDs.removeAll { idsToAssign.contains($0) }
         }
         guard let index = appSettings.workspaceGroups.firstIndex(where: { $0.id == groupID }) else { return }
-        appSettings.workspaceGroups[index].workspaceIDs.append(contentsOf: ids)
+        appSettings.workspaceGroups[index].workspaceIDs.append(contentsOf: uniqueIDs)
         // Remove from root order since they're now inside a group
         appSettings.sidebarRootOrder.removeAll { item in
             if case .workspace(let id) = item { return idsToAssign.contains(id) }
@@ -3025,6 +3080,7 @@ final class WorkspaceStore: ObservableObject {
     /// Synchronously flushes any pending workspace-state and app-settings
     /// writes. Call from the app-terminate handler before the process exits.
     func flushPendingPersistence() {
+        terminalHistoryCoordinator.flush()
         persistenceCoordinator.flushPendingSync()
     }
 
@@ -3233,6 +3289,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     private func persistAppSettings() {
+        terminalHistoryCoordinator.configure(enabled: appSettings.restoreTerminalHistory)
         let errorTitle = localized("main.error.saveSettings.title")
         persistenceCoordinator.saveAppSettings(appSettings) { error in
             Task { @MainActor [self] in
