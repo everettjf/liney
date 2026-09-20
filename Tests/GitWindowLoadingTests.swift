@@ -88,6 +88,56 @@ final class GitWindowLoadingTests: XCTestCase {
         XCTAssertFalse(state.isLoadingFiles)
     }
 
+    @MainActor
+    func testMissingAddedFileReportsDocumentError() async throws {
+        let state = DiffWindowState()
+        state.worktreePath = FileManager.default.temporaryDirectory.path
+        let file = DiffChangedFile(status: .added, oldPath: nil, newPath: UUID().uuidString)
+        state.changedFiles = [file]
+        state.selectFile(file.id)
+        try await waitUntil { !state.isLoadingDocument }
+        XCTAssertNil(state.document)
+        XCTAssertNotNil(state.documentLoadErrorMessage)
+    }
+
+    @MainActor
+    func testRangeFailureIsVisibleAndExitClearsLoadingState() async throws {
+        let repo = try await makeRepository()
+        defer { try? FileManager.default.removeItem(at: repo) }
+        let state = HistoryWindowState()
+        state.worktreePath = repo.path
+        state.startRangeComparison(fromCommitID: "missing-from")
+        state.completeRangeComparison(toCommitID: "missing-to")
+        try await waitUntil { state.loadErrorMessage != nil }
+        XCTAssertFalse(state.isLoadingFiles)
+        state.isLoadingDocument = true
+        state.exitRangeComparison()
+        XCTAssertNil(state.loadErrorMessage)
+        XCTAssertFalse(state.isLoadingFiles)
+        XCTAssertFalse(state.isLoadingDocument)
+        XCTAssertTrue(state.changedFiles.isEmpty)
+    }
+
+    @MainActor
+    func testBlameFailureCanRetryAndClearingContextResetsLoadingFlags() async throws {
+        let repo = try await makeRepository()
+        defer { try? FileManager.default.removeItem(at: repo) }
+        let state = HistoryWindowState()
+        state.worktreePath = repo.path
+        state.showBlame(filePath: "missing.txt", commit: "HEAD")
+        try await waitUntil { state.loadErrorMessage != nil }
+        XCTAssertFalse(state.isLoadingBlame)
+        state.showBlame(filePath: "file.txt", commit: "HEAD")
+        try await waitUntil { !state.blameLines.isEmpty }
+        XCTAssertNil(state.loadErrorMessage)
+        state.isLoadingBlame = true
+        state.isLoadingFiles = true
+        state.load(worktreePath: nil, branchName: "", emptyStateMessage: "Empty")
+        XCTAssertFalse(state.isLoadingBlame)
+        XCTAssertFalse(state.isLoadingFiles)
+        XCTAssertTrue(state.blameLines.isEmpty)
+    }
+
     private func makeRepository() async throws -> URL {
         let repo = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)

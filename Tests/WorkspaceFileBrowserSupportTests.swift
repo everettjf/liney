@@ -39,6 +39,29 @@ final class WorkspaceFileBrowserSupportTests: XCTestCase {
         XCTAssertEqual(preview, .text("hello\nworld\n"))
     }
 
+    func testPreviewRejectsNULBytesAndPreservesExactSizeUTF8() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("fixture")
+        try Data([65, 0, 66]).write(to: file)
+        XCTAssertEqual(try WorkspaceFileBrowserSupport.loadPreview(at: file.path), .unsupported(reason: "binary"))
+        try "你好".write(to: file, atomically: true, encoding: .utf8)
+        XCTAssertEqual(try WorkspaceFileBrowserSupport.loadPreview(at: file.path, maxBytes: 6), .text("你好"))
+        XCTAssertEqual(try WorkspaceFileBrowserSupport.loadPreview(at: file.path, maxBytes: 5), .unsupported(reason: "large"))
+        XCTAssertThrowsError(try WorkspaceFileBrowserSupport.loadPreview(at: root.appendingPathComponent("missing").path))
+    }
+
+    func testPreviewRejectsSparseMultiGigabyteFile() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("large")
+        XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: nil))
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.truncate(atOffset: 4 * 1024 * 1024 * 1024)
+        try handle.close()
+        XCTAssertEqual(try WorkspaceFileBrowserSupport.loadPreview(at: file.path), .unsupported(reason: "large"))
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let directoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)

@@ -80,13 +80,24 @@ nonisolated enum WorkspaceFileBrowserSupport {
         maxBytes: Int = maxPreviewBytes
     ) throws -> WorkspaceFileBrowserPreview {
         let fileURL = URL(fileURLWithPath: path)
-        let data = try Data(contentsOf: fileURL)
+        let values = try fileURL.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
+        guard values.isRegularFile == true else {
+            return .unsupported(reason: "binary")
+        }
+        let limit = max(0, maxBytes)
+        if let size = values.fileSize, size > limit {
+            return .unsupported(reason: "large")
+        }
+        let handle = try FileHandle(forReadingFrom: fileURL)
+        defer { try? handle.close() }
+        // Bound the read even if the file grows after the metadata check.
+        let data = try handle.read(upToCount: limit == Int.max ? limit : limit + 1) ?? Data()
 
-        if data.count > maxBytes {
+        if data.count > limit {
             return .unsupported(reason: "large")
         }
 
-        guard let text = String(data: data, encoding: .utf8) else {
+        guard !data.contains(0), let text = String(data: data, encoding: .utf8) else {
             return .unsupported(reason: "binary")
         }
 

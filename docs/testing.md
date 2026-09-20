@@ -131,3 +131,25 @@ and uncommitted changes:
   snapshot for each pane should survive; output since the last periodic save
   may be lost after a force-quit. Closing a pane/tab removes its history, and
   disabling the setting clears saved snapshots and loaded historical text.
+
+## Stability release regression checks (2026-09-20)
+
+- `WorkspaceFileBrowserSupportTests`: sparse multi-gigabyte files are rejected,
+  NUL-containing input is treated as binary, and exact-limit UTF-8 is preserved.
+- `WorkspaceStoreTests.testFileBrowserSaveReportsFailureAndSupportsRetry`:
+  failed saves return failure so the sheet retains its dirty state; a subsequent
+  save can succeed without losing the edited text.
+- `GitWindowLoadingTests`: missing added files surface a document error; range
+  and blame failures are reported; changing context clears canceled loading flags.
+
+Local verification used Xcode 27: full `build test` passed, and
+`compatibility-smoke` printed `LINEY_TERMINAL_COMPATIBILITY_SMOKE_OK`.
+The GitHub Actions Xcode 26.3 / macOS 14 and 15 matrix remains a separate gate.
+
+Interactive smoke used a disposable repository at `/tmp/liney-stability-smoke`:
+Git History selected the root commit and its first file on opening; temporarily
+moving `.git` surfaced a load failure; restoring `.git` and refreshing loaded the
+history again. This also exposed a misleading middle-panel “No Changes” state,
+which was changed to show the failure. Save-failure behavior is covered by the
+store test and UI code review; a full interactive save-failure and sidebar/IME
+matrix has not been completed in this pass.

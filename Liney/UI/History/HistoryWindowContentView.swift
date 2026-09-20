@@ -298,7 +298,11 @@ struct HistoryWindowContentView: View {
             }
             .listStyle(.sidebar)
             .overlay {
-                if state.selectedCommitID == nil && !state.isLoadingCommits {
+                if let error = state.loadErrorMessage {
+                    GitLoadFailureView(title: "Unable to Load History", message: error, retry: state.refresh)
+                } else if state.isLoadingCommits || state.isLoadingFiles {
+                    ProgressView()
+                } else if state.selectedCommitID == nil {
                     ContentUnavailableView(
                         "Select a Commit",
                         systemImage: "arrow.left.circle",
@@ -367,6 +371,8 @@ struct HistoryWindowContentView: View {
             if state.isLoadingBlame {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = state.loadErrorMessage {
+                GitLoadFailureView(title: "Unable to Load History", message: error, retry: state.refresh)
             } else if state.blameLines.isEmpty {
                 ContentUnavailableView(
                     "No Blame Data",
@@ -404,14 +410,14 @@ struct HistoryWindowContentView: View {
             } else if state.isLoadingFiles {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = state.loadErrorMessage {
+                GitLoadFailureView(title: "Unable to Load History", message: error, retry: state.refresh)
             } else if state.selectedCommitID == nil {
                 ContentUnavailableView(
                     "Select a Commit",
                     systemImage: "clock.arrow.circlepath",
                     description: Text("Choose a commit from the history to view changes.")
                 )
-            } else if let error = state.loadErrorMessage {
-                GitLoadFailureView(title: "Unable to Load History", message: error, retry: state.refresh)
             } else if state.changedFiles.isEmpty && !state.isLoadingFiles {
                 ContentUnavailableView(
                     "No Changes",

@@ -15,6 +15,18 @@ final class WorkspaceStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    func testFileBrowserSaveReportsFailureAndSupportsRetry() throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("missing/notes.txt")
+        let store = WorkspaceStore(persistsWorkspaceState: false)
+        XCTAssertFalse(store.saveWorkspaceFileBrowserText(contents: "keep edits", to: file.path))
+        XCTAssertNotNil(store.presentedError)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        XCTAssertTrue(store.saveWorkspaceFileBrowserText(contents: "keep edits", to: file.path))
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "keep edits")
+    }
+
     func testBatchImportDeduplicatesAndGroupsSuccessfulRepositoriesDespiteFailure() async throws {
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
