@@ -48,8 +48,7 @@ struct WorkspaceSidebarView: View {
                     .strokeBorder(LineyTheme.border, lineWidth: 1)
             )
             .padding(.horizontal, 8 * uiScale)
-            .padding(.top, 7 * uiScale)
-            .padding(.bottom, 6 * uiScale)
+            .padding(.vertical, 7 * uiScale)
             .background(LineyTheme.sidebarBackground)
             .overlay(alignment: .bottom) {
                 Rectangle()
@@ -122,8 +121,7 @@ private struct SidebarRunningProjectsStrip: View {
                     .foregroundStyle(LineyTheme.mutedText.opacity(0.7))
             }
             .padding(.horizontal, 12 * uiScale)
-            .padding(.top, 7 * uiScale)
-            .padding(.bottom, 5 * uiScale)
+            .padding(.vertical, 6 * uiScale)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
