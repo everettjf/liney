@@ -174,109 +174,42 @@ struct MainWindowView: View {
                     )
                 } label: {
                     Image(systemName: "sidebar.leading")
-                        .padding(4 * uiScale)
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
-                .scaleEffect(uiScale)
                 .accessibilityLabel(localized("menu.view.toggleSidebar"))
                 .help(localized("menu.view.toggleSidebar"))
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
-                HStack(spacing: 10) {
-                    ToolbarSegmentedControl(
-                    backgroundColor: LineyTheme.chromeBackground.opacity(0.96),
-                    borderColor: LineyTheme.border,
-                    leadingAction: { anchorView in
-                        present(menu: makeQuickCommandMenu(), from: anchorView)
-                    },
-                    trailingAction: { anchorView in
-                        present(menu: makeQuickCommandMenu(), from: anchorView)
-                    },
-                    isLeadingDisabled: false,
-                    isTrailingDisabled: false,
-                    leadingAccessibilityLabel: localized("main.toolbar.chooseQuickCommand"),
-                    leadingHelp: localized("main.toolbar.chooseQuickCommand"),
-                    trailingAccessibilityLabel: localized("main.toolbar.chooseQuickCommand"),
-                    trailingHelp: localized("main.toolbar.chooseQuickCommand"),
-                    leadingContent: {
-                        HStack(spacing: 6) {
-                            ToolbarFeatureIcon(
-                                systemName: "chevron.left.slash.chevron.right",
-                                tint: LineyTheme.accent
-                            )
-                        }
-                    },
-                    trailingContent: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(LineyTheme.secondaryText)
-                    }
-                    )
-
-                    ToolbarSegmentedControl(
-                    backgroundColor: LineyTheme.chromeBackground.opacity(0.96),
-                    borderColor: LineyTheme.border,
-                    leadingAction: { anchorView in
-                        present(menu: makeWorkflowMenu(), from: anchorView)
-                    },
-                    trailingAction: { anchorView in
-                        present(menu: makeWorkflowMenu(), from: anchorView)
-                    },
-                    isLeadingDisabled: !hasSelectedWorkspace,
-                    isTrailingDisabled: !hasSelectedWorkspace,
-                    leadingAccessibilityLabel: localized("main.toolbar.chooseWorkflow"),
-                    leadingHelp: localized("main.toolbar.chooseWorkflow"),
-                    trailingAccessibilityLabel: localized("main.toolbar.chooseWorkflow"),
-                    trailingHelp: localized("main.toolbar.chooseWorkflow"),
-                    leadingContent: {
-                        HStack(spacing: 6) {
-                            ToolbarFeatureIcon(
-                                systemName: "play.rectangle.on.rectangle",
-                                tint: LineyTheme.accent
-                            )
-                        }
-                    },
-                    trailingContent: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(LineyTheme.secondaryText)
-                    }
-                    )
-
-                    ToolbarSegmentedControl(
-                        backgroundColor: store.sleepPreventionSession == nil
-                            ? LineyTheme.chromeBackground.opacity(0.96)
-                            : LineyTheme.warning.opacity(0.14),
-                        borderColor: store.sleepPreventionSession == nil
-                            ? LineyTheme.border
-                            : LineyTheme.warning.opacity(0.42),
-                        leadingAction: { anchorView in
-                            present(menu: makeUtilitiesMenu(), from: anchorView)
-                        },
-                        trailingAction: { anchorView in
-                            present(menu: makeUtilitiesMenu(), from: anchorView)
-                        },
-                        isLeadingDisabled: false,
-                        isTrailingDisabled: false,
-                        leadingAccessibilityLabel: localized("main.menu.moreActions"),
-                        leadingHelp: localized("main.menu.moreActions"),
-                        trailingAccessibilityLabel: localized("main.menu.moreActions"),
-                        trailingHelp: localized("main.menu.moreActions"),
-                        leadingContent: {
-                            ToolbarFeatureIcon(
-                                systemName: "wrench.and.screwdriver",
-                                tint: store.sleepPreventionSession == nil ? LineyTheme.secondaryText : LineyTheme.warning
-                            )
-                        },
-                        trailingContent: {
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(LineyTheme.secondaryText)
-                        }
-                    )
-
+                ToolbarMenuButton(
+                    systemName: "chevron.left.slash.chevron.right",
+                    title: localized("main.toolbar.chooseQuickCommand"),
+                    scale: uiScale,
+                    tint: LineyTheme.accent
+                ) { anchor in
+                    present(menu: makeQuickCommandMenu(), from: anchor)
                 }
-                .scaleEffect(uiScale)
+
+                ToolbarMenuButton(
+                    systemName: "play.rectangle.on.rectangle",
+                    title: localized("main.toolbar.chooseWorkflow"),
+                    scale: uiScale,
+                    tint: LineyTheme.accent
+                ) { anchor in
+                    present(menu: makeWorkflowMenu(), from: anchor)
+                }
+                .disabled(!hasSelectedWorkspace)
+
+                ToolbarMenuButton(
+                    systemName: "wrench.and.screwdriver",
+                    title: localized("main.menu.moreActions"),
+                    scale: uiScale,
+                    tint: store.sleepPreventionSession == nil ? .primary : LineyTheme.warning
+                ) { anchor in
+                    present(menu: makeUtilitiesMenu(), from: anchor)
+                }
+
                 Button {
                     withAnimation(.easeInOut(duration: 0.25)) {
                         dismissCanvas(restoreFocus: false)
@@ -284,9 +217,9 @@ struct MainWindowView: View {
                     }
                 } label: {
                     Image(systemName: store.isOverviewPresented ? "building.2.fill" : "building.2")
-                        .padding(4 * uiScale)
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
-                .scaleEffect(uiScale)
                 .accessibilityLabel(localized("main.overview.title"))
                 .help(localized("main.overview.title"))
 
@@ -301,9 +234,9 @@ struct MainWindowView: View {
                     }
                 } label: {
                     Image(systemName: isCanvasPresented ? "square.grid.3x2.fill" : "square.grid.3x2")
-                        .padding(4 * uiScale)
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
-                .scaleEffect(uiScale)
                 .accessibilityLabel(localized("main.canvas.title"))
                 .help(isCanvasPresented ? localized("main.canvas.hide") : localized("main.canvas.show"))
 
@@ -322,10 +255,10 @@ struct MainWindowView: View {
                     }
                 } label: {
                     Image(systemName: "doc.text.magnifyingglass")
-                        .padding(4 * uiScale)
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
                 .menuIndicator(.hidden)
-                .scaleEffect(uiScale)
                 .accessibilityLabel(localized("main.toolbar.repositoryTools"))
                 .help(localized("main.toolbar.repositoryTools"))
 
@@ -333,9 +266,9 @@ struct MainWindowView: View {
                     store.dispatch(.toggleCommandPalette)
                 } label: {
                     Image(systemName: "command")
-                        .padding(4 * uiScale)
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
-                .scaleEffect(uiScale)
                 .accessibilityLabel(localized("menu.view.commandPalette"))
                 .help(localized("menu.view.commandPalette"))
 
@@ -351,10 +284,10 @@ struct MainWindowView: View {
                     }
                 } label: {
                     Image(systemName: "rectangle.split.2x1")
-                        .padding(4 * uiScale)
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
                 .menuIndicator(.hidden)
-                .scaleEffect(uiScale)
                 .disabled(!hasFocusedPane)
                 .accessibilityLabel(localized("main.toolbar.splitPane"))
                 .help(localized("main.toolbar.splitPane"))
@@ -364,9 +297,9 @@ struct MainWindowView: View {
                     store.createTab(in: workspace)
                 } label: {
                     Image(systemName: "plus.rectangle.on.rectangle")
-                        .padding(4 * uiScale)
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
-                .scaleEffect(uiScale)
                 .disabled(!hasSelectedWorkspace)
                 .accessibilityLabel(localized("menu.file.newTab"))
                 .help(localized("menu.file.newTab"))
@@ -375,9 +308,9 @@ struct MainWindowView: View {
                     store.selectedWorkspace?.toggleFileTree()
                 } label: {
                     Image(systemName: store.selectedWorkspace?.isFileTreePresented == true ? "list.bullet.indent" : "sidebar.squares.leading")
-                        .padding(4 * uiScale)
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
-                .scaleEffect(uiScale)
                 .disabled(!hasSelectedWorkspace)
                 .accessibilityLabel(localized("main.toolbar.toggleFileTree"))
                 .help(localized("main.toolbar.toggleFileTree"))
@@ -518,8 +451,11 @@ struct MainWindowView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
-                .scaleEffect(uiScale)
+                .menuIndicator(.hidden)
+                .accessibilityLabel(localized("main.menu.moreActions"))
                 .help(localized("main.menu.moreActions"))
             }
         }
@@ -982,62 +918,34 @@ private struct StatusMessageOverlay: View {
     }
 }
 
-private struct ToolbarSegmentedControl<LeadingContent: View, TrailingContent: View>: View {
-    let backgroundColor: Color
-    let borderColor: Color
-    let leadingAction: (NSView?) -> Void
-    let trailingAction: (NSView?) -> Void
-    let isLeadingDisabled: Bool
-    let isTrailingDisabled: Bool
-    let leadingAccessibilityLabel: String
-    let leadingHelp: String
-    let trailingAccessibilityLabel: String
-    let trailingHelp: String
-    @ViewBuilder let leadingContent: () -> LeadingContent
-    @ViewBuilder let trailingContent: () -> TrailingContent
+/// Use the toolbar's native button chrome and a single hit target for each menu.
+private struct ToolbarMenuButton: View {
+    let systemName: String
+    let title: String
+    let scale: CGFloat
+    let tint: Color
+    let action: (NSView?) -> Void
 
-    @State private var leadingAnchorView: NSView?
-    @State private var trailingAnchorView: NSView?
+    @State private var anchorView: NSView?
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button {
-                leadingAction(leadingAnchorView)
-            } label: {
-                leadingContent()
-                    .padding(.leading, 7)
-                    .padding(.trailing, 8)
-                    .frame(height: 22)
-                    .contentShape(Rectangle())
-                    .background(ToolbarAnchorView(anchorView: $leadingAnchorView))
+        Button {
+            action(anchorView)
+        } label: {
+            HStack(spacing: 4 * scale) {
+                Image(systemName: systemName)
+                    .font(.system(size: 13 * scale, weight: .medium))
+                    .foregroundStyle(tint)
+                    .frame(width: 20 * scale, height: 20 * scale)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8 * scale, weight: .semibold))
+                    .frame(width: 8 * scale)
             }
-            .buttonStyle(.plain)
-            .disabled(isLeadingDisabled)
-            .accessibilityLabel(leadingAccessibilityLabel)
-            .help(leadingHelp)
-
-            Rectangle()
-                .fill(borderColor.opacity(0.9))
-                .frame(width: 1, height: 14)
-
-            Button {
-                trailingAction(trailingAnchorView)
-            } label: {
-                trailingContent()
-                    .frame(width: 22, height: 22)
-                    .contentShape(Rectangle())
-                    .background(ToolbarAnchorView(anchorView: $trailingAnchorView))
-            }
-            .buttonStyle(.plain)
-            .disabled(isTrailingDisabled)
-            .accessibilityLabel(trailingAccessibilityLabel)
-            .help(trailingHelp)
+            .background(ToolbarAnchorView(anchorView: $anchorView))
+            .contentShape(Rectangle())
         }
-        .background(backgroundColor, in: Capsule())
-        .overlay(
-            Capsule()
-                .stroke(borderColor, lineWidth: 1)
-        )
+        .accessibilityLabel(title)
+        .help(title)
     }
 }
 

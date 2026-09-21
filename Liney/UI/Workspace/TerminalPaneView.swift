@@ -323,22 +323,22 @@ struct TerminalPaneView: View {
             Spacer(minLength: 6)
 
             HStack(spacing: LineyMetrics.spacing6) {
-                PaneHeaderButton(systemName: "magnifyingglass") {
+                PaneHeaderButton(systemName: "magnifyingglass", accessibilityLabel: localized("terminal.search.placeholder")) {
                     workspace.focusPane(paneID)
                     presentSearch()
                 }
 
-                PaneHeaderButton(systemName: session.surfaceStatus.isReadOnly ? "lock.fill" : "lock.open") {
+                PaneHeaderButton(systemName: session.surfaceStatus.isReadOnly ? "lock.fill" : "lock.open", accessibilityLabel: localized(session.surfaceStatus.isReadOnly ? "terminal.menu.disableReadOnly" : "terminal.menu.enableReadOnly")) {
                     workspace.focusPane(paneID)
                     session.toggleReadOnly()
                 }
 
-                PaneHeaderButton(systemName: workspace.zoomedPaneID == paneID ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right") {
+                PaneHeaderButton(systemName: workspace.zoomedPaneID == paneID ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", accessibilityLabel: localized(workspace.zoomedPaneID == paneID ? "terminal.menu.unzoomPane" : "terminal.menu.zoomPane")) {
                     workspace.focusPane(paneID)
                     store.toggleZoom(in: workspace, paneID: paneID)
                 }
 
-                PaneHeaderButton(systemName: "xmark") {
+                PaneHeaderButton(systemName: "xmark", accessibilityLabel: localized("terminal.menu.closePane")) {
                     store.closePane(in: workspace, paneID: paneID)
                 }
             }
@@ -492,12 +492,14 @@ private struct PaneHeaderButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(LineyTypography.caption)
-                .frame(width: 18, height: 18)
+                .frame(width: LineyMetrics.compactControlHeight, height: LineyMetrics.compactControlHeight)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(LineyTheme.secondaryText)
         .background(LineyTheme.subtleFill, in: RoundedRectangle(cornerRadius: LineyMetrics.controlRadius, style: .continuous))
         .accessibilityLabel(accessibilityLabel ?? systemName)
+        .help(accessibilityLabel ?? systemName)
     }
 }
 
@@ -530,15 +532,15 @@ private struct PaneSearchBar: View {
                 PaneTag(text: resultLabel, tone: .neutral)
             }
 
-            PaneHeaderButton(systemName: "chevron.up") {
+            PaneHeaderButton(systemName: "chevron.up", accessibilityLabel: localized("terminal.search.previous")) {
                 onPrevious()
             }
 
-            PaneHeaderButton(systemName: "chevron.down") {
+            PaneHeaderButton(systemName: "chevron.down", accessibilityLabel: localized("terminal.search.next")) {
                 onNext()
             }
 
-            PaneHeaderButton(systemName: "xmark") {
+            PaneHeaderButton(systemName: "xmark", accessibilityLabel: localized("terminal.search.close")) {
                 onClose()
             }
         }
@@ -582,8 +584,8 @@ private struct PaneStatusStrip: View {
 
             Spacer()
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, LineyMetrics.spacing10)
+        .padding(.vertical, LineyMetrics.spacing6)
         .background(LineyTheme.panelRaised.opacity(0.72))
     }
 }
