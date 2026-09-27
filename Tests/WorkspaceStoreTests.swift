@@ -155,9 +155,10 @@ final class WorkspaceStoreTests: XCTestCase {
         LocalizationManager.shared.updateSelectedLanguage(.simplifiedChinese)
         let store = WorkspaceStore(persistsWorkspaceState: false)
 
-        XCTAssertEqual(store.sleepPreventionStatusText, "禁止休眠")
-        XCTAssertEqual(store.sleepPreventionPrimaryActionLabel, "开始禁止休眠")
-        XCTAssertEqual(store.sleepPreventionPrimaryActionHelpText, "为 macOS 启用禁止休眠：1 小时")
+        XCTAssertEqual(store.sleepPreventionStatusText, "睡眠与自动锁屏")
+        XCTAssertEqual(SleepPreventionMode.sleep.title, "禁止睡眠")
+        XCTAssertEqual(SleepPreventionMode.sleepAndLock.title, "禁止睡眠和锁屏")
+        XCTAssertEqual(SleepPreventionDurationOption.forever.title, "永久（直到手动停止）")
     }
 
     func testModelDisplayStringsLocalizeForSimplifiedChinese() {

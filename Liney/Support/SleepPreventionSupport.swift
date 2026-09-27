@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import IOKit.pwr_mgt
 
 nonisolated enum SleepPreventionDurationOption: String, CaseIterable, Identifiable, Hashable {
     case oneHour
@@ -85,12 +86,28 @@ nonisolated enum SleepPreventionDurationOption: String, CaseIterable, Identifiab
     }
 }
 
+nonisolated enum SleepPreventionMode: CaseIterable {
+    case sleep
+    case sleepAndLock
+
+    @MainActor var title: String {
+        LocalizationManager.shared.string(self == .sleep
+            ? "main.sleepPrevention.mode.sleep" : "main.sleepPrevention.mode.sleepAndLock")
+    }
+
+    var caffeinateArguments: [String] {
+        self == .sleep ? ["-ims"] : ["-dims"]
+    }
+}
+
 nonisolated struct SleepPreventionSession: Equatable {
     let option: SleepPreventionDurationOption
+    let mode: SleepPreventionMode
     let startedAt: Date
     let expiresAt: Date?
 
-    init(option: SleepPreventionDurationOption, startedAt: Date, expiresAt: Date?) {
+    init(option: SleepPreventionDurationOption, startedAt: Date, expiresAt: Date?, mode: SleepPreventionMode = .sleep) {
+        self.mode = mode
         self.option = option
         self.startedAt = startedAt
         self.expiresAt = expiresAt
@@ -165,18 +182,30 @@ final class SleepPreventionController {
 
     private var process: Process?
     private var currentSession: SleepPreventionSession?
+    private let autoLockController = AutoLockPreventionController()
+
+    init() {
+        autoLockController.onFailure = { [weak self] code in
+            guard let self else { return }
+            self.stopCurrentProcess(emitStoppedEvent: false)
+            self.onEvent?(.stopped(.failed(l10nFormat(
+                LocalizationManager.shared.string("main.autoLockPrevention.error"),
+                arguments: [String(code)]
+            ))))
+        }
+    }
 
     deinit {
         process?.terminate()
     }
 
-    func start(_ option: SleepPreventionDurationOption) throws {
+    func start(_ option: SleepPreventionDurationOption, mode: SleepPreventionMode = .sleep) throws {
         stopCurrentProcess(emitStoppedEvent: false)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/caffeinate")
 
-        var arguments = ["-dimsu"]
+        var arguments = mode.caffeinateArguments
         if let duration = option.duration {
             arguments.append("-t")
             arguments.append(String(max(1, Int(duration.rounded(.up)))))
@@ -188,6 +217,7 @@ final class SleepPreventionController {
                 guard let self,
                       self.process === process else { return }
 
+                self.autoLockController.stop()
                 self.process = nil
                 self.currentSession = nil
 
@@ -199,17 +229,27 @@ final class SleepPreventionController {
             }
         }
 
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            onEvent?(.stopped(.failed(error.localizedDescription)))
+            throw error
+        }
 
         let startedAt = Date()
         let session = SleepPreventionSession(
             option: option,
             startedAt: startedAt,
-            expiresAt: option.duration.map { startedAt.addingTimeInterval($0) }
+            expiresAt: option.duration.map { startedAt.addingTimeInterval($0) },
+            mode: mode
         )
 
         self.process = process
         self.currentSession = session
+        if mode == .sleepAndLock {
+            autoLockController.start(expiresAt: session.expiresAt)
+            guard autoLockController.isActive else { return }
+        }
         onEvent?(.started(session))
     }
 
@@ -218,6 +258,7 @@ final class SleepPreventionController {
     }
 
     private func stopCurrentProcess(emitStoppedEvent: Bool) {
+        autoLockController.stop()
         let previousProcess = process
         let hadActiveSession = currentSession != nil
 
@@ -230,5 +271,90 @@ final class SleepPreventionController {
 
         guard let previousProcess, previousProcess.isRunning else { return }
         previousProcess.terminate()
+    }
+}
+
+
+/// Refreshes user activity independently of the system-sleep assertion.
+@MainActor
+final class AutoLockPreventionController {
+    typealias DeclareActivity = (inout IOPMAssertionID) -> IOReturn
+
+    var onChange: ((Bool) -> Void)?
+    var onFailure: ((IOReturn) -> Void)?
+    private(set) var isActive = false
+    private var assertionID = IOPMAssertionID(kIOPMNullAssertionID)
+    private var timer: Timer?
+    private var expiresAt: Date?
+    private var activity: NSObjectProtocol?
+    private let declareActivity: DeclareActivity
+    private let releaseAssertion: (IOPMAssertionID) -> Void
+
+    init(
+        declareActivity: @escaping DeclareActivity = { id in
+            IOPMAssertionDeclareUserActivity(
+                "Liney prevent automatic screen lock" as CFString,
+                kIOPMUserActiveLocal,
+                &id
+            )
+        },
+        releaseAssertion: @escaping (IOPMAssertionID) -> Void = { _ = IOPMAssertionRelease($0) }
+    ) {
+        self.declareActivity = declareActivity
+        self.releaseAssertion = releaseAssertion
+    }
+
+    deinit {
+        timer?.invalidate()
+        if let activity { ProcessInfo.processInfo.endActivity(activity) }
+        if assertionID != kIOPMNullAssertionID { releaseAssertion(assertionID) }
+    }
+
+    func start(expiresAt: Date? = nil) {
+        guard !isActive else { return }
+        self.expiresAt = expiresAt
+        let result = declareActivity(&assertionID)
+        guard result == kIOReturnSuccess else {
+            stop()
+            onFailure?(result)
+            return
+        }
+        isActive = true
+        // Keep the refresh timer running while Liney is in the background.
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep],
+            reason: "Prevent automatic screen lock"
+        )
+        let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshActivity() }
+        }
+        self.timer = timer
+        RunLoop.main.add(timer, forMode: .common)
+        onChange?(true)
+    }
+
+    func refreshActivity(now: Date = Date()) {
+        guard isActive else { return }
+        if let expiresAt, now >= expiresAt {
+            stop()
+            return
+        }
+        let result = declareActivity(&assertionID)
+        guard result != kIOReturnSuccess else { return }
+        stop()
+        onFailure?(result)
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        expiresAt = nil
+        if let activity { ProcessInfo.processInfo.endActivity(activity) }
+        activity = nil
+        if assertionID != kIOPMNullAssertionID { releaseAssertion(assertionID) }
+        assertionID = IOPMAssertionID(kIOPMNullAssertionID)
+        let wasActive = isActive
+        isActive = false
+        if wasActive { onChange?(false) }
     }
 }

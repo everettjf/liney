@@ -160,3 +160,21 @@ state, terminal history coordinator, and fake surface now follow the existing
 nonisolated deinit convention. The related WorkspaceStore, ShellSession, and
 ShellCommandRunner tests passed locally; the older-system CI is authoritative
 for this runtime compatibility fix.
+
+
+## Menu and sleep-prevention smoke checks
+
+- Verify toolbar groups appear in this order: terminal actions; commands/workflows/editors;
+  repository tools/overview/canvas; command palette/sleep prevention/more.
+- Confirm menu buttons show disclosure indicators. More should contain session maintenance,
+  workspace scripts/files/preview/remote targets, layout maintenance, and workspace settings,
+  without duplicating overview, canvas, repository tools, or the file-tree toggle.
+- Check Workspace menu actions against a local repository, local terminal, and no selected
+  workspace. Local-only worktree creation and Fetch must be unavailable for other workspace types.
+- Open the View menu and toggle Canvas and the file tree; verify toolbar state follows. Opening
+  Overview must dismiss Canvas. Confirm terminal-tab navigation shortcuts still work from Window.
+- Both the toolbar and Liney menu must offer Prevent Sleep, then Prevent Sleep and Lock, each
+  with the same eight durations. Check the active mode/duration, remaining-time label, and Stop.
+- For a real idle test, enable Prevent Sleep and Lock and leave the machine idle past its configured
+  screen-saver/display-lock interval. Manual locking must remain available. Stop the mode afterward.
+  Unit tests cover deadline cleanup, but do not establish OS-level idle-lock behavior.
