@@ -181,37 +181,34 @@ struct MainWindowView: View {
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    guard let workspace = store.selectedWorkspace else { return }
-                    store.createTab(in: workspace)
-                } label: {
-                    Image(systemName: "plus.rectangle.on.rectangle")
-                        .font(.system(size: 13 * uiScale, weight: .medium))
-                        .frame(width: 20 * uiScale, height: 20 * uiScale)
-                }
-                .disabled(!hasSelectedWorkspace)
-                .accessibilityLabel(localized("menu.file.newTab"))
-                .help(localized("menu.file.newTab"))
-
                 Menu {
+                    Button(localized("menu.file.newTab"), systemImage: "plus.rectangle.on.rectangle") {
+                        guard let workspace = store.selectedWorkspace else { return }
+                        store.createTab(in: workspace)
+                    }
+
+                    Divider()
+
                     Button(localized("menu.file.splitRight"), systemImage: "rectangle.split.2x1.fill") {
                         guard let workspace = store.selectedWorkspace else { return }
                         store.splitFocusedPane(in: workspace, axis: .vertical)
                     }
+                    .disabled(!hasFocusedPane)
 
                     Button(localized("menu.file.splitDown"), systemImage: "rectangle.split.1x2.fill") {
                         guard let workspace = store.selectedWorkspace else { return }
                         store.splitFocusedPane(in: workspace, axis: .horizontal)
                     }
+                    .disabled(!hasFocusedPane)
                 } label: {
-                    Image(systemName: "rectangle.split.2x1")
+                    Image(systemName: "plus.rectangle.on.rectangle")
                         .font(.system(size: 13 * uiScale, weight: .medium))
                         .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
                 .menuIndicator(.visible)
-                .disabled(!hasFocusedPane)
-                .accessibilityLabel(localized("main.toolbar.splitPane"))
-                .help(localized("main.toolbar.splitPane"))
+                .disabled(!hasSelectedWorkspace)
+                .accessibilityLabel(localized("main.toolbar.newTabOrSplit"))
+                .help(localized("main.toolbar.newTabOrSplit"))
 
                 Button {
                     store.selectedWorkspace?.toggleFileTree()
