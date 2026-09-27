@@ -58,7 +58,7 @@ private struct WorkspaceSessionDetailView: View {
 
     var body: some View {
         HSplitView {
-            VStack(spacing: 8) {
+            VStack(spacing: 4) {
                 if showsTabStrip {
                     centerTabStrip
                 }
@@ -217,8 +217,8 @@ private struct WorkspaceTabBarView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 0)
+        .padding(.vertical, 1)
         .onChange(of: workspace.activeTabID) { _, _ in
             cancelRename()
         }
@@ -398,7 +398,7 @@ private struct WorkspaceTabButton: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 8) {
+            HStack(spacing: 3) {
                 Text(title)
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
@@ -407,16 +407,16 @@ private struct WorkspaceTabButton: View {
                 Text("\(paneCount)")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(isSelected ? LineyTheme.accent : LineyTheme.mutedText)
-                    .padding(.horizontal, 5)
+                    .padding(.horizontal, 4)
                     .padding(.vertical, 2)
                     .background(LineyTheme.subtleFill, in: Capsule())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 12)
-            .padding(.trailing, canClose ? 34 : 12)
-            .padding(.vertical, 9)
+            .padding(.leading, 6)
+            .padding(.trailing, canClose ? 28 : 6)
+            .padding(.vertical, 3)
             .frame(width: WorkspaceTabSizing.width(for: title, paneCount: paneCount, canClose: canClose), alignment: .leading)
-            .frame(minHeight: 38, alignment: .leading)
+            .frame(height: 26, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -440,21 +440,20 @@ private struct WorkspaceTabButton: View {
                 .onHover { hovering in
                     isCloseHovered = hovering
                 }
-                .padding(.trailing, 8)
+                .padding(.trailing, 2)
             }
         }
         .overlay(alignment: .topLeading) {
             if isSelected {
                 Capsule()
                     .fill(LineyTheme.accent)
-                    .frame(width: 26, height: 2.5)
+                    .frame(width: 20, height: 2)
                     .padding(.top, 1)
-                    .padding(.leading, 12)
+                    .padding(.leading, 6)
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-        .shadow(color: shadowColor, radius: isSelected ? 14 : (isHovered ? 8 : 0), y: isSelected || isHovered ? 4 : 0)
-        .offset(y: isHovered ? -1 : 0)
+        .shadow(color: shadowColor, radius: isSelected ? 5 : (isHovered ? 3 : 0), y: 1)
         .animation(.easeInOut(duration: 0.12), value: isHovered)
         .animation(.easeInOut(duration: 0.12), value: isSelected)
         .accessibilityElement(children: .ignore)
@@ -500,9 +499,10 @@ private struct WorkspaceTabRenameField: View {
             .textFieldStyle(.plain)
             .font(.system(size: 11, weight: .semibold))
             .onExitCommand(perform: onCancel)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
             .frame(width: WorkspaceTabSizing.width(for: title.isEmpty ? localization.string("main.tab.namePlaceholder") : title, paneCount: 1, canClose: false))
+            .frame(height: 26)
             .background(
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(LineyTheme.panelRaised)
@@ -641,7 +641,7 @@ private struct WorkspaceTabInsertionMarker: View {
                 .opacity(isActive ? 1 : 0)
                 .shadow(color: LineyTheme.accent.opacity(0.28), radius: 8, y: 1)
         }
-        .frame(width: 18, height: 38)
+        .frame(width: 4, height: 26)
         .animation(.easeInOut(duration: 0.12), value: isActive)
     }
 }
@@ -692,9 +692,10 @@ private enum WorkspaceTabSizing {
     static func width(for title: String, paneCount: Int, canClose: Bool) -> CGFloat {
         let titleWidth = ceil((title as NSString).size(withAttributes: [.font: titleFont]).width)
         let countWidth = ceil(("\(paneCount)" as NSString).size(withAttributes: [.font: countFont]).width)
-        let horizontalChrome = canClose ? 84.0 : 58.0
-        let badgeWidth = countWidth + 20
-        return min(max(titleWidth + badgeWidth + horizontalChrome, 112), 280)
+        // Match the rendered padding, title/badge gap, and reserved close-button area.
+        let horizontalChrome = 6.0 + 3.0 + (canClose ? 28.0 : 6.0)
+        let badgeWidth = countWidth + 8
+        return min(titleWidth + badgeWidth + horizontalChrome, 240)
     }
 }
 

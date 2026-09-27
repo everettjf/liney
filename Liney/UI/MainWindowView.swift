@@ -12,7 +12,6 @@ import SwiftUI
 struct MainWindowView: View {
     @EnvironmentObject private var store: WorkspaceStore
     @ObservedObject private var localization = LocalizationManager.shared
-    @State private var isCanvasPresented = false
 
     private func localized(_ key: String) -> String {
         localization.string(key)
@@ -58,11 +57,11 @@ struct MainWindowView: View {
     }
 
     private var sleepPreventionIconName: String {
-        store.sleepPreventionSession == nil ? "moon.zzz" : "moon.zzz.fill"
+        store.sleepPreventionSession == nil ? "cup.and.saucer" : "cup.and.saucer.fill"
     }
 
     private func dismissCanvas(restoreFocus: Bool = true) {
-        isCanvasPresented = false
+        store.isCanvasPresented = false
         guard restoreFocus,
               let workspace = store.selectedWorkspace,
               let focusedPaneID = workspace.sessionController.focusedPaneID else {
@@ -123,7 +122,7 @@ struct MainWindowView: View {
                 WorkspaceSidebarView()
                     .navigationSplitViewColumnWidth(min: 190, ideal: 240, max: 320)
             } detail: {
-                if isCanvasPresented {
+                if store.isCanvasPresented {
                     Color.clear
                 } else {
                     WorkspaceDetailView()
@@ -142,7 +141,7 @@ struct MainWindowView: View {
                 .zIndex(1)
             }
 
-            if isCanvasPresented {
+            if store.isCanvasPresented {
                 GlobalCanvasView {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         dismissCanvas()
@@ -182,6 +181,48 @@ struct MainWindowView: View {
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
+                HStack(spacing: 6 * uiScale) {
+                    Button {
+                        guard let workspace = store.selectedWorkspace else { return }
+                        store.createTab(in: workspace)
+                    } label: {
+                        Image(systemName: "plus.rectangle.on.rectangle")
+                            .font(.system(size: 13 * uiScale, weight: .medium))
+                            .frame(width: 24 * uiScale, height: 24 * uiScale)
+                            .contentShape(Rectangle())
+                    }
+                    .disabled(!hasSelectedWorkspace)
+                    .accessibilityLabel(localized("menu.file.newTab"))
+                    .help(localized("menu.file.newTab"))
+
+                    Divider()
+                        .frame(height: 16 * uiScale)
+
+                    ToolbarMenuButton(
+                        systemName: "rectangle.split.2x1",
+                        title: localized("main.toolbar.splitPane"),
+                        scale: uiScale,
+                        tint: .primary
+                    ) { anchor in
+                        present(menu: makeSplitPaneMenu(), from: anchor)
+                    }
+                    .disabled(!hasFocusedPane)
+                }
+                .buttonStyle(.plain)
+                .fixedSize()
+
+                Button {
+                    store.selectedWorkspace?.toggleFileTree()
+                } label: {
+                    Image(systemName: store.selectedWorkspace?.isFileTreePresented == true ? "list.bullet.indent" : "sidebar.squares.leading")
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
+                }
+                .disabled(!hasSelectedWorkspace)
+                .accessibilityLabel(localized("main.toolbar.toggleFileTree"))
+                .help(localized("main.toolbar.toggleFileTree"))
+            }
+            ToolbarItemGroup(placement: .primaryAction) {
                 ToolbarMenuButton(
                     systemName: "chevron.left.slash.chevron.right",
                     title: localized("main.toolbar.chooseQuickCommand"),
@@ -202,13 +243,64 @@ struct MainWindowView: View {
                 .disabled(!hasSelectedWorkspace)
 
                 ToolbarMenuButton(
-                    systemName: "wrench.and.screwdriver",
-                    title: localized("main.menu.moreActions"),
+                    systemName: "arrow.up.forward.app.fill",
+                    title: localized("main.toolbar.chooseExternalEditor"),
                     scale: uiScale,
-                    tint: store.sleepPreventionSession == nil ? .primary : LineyTheme.warning
+                    tint: .primary
                 ) { anchor in
-                    present(menu: makeUtilitiesMenu(), from: anchor)
+                    present(menu: makeExternalEditorMenu(), from: anchor)
                 }
+                .disabled(!hasSelectedWorkspace)
+
+                if let installation = availableHAPIInstallation, store.appSettings.showHAPIToolbarButton {
+                    ToolbarMenuButton(
+                        systemName: "dot.radiowaves.left.and.right",
+                        title: localized("main.hapi.actions"),
+                        scale: uiScale,
+                        tint: .primary
+                    ) { anchor in
+                        present(menu: makeHAPIMenu(using: installation), from: anchor)
+                    }
+                    .disabled(!hasSelectedWorkspace)
+                }
+            }
+            ToolbarItemGroup(placement: .primaryAction) {
+                Menu {
+                    Button(localized("menu.view.openDiff"), systemImage: "doc.text.magnifyingglass") {
+                        openDiffWindow()
+                    }
+
+                    Button(localized("menu.workspace.openReview"), systemImage: "checkmark.bubble") {
+                        openReviewWindow()
+                    }
+                    .disabled(!selectedWorkspaceSupportsGit)
+
+                    Button(localized("menu.view.openHistory"), systemImage: "clock.arrow.circlepath") {
+                        openHistoryWindow()
+                    }
+                    Divider()
+                    Button(localized("sidebar.menu.createWorktree"), systemImage: "plus.rectangle.on.folder") {
+                        guard let workspace = store.selectedWorkspace else { return }
+                        store.presentCreateWorktree(for: workspace)
+                    }
+                    .disabled(store.selectedWorkspace?.supportsLocalRepositoryFeatures != true)
+                    Button(localized("sidebar.menu.fetchRemotes"), systemImage: "arrow.down.circle") {
+                        guard let workspace = store.selectedWorkspace else { return }
+                        store.fetch(workspace)
+                    }
+                    .disabled(store.selectedWorkspace?.supportsLocalRepositoryFeatures != true)
+                    Button(localized("main.menu.refreshRepo"), systemImage: "arrow.clockwise") {
+                        store.refreshSelectedWorkspace()
+                    }
+                    .disabled(!selectedWorkspaceSupportsGit)
+                } label: {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 13 * uiScale, weight: .medium))
+                        .frame(width: 20 * uiScale, height: 20 * uiScale)
+                }
+                .menuIndicator(.visible)
+                .accessibilityLabel(localized("main.toolbar.repositoryTools"))
+                .help(localized("main.toolbar.repositoryTools"))
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.25)) {
@@ -222,46 +314,27 @@ struct MainWindowView: View {
                 }
                 .accessibilityLabel(localized("main.overview.title"))
                 .help(localized("main.overview.title"))
+                .tint(store.isOverviewPresented ? LineyTheme.accent : Color.primary)
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         store.isOverviewPresented = false
-                        if isCanvasPresented {
+                        if store.isCanvasPresented {
                             dismissCanvas()
                         } else {
-                            isCanvasPresented = true
+                            store.isCanvasPresented = true
                         }
                     }
                 } label: {
-                    Image(systemName: isCanvasPresented ? "square.grid.3x2.fill" : "square.grid.3x2")
+                    Image(systemName: store.isCanvasPresented ? "square.grid.3x2.fill" : "square.grid.3x2")
                         .font(.system(size: 13 * uiScale, weight: .medium))
                         .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
                 .accessibilityLabel(localized("main.canvas.title"))
-                .help(isCanvasPresented ? localized("main.canvas.hide") : localized("main.canvas.show"))
-
-                Menu {
-                    Button(localized("menu.view.openDiff"), systemImage: "doc.text.magnifyingglass") {
-                        openDiffWindow()
-                    }
-
-                    Button("Review", systemImage: "checkmark.bubble") {
-                        openReviewWindow()
-                    }
-                    .disabled(!selectedWorkspaceSupportsGit)
-
-                    Button(localized("menu.view.openHistory"), systemImage: "clock.arrow.circlepath") {
-                        openHistoryWindow()
-                    }
-                } label: {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 13 * uiScale, weight: .medium))
-                        .frame(width: 20 * uiScale, height: 20 * uiScale)
-                }
-                .menuIndicator(.hidden)
-                .accessibilityLabel(localized("main.toolbar.repositoryTools"))
-                .help(localized("main.toolbar.repositoryTools"))
-
+                .help(store.isCanvasPresented ? localized("main.canvas.hide") : localized("main.canvas.show"))
+                .tint(store.isCanvasPresented ? LineyTheme.accent : Color.primary)
+            }
+            ToolbarItemGroup(placement: .primaryAction) {
                 Button {
                     store.dispatch(.toggleCommandPalette)
                 } label: {
@@ -272,48 +345,14 @@ struct MainWindowView: View {
                 .accessibilityLabel(localized("menu.view.commandPalette"))
                 .help(localized("menu.view.commandPalette"))
 
-                Menu {
-                    Button(localized("menu.file.splitRight"), systemImage: "rectangle.split.2x1.fill") {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.splitFocusedPane(in: workspace, axis: .vertical)
-                    }
-
-                    Button(localized("menu.file.splitDown"), systemImage: "rectangle.split.1x2.fill") {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.splitFocusedPane(in: workspace, axis: .horizontal)
-                    }
-                } label: {
-                    Image(systemName: "rectangle.split.2x1")
-                        .font(.system(size: 13 * uiScale, weight: .medium))
-                        .frame(width: 20 * uiScale, height: 20 * uiScale)
+                ToolbarMenuButton(
+                    systemName: sleepPreventionIconName,
+                    title: store.sleepPreventionStatusText,
+                    scale: uiScale,
+                    tint: store.sleepPreventionSession == nil ? .primary : LineyTheme.warning
+                ) { anchor in
+                    present(menu: makeSleepPreventionMenu(), from: anchor)
                 }
-                .menuIndicator(.hidden)
-                .disabled(!hasFocusedPane)
-                .accessibilityLabel(localized("main.toolbar.splitPane"))
-                .help(localized("main.toolbar.splitPane"))
-
-                Button {
-                    guard let workspace = store.selectedWorkspace else { return }
-                    store.createTab(in: workspace)
-                } label: {
-                    Image(systemName: "plus.rectangle.on.rectangle")
-                        .font(.system(size: 13 * uiScale, weight: .medium))
-                        .frame(width: 20 * uiScale, height: 20 * uiScale)
-                }
-                .disabled(!hasSelectedWorkspace)
-                .accessibilityLabel(localized("menu.file.newTab"))
-                .help(localized("menu.file.newTab"))
-
-                Button {
-                    store.selectedWorkspace?.toggleFileTree()
-                } label: {
-                    Image(systemName: store.selectedWorkspace?.isFileTreePresented == true ? "list.bullet.indent" : "sidebar.squares.leading")
-                        .font(.system(size: 13 * uiScale, weight: .medium))
-                        .frame(width: 20 * uiScale, height: 20 * uiScale)
-                }
-                .disabled(!hasSelectedWorkspace)
-                .accessibilityLabel(localized("main.toolbar.toggleFileTree"))
-                .help(localized("main.toolbar.toggleFileTree"))
 
                 Menu {
                     Button(localized("main.menu.restartFocusedSession")) {
@@ -327,6 +366,8 @@ struct MainWindowView: View {
                         store.restartAllSessions(in: workspace)
                     }
                     .disabled(!hasSelectedWorkspace)
+
+                    Divider()
 
                     Button(localized("main.menu.runWorkspaceScript")) {
                         guard let workspace = store.selectedWorkspace else { return }
@@ -342,34 +383,9 @@ struct MainWindowView: View {
 
                     Divider()
 
-                    Button(localized("main.menu.equalizeSplits")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.equalizeSplits(in: workspace)
-                    }
-                    .disabled(!hasSelectedWorkspace)
-
-                    Button(localized("main.menu.toggleZoom")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.toggleZoom(in: workspace)
-                    }
-                    .disabled(!hasFocusedPane)
-
-                    Button(localized("main.menu.resetLayout")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.resetLayout(in: workspace)
-                    }
-                    .disabled(!hasSelectedWorkspace)
-
-                    Divider()
-
                     Button(localized("sidebar.menu.browseFiles")) {
                         guard let workspace = store.selectedWorkspace else { return }
                         store.presentWorkspaceFileBrowser(for: workspace)
-                    }
-                    .disabled(!hasSelectedWorkspace)
-
-                    Button(store.selectedWorkspace?.isFileTreePresented == true ? localized("main.toolbar.hideFileTree") : localized("main.toolbar.toggleFileTree")) {
-                        store.selectedWorkspace?.toggleFileTree()
                     }
                     .disabled(!hasSelectedWorkspace)
 
@@ -377,52 +393,6 @@ struct MainWindowView: View {
                         webPreviewMenuContent
                     }
                     .disabled(!hasSelectedWorkspace)
-
-                    if selectedWorkspaceSupportsGit {
-                        Button(localized("sheet.worktree.title")) {
-                            guard let workspace = store.selectedWorkspace else { return }
-                            store.presentCreateWorktree(for: workspace)
-                        }
-                        .disabled(!selectedWorkspaceSupportsGit)
-
-                        Button(localized("main.menu.refreshRepo")) {
-                            store.refreshSelectedWorkspace()
-                        }
-                        .disabled(!selectedWorkspaceSupportsGit)
-                    }
-
-                    Divider()
-
-                    Button(store.isOverviewPresented ? localized("main.overview.close") : localized("main.overview.open")) {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            dismissCanvas(restoreFocus: false)
-                            store.dispatch(.toggleOverview)
-                        }
-                    }
-
-                    Button(isCanvasPresented ? localized("main.canvas.hide") : localized("main.canvas.show")) {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            store.isOverviewPresented = false
-                            if isCanvasPresented {
-                                dismissCanvas()
-                            } else {
-                                isCanvasPresented = true
-                            }
-                        }
-                    }
-
-                    Button(localized("menu.view.openDiff")) {
-                        openDiffWindow()
-                    }
-
-                    Button("Open Review") {
-                        openReviewWindow()
-                    }
-                    .disabled(!selectedWorkspaceSupportsGit)
-
-                    Button(localized("menu.view.openHistory")) {
-                        openHistoryWindow()
-                    }
 
                     if let workspace = store.selectedWorkspace,
                        !workspace.remoteTargets.isEmpty {
@@ -446,19 +416,43 @@ struct MainWindowView: View {
                         }
                     }
 
-                    Button(localized("menu.app.settings")) {
+                    Divider()
+
+                    Button(localized("main.menu.equalizeSplits")) {
+                        guard let workspace = store.selectedWorkspace else { return }
+                        store.equalizeSplits(in: workspace)
+                    }
+                    .disabled(!hasSelectedWorkspace)
+
+                    Button(localized("main.menu.toggleZoom")) {
+                        guard let workspace = store.selectedWorkspace else { return }
+                        store.toggleZoom(in: workspace)
+                    }
+                    .disabled(!hasFocusedPane)
+
+                    Button(localized("main.menu.resetLayout")) {
+                        guard let workspace = store.selectedWorkspace else { return }
+                        store.resetLayout(in: workspace)
+                    }
+                    .disabled(!hasSelectedWorkspace)
+
+                    Divider()
+
+                    Button(localized("sidebar.menu.workspaceSettings")) {
                         store.presentSettings(for: store.selectedWorkspace)
                     }
+                    .disabled(!hasSelectedWorkspace)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 13 * uiScale, weight: .medium))
                         .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
-                .menuIndicator(.hidden)
+                .menuIndicator(.visible)
                 .accessibilityLabel(localized("main.menu.moreActions"))
                 .help(localized("main.menu.moreActions"))
             }
         }
+
         .task {
             await store.refreshHAPIIntegrationStatus()
         }
@@ -470,7 +464,7 @@ struct MainWindowView: View {
         }
         .onChange(of: store.selectedWorkspaceID) { _, newValue in
             if newValue == nil {
-                isCanvasPresented = false
+                store.isCanvasPresented = false
             }
         }
         .sheet(item: $store.renameWorkspaceRequest) { request in
@@ -618,6 +612,19 @@ struct MainWindowView: View {
         }
 
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: anchorView.bounds.maxY + 6), in: anchorView)
+    }
+
+    private func makeSplitPaneMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addActionItem(title: localized("menu.file.splitRight"), imageSystemName: "rectangle.split.2x1.fill") {
+            guard let workspace = store.selectedWorkspace else { return }
+            store.splitFocusedPane(in: workspace, axis: .vertical)
+        }
+        menu.addActionItem(title: localized("menu.file.splitDown"), imageSystemName: "rectangle.split.1x2.fill") {
+            guard let workspace = store.selectedWorkspace else { return }
+            store.splitFocusedPane(in: workspace, axis: .horizontal)
+        }
+        return menu
     }
 
     private func makeQuickCommandMenu() -> NSMenu {
@@ -840,53 +847,9 @@ struct MainWindowView: View {
     }
 
     private func makeSleepPreventionMenu() -> NSMenu {
-        let menu = NSMenu()
-
-        if let session = store.sleepPreventionSession {
-            menu.addDisabledItem(title: localizedFormat("main.sleepPrevention.activeFormat", session.remainingDescription(relativeTo: Date())))
-            menu.addActionItem(title: localized("main.sleepPrevention.stop"), imageSystemName: "xmark.circle") {
-                store.stopSleepPrevention()
-            }
-            menu.addItem(.separator())
-        }
-
-        menu.addSectionHeader(localized("main.sleepPrevention.preventFor"))
-        for option in store.sleepPreventionOptions {
-            menu.addActionItem(
-                title: option.title,
-                state: store.sleepPreventionQuickActionOption == option ? .on : .off
-            ) {
-                store.activateSleepPrevention(option)
-            }
-        }
-
-        return menu
+        SleepPreventionMenu.make(for: store)
     }
 
-    private func makeUtilitiesMenu() -> NSMenu {
-        let menu = NSMenu()
-
-        let editorItem = NSMenuItem(title: localized("main.toolbar.chooseExternalEditor"), action: nil, keyEquivalent: "")
-        editorItem.image = NSImage(systemSymbolName: "arrow.up.forward.app.fill", accessibilityDescription: nil)
-        editorItem.submenu = makeExternalEditorMenu()
-        editorItem.isEnabled = hasSelectedWorkspace
-        menu.addItem(editorItem)
-
-        if let installation = availableHAPIInstallation, store.appSettings.showHAPIToolbarButton {
-            let hapiItem = NSMenuItem(title: localized("main.hapi.actions"), action: nil, keyEquivalent: "")
-            hapiItem.image = NSImage(systemSymbolName: "dot.radiowaves.left.and.right", accessibilityDescription: nil)
-            hapiItem.submenu = makeHAPIMenu(using: installation)
-            hapiItem.isEnabled = hasSelectedWorkspace
-            menu.addItem(hapiItem)
-        }
-
-        let sleepItem = NSMenuItem(title: store.sleepPreventionStatusText, action: nil, keyEquivalent: "")
-        sleepItem.image = NSImage(systemSymbolName: sleepPreventionIconName, accessibilityDescription: nil)
-        sleepItem.submenu = makeSleepPreventionMenu()
-        menu.addItem(sleepItem)
-
-        return menu
-    }
 }
 
 private struct CommandPaletteOverlay: View {

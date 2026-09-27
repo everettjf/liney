@@ -52,6 +52,7 @@ final class WorkspaceStore: ObservableObject {
         set { statusMessagePresentation.message = newValue }
     }
     @Published var isOverviewPresented = false
+    @Published var isCanvasPresented = false
     @Published var globalCanvasState = GlobalCanvasStateRecord()
     let commandPalettePresentation = CommandPalettePresentationState()
 
@@ -85,7 +86,6 @@ final class WorkspaceStore: ObservableObject {
     @Published var pendingWorktreeSwitch: PendingWorktreeSwitch?
     @Published var pendingWorktreeRemoval: PendingWorktreeRemoval?
     @Published var sleepPreventionSession: SleepPreventionSession?
-    @Published private(set) var sleepPreventionQuickActionOption: SleepPreventionDurationOption = .oneHour
     @Published private(set) var hapiIntegrationState: HAPIIntegrationState = .unavailable
     @Published private(set) var availableExternalEditors: [ExternalEditorDescriptor] = []
 
@@ -137,6 +137,7 @@ final class WorkspaceStore: ObservableObject {
         sleepPreventionController.onEvent = { [weak self] event in
             self?.handleSleepPreventionEvent(event)
         }
+
     }
 
     deinit {
@@ -242,32 +243,14 @@ final class WorkspaceStore: ObservableObject {
         return appSettings.quickCommandRecentIDs.compactMap { commandsByID[$0] }
     }
 
-    var sleepPreventionOptions: [SleepPreventionDurationOption] {
-        SleepPreventionDurationOption.allCases
-    }
-
     var sleepPreventionStatusText: String {
         guard let sleepPreventionSession else {
             return localized("main.sleepPrevention.status")
         }
         return localizedFormat(
             "main.sleepPrevention.statusActiveFormat",
-            sleepPreventionSession.remainingDescription(relativeTo: Date())
+            "\(sleepPreventionSession.mode.title) · \(sleepPreventionSession.remainingDescription(relativeTo: Date()))"
         )
-    }
-
-    var sleepPreventionPrimaryActionLabel: String {
-        sleepPreventionSession == nil ? localized("main.sleepPrevention.start") : localized("main.sleepPrevention.stop")
-    }
-
-    var sleepPreventionPrimaryActionHelpText: String {
-        if let sleepPreventionSession {
-            return localizedFormat(
-                "main.sleepPrevention.helpStopFormat",
-                sleepPreventionSession.remainingDescription(relativeTo: Date())
-            )
-        }
-        return localizedFormat("main.sleepPrevention.helpStartFormat", sleepPreventionQuickActionOption.title)
     }
 
     var commandPaletteItems: [CommandPaletteItem] {
@@ -1320,10 +1303,9 @@ final class WorkspaceStore: ObservableObject {
         refresh(workspace)
     }
 
-    func activateSleepPrevention(_ option: SleepPreventionDurationOption) {
+    func activateSleepPrevention(_ option: SleepPreventionDurationOption, mode: SleepPreventionMode = .sleep) {
         do {
-            try sleepPreventionController.start(option)
-            sleepPreventionQuickActionOption = option
+            try sleepPreventionController.start(option, mode: mode)
         } catch {
             receive(
                 .statusMessage(
@@ -1337,14 +1319,6 @@ final class WorkspaceStore: ObservableObject {
 
     func stopSleepPrevention() {
         sleepPreventionController.stop()
-    }
-
-    func performPrimarySleepPreventionAction() {
-        if sleepPreventionSession == nil {
-            activateSleepPrevention(sleepPreventionQuickActionOption)
-        } else {
-            stopSleepPrevention()
-        }
     }
 
     func openSelectedWorkspaceInPreferredExternalEditor() {
@@ -2754,6 +2728,7 @@ final class WorkspaceStore: ObservableObject {
             }
 
         case .toggleOverview:
+            isCanvasPresented = false
             dismissCommandPalette()
             isOverviewPresented.toggle()
 
@@ -3153,9 +3128,7 @@ final class WorkspaceStore: ObservableObject {
             sleepPreventionSession = session
             receive(
                 .statusMessage(
-                    session.option == .forever
-                        ? localized("main.sleepPrevention.started.forever")
-                        : localizedFormat("main.sleepPrevention.started.timedFormat", session.option.title.lowercased()),
+                    "\(session.mode.title) · \(session.option.title)",
                     .success,
                     deliverSystemNotification: false
                 )
