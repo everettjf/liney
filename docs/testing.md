@@ -166,7 +166,8 @@ for this runtime compatibility fix.
 
 - Verify toolbar groups appear in this order: terminal actions; commands/workflows/editors;
   repository tools/overview/canvas; command palette/sleep prevention/more.
-- The first toolbar menu combines New Terminal Tab, Split Right, and Split Down.
+- The first toolbar group places a direct New Terminal Tab button on the left and a
+  Split Pane dropdown (Split Right / Split Down) on the right, separated by a divider.
   Splitting requires a focused pane; creating a tab only requires a selected workspace.
 - Confirm menu buttons show disclosure indicators. More should contain session maintenance,
   workspace scripts/files/preview/remote targets, layout maintenance, and workspace settings,

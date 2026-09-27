@@ -181,34 +181,35 @@ struct MainWindowView: View {
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
-                Menu {
-                    Button(localized("menu.file.newTab"), systemImage: "plus.rectangle.on.rectangle") {
+                HStack(spacing: 6 * uiScale) {
+                    Button {
                         guard let workspace = store.selectedWorkspace else { return }
                         store.createTab(in: workspace)
+                    } label: {
+                        Image(systemName: "plus.rectangle.on.rectangle")
+                            .font(.system(size: 13 * uiScale, weight: .medium))
+                            .frame(width: 24 * uiScale, height: 24 * uiScale)
+                            .contentShape(Rectangle())
                     }
+                    .disabled(!hasSelectedWorkspace)
+                    .accessibilityLabel(localized("menu.file.newTab"))
+                    .help(localized("menu.file.newTab"))
 
                     Divider()
+                        .frame(height: 16 * uiScale)
 
-                    Button(localized("menu.file.splitRight"), systemImage: "rectangle.split.2x1.fill") {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.splitFocusedPane(in: workspace, axis: .vertical)
+                    ToolbarMenuButton(
+                        systemName: "rectangle.split.2x1",
+                        title: localized("main.toolbar.splitPane"),
+                        scale: uiScale,
+                        tint: .primary
+                    ) { anchor in
+                        present(menu: makeSplitPaneMenu(), from: anchor)
                     }
                     .disabled(!hasFocusedPane)
-
-                    Button(localized("menu.file.splitDown"), systemImage: "rectangle.split.1x2.fill") {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.splitFocusedPane(in: workspace, axis: .horizontal)
-                    }
-                    .disabled(!hasFocusedPane)
-                } label: {
-                    Image(systemName: "plus.rectangle.on.rectangle")
-                        .font(.system(size: 13 * uiScale, weight: .medium))
-                        .frame(width: 20 * uiScale, height: 20 * uiScale)
                 }
-                .menuIndicator(.visible)
-                .disabled(!hasSelectedWorkspace)
-                .accessibilityLabel(localized("main.toolbar.newTabOrSplit"))
-                .help(localized("main.toolbar.newTabOrSplit"))
+                .buttonStyle(.plain)
+                .fixedSize()
 
                 Button {
                     store.selectedWorkspace?.toggleFileTree()
@@ -611,6 +612,19 @@ struct MainWindowView: View {
         }
 
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: anchorView.bounds.maxY + 6), in: anchorView)
+    }
+
+    private func makeSplitPaneMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addActionItem(title: localized("menu.file.splitRight"), imageSystemName: "rectangle.split.2x1.fill") {
+            guard let workspace = store.selectedWorkspace else { return }
+            store.splitFocusedPane(in: workspace, axis: .vertical)
+        }
+        menu.addActionItem(title: localized("menu.file.splitDown"), imageSystemName: "rectangle.split.1x2.fill") {
+            guard let workspace = store.selectedWorkspace else { return }
+            store.splitFocusedPane(in: workspace, axis: .horizontal)
+        }
+        return menu
     }
 
     private func makeQuickCommandMenu() -> NSMenu {

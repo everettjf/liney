@@ -58,7 +58,7 @@ private struct WorkspaceSessionDetailView: View {
 
     var body: some View {
         HSplitView {
-            VStack(spacing: 8) {
+            VStack(spacing: 4) {
                 if showsTabStrip {
                     centerTabStrip
                 }
@@ -217,8 +217,8 @@ private struct WorkspaceTabBarView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 0)
+        .padding(.vertical, 1)
         .onChange(of: workspace.activeTabID) { _, _ in
             cancelRename()
         }
@@ -398,7 +398,7 @@ private struct WorkspaceTabButton: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 5) {
+            HStack(spacing: 3) {
                 Text(title)
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
@@ -412,11 +412,11 @@ private struct WorkspaceTabButton: View {
                     .background(LineyTheme.subtleFill, in: Capsule())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 8)
-            .padding(.trailing, canClose ? 30 : 8)
-            .padding(.vertical, 5)
+            .padding(.leading, 6)
+            .padding(.trailing, canClose ? 28 : 6)
+            .padding(.vertical, 3)
             .frame(width: WorkspaceTabSizing.width(for: title, paneCount: paneCount, canClose: canClose), alignment: .leading)
-            .frame(height: 30, alignment: .leading)
+            .frame(height: 26, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -440,7 +440,7 @@ private struct WorkspaceTabButton: View {
                 .onHover { hovering in
                     isCloseHovered = hovering
                 }
-                .padding(.trailing, 4)
+                .padding(.trailing, 2)
             }
         }
         .overlay(alignment: .topLeading) {
@@ -449,7 +449,7 @@ private struct WorkspaceTabButton: View {
                     .fill(LineyTheme.accent)
                     .frame(width: 20, height: 2)
                     .padding(.top, 1)
-                    .padding(.leading, 8)
+                    .padding(.leading, 6)
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
@@ -499,10 +499,10 @@ private struct WorkspaceTabRenameField: View {
             .textFieldStyle(.plain)
             .font(.system(size: 11, weight: .semibold))
             .onExitCommand(perform: onCancel)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
             .frame(width: WorkspaceTabSizing.width(for: title.isEmpty ? localization.string("main.tab.namePlaceholder") : title, paneCount: 1, canClose: false))
-            .frame(height: 30)
+            .frame(height: 26)
             .background(
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(LineyTheme.panelRaised)
@@ -641,7 +641,7 @@ private struct WorkspaceTabInsertionMarker: View {
                 .opacity(isActive ? 1 : 0)
                 .shadow(color: LineyTheme.accent.opacity(0.28), radius: 8, y: 1)
         }
-        .frame(width: 8, height: 30)
+        .frame(width: 4, height: 26)
         .animation(.easeInOut(duration: 0.12), value: isActive)
     }
 }
@@ -693,9 +693,9 @@ private enum WorkspaceTabSizing {
         let titleWidth = ceil((title as NSString).size(withAttributes: [.font: titleFont]).width)
         let countWidth = ceil(("\(paneCount)" as NSString).size(withAttributes: [.font: countFont]).width)
         // Match the rendered padding, title/badge gap, and reserved close-button area.
-        let horizontalChrome = 8.0 + 5.0 + (canClose ? 30.0 : 8.0)
+        let horizontalChrome = 6.0 + 3.0 + (canClose ? 28.0 : 6.0)
         let badgeWidth = countWidth + 8
-        return min(max(titleWidth + badgeWidth + horizontalChrome, 88), 240)
+        return min(titleWidth + badgeWidth + horizontalChrome, 240)
     }
 }
 
