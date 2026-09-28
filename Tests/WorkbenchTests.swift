@@ -105,6 +105,29 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertTrue(WorkbenchAttention.make(items: store.workbenchItems()).isEmpty)
     }
 
+    func testGroupedAttentionOffersUnreadTabBeforeAlreadyReadWaitingTab() throws {
+        var record = WorkspaceModel(localDirectoryPath: "/tmp", isStandaloneTerminal: true).snapshot()
+        var state = try XCTUnwrap(record.worktreeStates.first)
+        let secondTab = WorkspaceTabStateRecord.makeDefault(for: "/tmp")
+        state.tabs.append(secondTab)
+        record.worktreeStates = [state]
+        let workspace = WorkspaceModel(record: record)
+        let store = makeStore()
+        store.workspaces = [workspace]
+        for tab in state.tabs {
+            AgentStatusStore.shared.update(pane: try XCTUnwrap(tab.panes.first?.id), state: .waiting, title: "Input needed")
+        }
+        let before = try XCTUnwrap(WorkbenchAttention.make(items: store.workbenchItems()).first)
+        workspace.settings.workbenchVisits[before.item.id.id] = Date().addingTimeInterval(5)
+        let groups = WorkbenchAttention.make(items: store.workbenchItems())
+        XCTAssertEqual(groups.count, 1)
+        let after = try XCTUnwrap(groups.first)
+        XCTAssertNotEqual(after.item.id, before.item.id)
+        XCTAssertTrue(after.isUnread)
+        XCTAssertTrue(after.details.contains("2"))
+        XCTAssertEqual(store.workbenchItems().filter(\.needsAttention).count, 2)
+    }
+
     func testLastStandaloneTabClosesWithoutCreatingReplacementShell() throws {
         let workspace = WorkspaceModel(localDirectoryPath: "/tmp", isStandaloneTerminal: true)
         let store = makeStore()

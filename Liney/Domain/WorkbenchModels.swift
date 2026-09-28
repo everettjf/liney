@@ -28,11 +28,16 @@ struct WorkbenchAttention: Identifiable {
                 let left = $0.agent?.state == .waiting ? 0 : ($0.agent?.state == .error ? 1 : 2)
                 let right = $1.agent?.state == .waiting ? 0 : ($1.agent?.state == .error ? 1 : 2)
                 if left != right { return left < right }
+                if $0.isUnread != $1.isUnread { return $0.isUnread }
                 return $0.id.id < $1.id.id
             }
             guard let item = ordered.first else { return nil }
             let status = item.workspace.gitHubStatuses[item.id.worktreePath]
             var details: [String] = []
+            let attentionCount = group.filter(\.needsAttention).count
+            if attentionCount > 1 {
+                details.append(l10nFormat(localized("workbench.attentionTabs"), arguments: [attentionCount]))
+            }
             if item.changedFileCount > 0 { details.append("\(item.changedFileCount) " + localized("workbench.changed")) }
             if let failure = status?.refreshError { details.append(localized("workbench.stale") + ": " + failure) }
             if let count = status?.checksSummary?.failingCount, count > 0 {

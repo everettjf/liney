@@ -49,6 +49,9 @@ The checklist remains open until each scenario is verified; a successful build a
 - Full suite passed: 660 tests. A later focused run covers added launch-layout,
   failed-CI aggregation and legacy shortcut migration tests (61 passed).
 - Follow-up standalone close/folder behavior checks: 28 focused tests passed.
+- Follow-up attention/navigation checks passed; the latest workbench suite has
+  9 passing tests. Free layout now shares status summaries, pin scope and expansion.
+  Aggregated rows expose secondary actions so one waiting tab cannot hide another.
 - Real Ghostty smoke passed: `surfaces=12 after=12 sessions=12 restored=12` and
   `LINEY_WORKBENCH_SMOKE_OK`.
 - Manual UI/IME checks remain pending: the desktop is locked and computer-use

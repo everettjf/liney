@@ -15,6 +15,7 @@ func l10nFormat(_ format: String, locale: Locale = .current, arguments: [CVarArg
 
 nonisolated enum L10nTable {
     static let english: [String: String] = [
+        "workbench.attentionTabs": "%ld tabs need attention",
         "workbench.layout": "Layout",
         "workbench.grid": "Grid",
         "workbench.freeform": "Free layout",
@@ -23,7 +24,7 @@ nonisolated enum L10nTable {
         "workbench.pinned": "Pinned",
         "workbench.noPins": "Pin a terminal from Overview or Canvas to keep it here.",
         "workbench.expand": "Expand terminal",
-        "workbench.backToGrid": "Back to grid",
+        "workbench.backToGrid": "Back to canvas",
         "workbench.overviewSubtitle": "Decide what needs you, then continue where you left off.",
         "workbench.dismiss": "Close overview",
         "workbench.attention": "Needs attention",
@@ -1330,6 +1331,7 @@ nonisolated enum L10nTable {
         "main.web.closePreview": "Close preview",
     ]
     static let simplifiedChinese: [String: String] = [
+        "workbench.attentionTabs": "%ld 个标签页需要处理",
         "workbench.layout": "布局",
         "workbench.grid": "网格",
         "workbench.freeform": "自由排列",
@@ -1338,7 +1340,7 @@ nonisolated enum L10nTable {
         "workbench.pinned": "已固定",
         "workbench.noPins": "在总览或画布固定终端后，即可在这里看到。",
         "workbench.expand": "放大终端",
-        "workbench.backToGrid": "返回网格",
+        "workbench.backToGrid": "返回画布",
         "workbench.overviewSubtitle": "处理需要你的事项，继续上次的工作。",
         "workbench.dismiss": "关闭总览",
         "workbench.attention": "需要处理",

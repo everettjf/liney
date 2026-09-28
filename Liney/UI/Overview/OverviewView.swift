@@ -85,6 +85,28 @@ struct OverviewView: View {
                         case .refresh: store.refresh(group.item.workspace)
                         }
                     }
+                    Menu {
+                        ForEach(items.filter {
+                            $0.id.workspaceID == group.item.id.workspaceID &&
+                            $0.id.worktreePath == group.item.id.worktreePath && $0.needsAttention
+                        }) { item in
+                            Button(item.tab.title + " · " + text(item.statusKey)) {
+                                store.openWorkbenchLocation(item.location)
+                            }
+                        }
+                        let status = group.item.workspace.gitHubStatuses[group.item.id.worktreePath]
+                        if status?.checksSummary?.failingCount ?? 0 > 0 {
+                            Button(text("workbench.checks")) {
+                                store.dispatch(.openFailingCheckDetails(group.item.id.workspaceID, group.item.id.worktreePath))
+                            }
+                        }
+                        if status?.pullRequest != nil {
+                            Button(text("workbench.pullRequest")) {
+                                store.dispatch(.openPullRequest(group.item.id.workspaceID, group.item.id.worktreePath))
+                            }
+                        }
+                    } label: { Image(systemName: "ellipsis") }
+                        .menuStyle(.borderlessButton).fixedSize()
                 }.padding(14)
                     .background(LineyTheme.panelBackground, in: RoundedRectangle(cornerRadius: 10))
             }

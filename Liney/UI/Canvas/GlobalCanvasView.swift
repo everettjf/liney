@@ -13,6 +13,9 @@ struct FreeformCanvasView: View {
     @EnvironmentObject private var store: WorkspaceStore
     @ObservedObject private var localization = LocalizationManager.shared
     let onDismiss: () -> Void
+    var pinnedOnly = false
+    var workbenchItems: [WorkbenchItem] = []
+    var onExpand: ((GlobalCanvasCardID) -> Void)? = nil
 
     @State private var query = ""
     @State private var showArchived = false
@@ -66,9 +69,10 @@ struct FreeformCanvasView: View {
 
     private var visibleCards: [GlobalCanvasCardSnapshot] {
         let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidates = pinnedOnly ? allCards.filter { layout(for: $0).isPinned } : allCards
         let workspaceFiltered = selectedWorkspaceFilters.isEmpty
-            ? allCards
-            : allCards.filter { selectedWorkspaceFilters.contains($0.workspaceID) }
+            ? candidates
+            : candidates.filter { selectedWorkspaceFilters.contains($0.workspaceID) }
 
         guard !normalizedQuery.isEmpty else {
             return workspaceFiltered
@@ -136,6 +140,7 @@ struct FreeformCanvasView: View {
 
                             GlobalCanvasCardView(
                                 card: card,
+                                summary: workbenchItems.first(where: { $0.id == card.id }),
                                 layout: layout,
                                 canvasScale: canvasScale,
                                 accentTint: tint(for: layout.colorGroup),
@@ -147,6 +152,10 @@ struct FreeformCanvasView: View {
                                     withAnimation(.easeInOut(duration: 0.2)) {
                                         onDismiss()
                                     }
+                                },
+                                onExpand: {
+                                    store.selectGlobalCanvasCard(card.id)
+                                    onExpand?(card.id)
                                 },
                                 onTogglePin: {
                                     togglePinned(for: card.id)
@@ -1002,11 +1011,13 @@ private struct GlobalCanvasCardView: View {
     @EnvironmentObject private var store: WorkspaceStore
     @ObservedObject private var localization = LocalizationManager.shared
     let card: GlobalCanvasCardSnapshot
+    let summary: WorkbenchItem?
     let layout: GlobalCanvasCardLayout
     let canvasScale: CGFloat
     let accentTint: Color
     let onSelect: () -> Void
     let onOpen: () -> Void
+    let onExpand: () -> Void
     let onTogglePin: () -> Void
     let onToggleMinimize: () -> Void
     let onSelectColorGroup: (GlobalCanvasColorGroup) -> Void
@@ -1025,6 +1036,20 @@ private struct GlobalCanvasCardView: View {
     var body: some View {
         VStack(spacing: 0) {
             titleBar
+            if let summary {
+                HStack {
+                    Text(summary.context).lineLimit(1)
+                    Spacer()
+                    Text(localized(summary.statusKey))
+                    if summary.isUnread { Circle().fill(LineyTheme.accent).frame(width: 5, height: 5) }
+                    if summary.changedFileCount > 0 {
+                        Text("\(summary.changedFileCount) " + localized("workbench.changed"))
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(summary.needsAttention ? LineyTheme.warning : LineyTheme.secondaryText)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+            }
 
             if layout.isMinimized {
                 minimizedSummary
@@ -1089,6 +1114,11 @@ private struct GlobalCanvasCardView: View {
             .buttonStyle(.plain)
             .foregroundStyle(card.isSelected ? .white : LineyTheme.secondaryText)
             .help(localized("canvas.card.openTab"))
+            Button(action: onExpand) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+            }
+            .buttonStyle(.plain)
+            .help(localized("workbench.expand"))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -1130,7 +1160,8 @@ private struct GlobalCanvasCardView: View {
                 allowsInteraction: true,
                 onActivate: { paneID in
                     store.openWorkbenchLocation(WorkbenchLocation(cardID: card.id, paneID: paneID), inCanvas: true)
-                }
+                },
+                restoreFocusPaneID: card.isSelected ? card.controller.focusedPaneID : nil
             )
             .padding(10)
             .background(LineyTheme.paneBackground)

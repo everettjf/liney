@@ -3337,6 +3337,7 @@ final class WorkspaceStore: ObservableObject {
     ) {
         workspace.switchToWorktree(path: worktree.path, restartRunning: restartRunning)
         perform(requestedAction, in: workspace)
+        recordWorkbenchVisit(workspace)
         Task { @MainActor in
             await refreshWorkspace(workspace)
         }

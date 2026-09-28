@@ -33,11 +33,11 @@ struct GlobalCanvasView: View {
                     Text(text("workbench.grid")).tag(false)
                     Text(text("workbench.freeform")).tag(true)
                 }.pickerStyle(.segmented).frame(width: 200)
-                if !freeform {
-                    Picker(text("workbench.scope"), selection: $pinnedOnly) {
+                Picker(text("workbench.scope"), selection: $pinnedOnly) {
                         Text(text("workbench.allStarted")).tag(false)
                         Text(text("workbench.pinned")).tag(true)
-                    }.pickerStyle(.segmented).frame(width: 200)
+                }.pickerStyle(.segmented).frame(width: 200)
+                if !freeform {
                     TextField(text("canvas.search.placeholder"), text: $query).textFieldStyle(.roundedBorder)
                 }
                 Spacer(minLength: 0)
@@ -54,10 +54,11 @@ struct GlobalCanvasView: View {
                 Button(action: onDismiss) { Image(systemName: "xmark") }.help(text("canvas.exit"))
             }.padding(16)
             Divider()
-            if freeform {
-                FreeformCanvasView(onDismiss: onDismiss)
-            } else if let expandedID, let item = items.first(where: { $0.id == expandedID }) {
+            if let expandedID, let item = items.first(where: { $0.id == expandedID }) {
                 card(item, expanded: true).padding(16)
+            } else if freeform {
+                FreeformCanvasView(onDismiss: onDismiss, pinnedOnly: pinnedOnly, workbenchItems: items,
+                    onExpand: { id in expandedID = id })
             } else {
                 GeometryReader { geometry in
                     let count = max(1, min(3, Int(geometry.size.width / 520)))
