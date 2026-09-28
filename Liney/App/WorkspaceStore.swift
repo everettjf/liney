@@ -841,14 +841,7 @@ final class WorkspaceStore: ObservableObject {
 
     func closeStandaloneTerminal(_ workspace: WorkspaceModel) {
         guard workspace.isStandaloneTerminal else { return }
-        if workspace.quitConfirmationSessionCount > 0 {
-            let alert = NSAlert()
-            alert.messageText = localized("workbench.closeRunning")
-            alert.informativeText = localized("workbench.closeRunningDetail")
-            alert.addButton(withTitle: localized("workbench.close"))
-            alert.addButton(withTitle: localized("app.quit.cancel"))
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-        }
+        guard confirmStandaloneClose(hasRunningCommands: workspace.quitConfirmationSessionCount > 0) else { return }
         for state in workspace.canvasStates() {
             for tab in state.tabs {
                 workspace.existingTabController(for: state.worktreePath, tabID: tab.id)?
@@ -864,12 +857,23 @@ final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    private func confirmStandaloneClose(hasRunningCommands: Bool) -> Bool {
+        guard hasRunningCommands else { return true }
+        let alert = NSAlert()
+        alert.messageText = localized("workbench.closeRunning")
+        alert.informativeText = localized("workbench.closeRunningDetail")
+        alert.addButton(withTitle: localized("workbench.close"))
+        alert.addButton(withTitle: localized("app.quit.cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
     func openTerminalDirectoryAsProject(_ workspace: WorkspaceModel) {
         let path = workspace.sessionController.focusedPaneID
             .flatMap { workspace.sessionController.session(for: $0)?.effectiveWorkingDirectory }
             ?? workspace.activeWorktreePath
         Task { @MainActor in
             do { try await openRepositoryWorkspace(at: path, persistAfterChange: true) }
+            catch GitServiceError.notAGitRepository { addLocalWorkspace(atPath: path) }
             catch { presentError(title: localized("main.error.openRepository.title"), message: error.localizedDescription) }
         }
     }
@@ -1985,6 +1989,9 @@ final class WorkspaceStore: ObservableObject {
             if let tabID = workspace.activeTabID { closeTab(in: workspace, tabID: tabID) }
             return
         }
+        if workspace.isStandaloneTerminal {
+            guard confirmStandaloneClose(hasRunningCommands: workspace.sessionController.session(for: paneID)?.needsQuitConfirmation == true) else { return }
+        }
         workspace.closePane(paneID)
         persist()
     }
@@ -2040,6 +2047,10 @@ final class WorkspaceStore: ObservableObject {
            workspace.activeTabID == tabID {
             closeStandaloneTerminal(workspace)
             return
+        }
+        if workspace.isStandaloneTerminal {
+            let hasRunning = workspace.existingTabController(for: workspace.activeWorktreePath, tabID: tabID)?.quitConfirmationSessionCount ?? 0
+            guard confirmStandaloneClose(hasRunningCommands: hasRunning > 0) else { return }
         }
         workspace.closeTab(tabID)
         persist()
@@ -4157,7 +4168,7 @@ final class WorkspaceStore: ObservableObject {
     private func addLocalWorkspace(atPath path: String) {
         let normalizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
         if let existing = workspaces.first(where: {
-            !$0.supportsRepositoryFeatures && $0.activeWorktreePath == normalizedPath
+            !$0.supportsRepositoryFeatures && !$0.isStandaloneTerminal && $0.activeWorktreePath == normalizedPath
         }) {
             selectedWorkspaceID = existing.id
             existing.bootstrapIfNeeded()

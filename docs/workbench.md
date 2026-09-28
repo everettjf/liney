@@ -47,9 +47,21 @@ The checklist remains open until each scenario is verified; a successful build a
 
 - Debug arm64 macOS build passed with Xcode 27.1.
 - Full suite passed: 660 tests. A later focused run covers added launch-layout,
-  failed-CI aggregation and legacy shortcut migration tests.
+  failed-CI aggregation and legacy shortcut migration tests (61 passed).
+- Follow-up standalone close/folder behavior checks: 28 focused tests passed.
 - Real Ghostty smoke passed: `surfaces=12 after=12 sessions=12 restored=12` and
   `LINEY_WORKBENCH_SMOKE_OK`.
 - Manual UI/IME checks remain pending: the desktop is locked and computer-use
   cannot inspect or interact with the acceptance window. Do not treat this as a
   completed manual smoke test.
+
+## Handoff / outstanding verification
+
+- Source is on `codex/terminal-workbench`; issue #160 exists. PR publication is
+  blocked by automatic approval review, which requires explicit authorization
+  to push to the public `everettjf/liney` repository despite verified ADMIN access.
+  Do not bypass this gate through another upload mechanism.
+- Await desktop unlock for the manual checklist, including actual IME composition,
+  text selection, scrolling, focus after expand/return, and sidebar keyboard use.
+- The real-surface harness proves surface/session reuse and persistence counts;
+  it does not substitute for those manual interaction checks.

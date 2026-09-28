@@ -95,7 +95,9 @@ final class WorkbenchTests: XCTestCase {
     }
 
     func testDirtyStateAloneDoesNotCreateAttention() {
-        let workspace = WorkspaceModel(localDirectoryPath: "/tmp")
+        var record = WorkspaceModel(localDirectoryPath: "/tmp").snapshot()
+        record.kind = .repository
+        let workspace = WorkspaceModel(record: record)
         workspace.hasUncommittedChanges = true
         workspace.changedFileCount = 12
         let store = makeStore()
