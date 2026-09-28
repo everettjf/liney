@@ -109,9 +109,14 @@ struct WorkspaceGitHubCoordinator {
 
         for worktree in workspace.worktrees {
             do {
-                let status = try await client.status(repositoryRoot: workspace.repositoryRoot, branch: worktree.branch ?? "")
+                var status = try await client.status(repositoryRoot: workspace.repositoryRoot, branch: worktree.branch ?? "")
+                status.refreshedAt = Date()
+                status.refreshError = nil
                 statuses[worktree.path] = status
             } catch GitHubCLIError.unauthorized {
+                var stale = statuses[worktree.path] ?? GitHubWorktreeStatus()
+                stale.refreshError = GitHubCLIError.unauthorized.localizedDescription
+                statuses[worktree.path] = stale
                 return WorkspaceGitHubStatusRefreshResult(
                     statuses: statuses,
                     integrationStateOverride: .unauthorized,
@@ -121,6 +126,9 @@ struct WorkspaceGitHubCoordinator {
                     )
                 )
             } catch {
+                var stale = statuses[worktree.path] ?? GitHubWorktreeStatus()
+                stale.refreshError = error.localizedDescription
+                statuses[worktree.path] = stale
                 continue
             }
         }

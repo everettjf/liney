@@ -16,6 +16,10 @@ let cliArguments = Array(CommandLine.arguments.dropFirst())
 if let firstArgument = cliArguments.first {
     let rest = Array(cliArguments.dropFirst())
     switch firstArgument {
+    #if DEBUG
+    case "workbench-smoke":
+        exit(MainActor.assumeIsolated { WorkbenchSmoke.run(interactive: rest.contains("--interactive")) })
+    #endif
     case "compatibility-smoke":
         exit(MainActor.assumeIsolated { TerminalCompatibilitySmoke.run() })
     case "notify":

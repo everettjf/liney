@@ -74,6 +74,11 @@ nonisolated struct WorktreeApplyOutcome {
 actor GitRepositoryService {
     private let runner = ShellCommandRunner()
 
+    func hasRemote(in rootPath: String) async -> Bool {
+        guard let result = try? await git(arguments: ["remote"], currentDirectory: rootPath) else { return false }
+        return result.exitCode == 0 && !result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private static let inspectTimeout: TimeInterval = 10
 
     /// Cache for repositoryStatus keyed by worktree path. Invalidated when any

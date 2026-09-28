@@ -1,0 +1,118 @@
+#if DEBUG
+import AppKit
+import SwiftUI
+
+/// Isolated, real-surface acceptance fixture. Never loads the user's workspaces.
+@MainActor
+enum WorkbenchSmoke {
+    static func run(interactive: Bool) -> Int32 {
+        let app = NSApplication.shared
+        // Ghostty filters stdout asynchronously; retain a direct result channel.
+        let output = FileHandle(fileDescriptor: dup(STDOUT_FILENO), closeOnDealloc: true)
+        TerminalDiagnostics.shared.clear()
+        app.setActivationPolicy(.regular)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("liney-workbench-\(UUID().uuidString)")
+        let persistence = WorkspacePersistenceCoordinator(
+            workspacePersistence: WorkspaceStatePersistence(stateDirectoryURL: directory),
+            settingsPersistence: AppSettingsPersistence(stateDirectoryURL: directory)
+        )
+        let store = WorkspaceStore(persistsWorkspaceState: true, persistenceCoordinator: persistence,
+            terminalHistoryCoordinator: TerminalHistoryCoordinator(persistence: TerminalHistoryPersistence(directory: directory.appendingPathComponent("history"))))
+        let productionUI = interactive && CommandLine.arguments.contains("--production-ui")
+        let narrow = interactive && CommandLine.arguments.contains("--narrow")
+        let count = productionUI ? (narrow ? 1 : 0) : 12
+        for index in 0..<count {
+            let workspace = store.createStandaloneTerminal(at: NSTemporaryDirectory())
+            workspace.name = "Terminal \(index + 1)"
+        }
+        if let first = store.workspaces.first, let paneID = first.paneOrder.first {
+            AgentStatusStore.shared.update(pane: paneID, state: .waiting, title: "Choose the migration strategy")
+        }
+        store.isCanvasPresented = !productionUI || narrow
+        let root = productionUI ? AnyView(MainWindowView()) : AnyView(WorkbenchSmokeRoot())
+        let preferencesName = "liney.workbench.fixture.\(directory.lastPathComponent)"
+        guard let preferences = UserDefaults(suiteName: preferencesName) else { return 1 }
+        defer { preferences.removePersistentDomain(forName: preferencesName) }
+        preferences.set(true, forKey: "canvas.workbench.freeform")
+        let hosting = NSHostingController(rootView: root.environmentObject(store).defaultAppStorage(preferences))
+        hosting.sizingOptions = []
+        let window = NSWindow(contentViewController: hosting)
+        window.title = "Liney Workbench Acceptance"
+        window.setContentSize(narrow ? NSSize(width: 760, height: 600) : NSSize(width: 1280, height: 850))
+        window.styleMask = [.titled, .closable, .resizable, .miniaturizable]
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        app.activate(ignoringOtherApps: true)
+        if interactive {
+            output.write(Data("WORKBENCH_FIXTURE \(directory.path)\n".utf8))
+            app.run()
+            return 0
+        }
+        func settle() { RunLoop.current.run(until: Date().addingTimeInterval(0.4)) }
+        settle()
+        let sessions = store.workspaces.flatMap { $0.sessionController.sessions.values }
+        let identities = sessions.map { ObjectIdentifier($0) }
+        let pids = sessions.map(\.pid)
+        let surfaceCount = TerminalDiagnostics.shared.entries.filter { $0.message.contains("event=surface-create") }.count
+        store.isCanvasPresented = false
+        store.isOverviewPresented = true
+        settle()
+        store.isOverviewPresented = false
+        store.isCanvasPresented = true
+        settle()
+        let originalCanvas = store.globalCanvasState
+        store.isCanvasPresented = false
+        settle()
+        store.globalCanvasState.offsetX = -100_000
+        store.globalCanvasState.offsetY = -100_000
+        store.isCanvasPresented = true
+        settle()
+        func hostCount(_ view: NSView) -> Int {
+            (view is TerminalViewContainer ? 1 : 0) + view.subviews.reduce(0) { $0 + hostCount($1) }
+        }
+        let offscreenHosts = hostCount(hosting.view)
+        store.isCanvasPresented = false
+        settle()
+        store.globalCanvasState = originalCanvas
+        store.isCanvasPresented = true
+        settle()
+        let after = store.workspaces.flatMap { $0.sessionController.sessions.values }
+        let finalSurfaceCount = TerminalDiagnostics.shared.entries.filter { $0.message.contains("event=surface-create") }.count
+        let unchanged = identities == after.map { ObjectIdentifier($0) } && pids == after.map(\.pid)
+            && surfaceCount == finalSurfaceCount && surfaceCount == 12
+        store.persist()
+        store.flushPendingPersistence()
+        let restored = persistence.loadWorkspaceState().value
+        let valid = unchanged && offscreenHosts == 1 && restored.workspaces.count == 12 && restored.workspaces.allSatisfy(\.settings.isStandaloneTerminal)
+        window.orderOut(nil)
+        sessions.forEach { $0.terminate() }
+        output.write(Data("surfaces=\(surfaceCount) after=\(finalSurfaceCount) sessions=\(sessions.count) restored=\(restored.workspaces.count) offscreenHosts=\(offscreenHosts)\n".utf8))
+        output.write(Data(((valid ? "LINEY_WORKBENCH_SMOKE_OK" : "LINEY_WORKBENCH_SMOKE_FAILED") + "\n").utf8))
+        return valid ? 0 : 1
+    }
+}
+
+private struct WorkbenchSmokeRoot: View {
+    @EnvironmentObject var store: WorkspaceStore
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button("Overview") { store.isCanvasPresented = false; store.isOverviewPresented = true }
+                Button("Canvas") { store.isOverviewPresented = false; store.isCanvasPresented = true }
+                Button("Workspace") { store.isOverviewPresented = false; store.isCanvasPresented = false }
+                Button("New Terminal") { store.createStandaloneTerminal() }.keyboardShortcut("t", modifiers: [.command, .shift])
+            }.padding(8)
+            if store.isOverviewPresented {
+                OverviewView { store.isOverviewPresented = false }
+            } else if store.isCanvasPresented {
+                GlobalCanvasView { store.isCanvasPresented = false }
+            } else {
+                HStack(spacing: 0) {
+                    WorkspaceSidebarView().frame(width: 240)
+                    WorkspaceDetailView()
+                }
+            }
+        }.preferredColorScheme(.dark)
+    }
+}
+#endif

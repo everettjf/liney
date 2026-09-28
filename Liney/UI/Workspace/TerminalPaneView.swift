@@ -213,6 +213,11 @@ struct TerminalPaneView: View {
                 workspace.focusPane(paneID)
                 store.duplicateFocusedPane(in: workspace)
             }
+            if !workspace.isRemote {
+                Button(localized("workbench.atDirectory")) {
+                    store.createStandaloneTerminal(at: session.effectiveWorkingDirectory)
+                }
+            }
             Button(workspace.zoomedPaneID == paneID ? localized("terminal.menu.unzoomPane") : localized("terminal.menu.zoomPane")) {
                 workspace.focusPane(paneID)
                 store.toggleZoom(in: workspace, paneID: paneID)

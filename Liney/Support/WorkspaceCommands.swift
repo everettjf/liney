@@ -17,6 +17,7 @@ enum WorkspaceCommand: Hashable {
     case submitLineyFeedback
     case toggleCommandPalette
     case toggleOverview
+    case newStandaloneTerminal
     case presentSettings
     case dismissTransientUI
     case checkForUpdates

@@ -9,12 +9,15 @@ import AppKit
 import Combine
 import SwiftUI
 
-struct GlobalCanvasView: View {
+struct FreeformCanvasView: View {
     @EnvironmentObject private var store: WorkspaceStore
     @ObservedObject private var localization = LocalizationManager.shared
     let onDismiss: () -> Void
+    var pinnedOnly = false
+    var workbenchItems: [WorkbenchItem] = []
+    var onExpand: ((GlobalCanvasCardID) -> Void)? = nil
 
-    @State private var query = ""
+    @Binding var query: String
     @State private var showArchived = false
     @State private var selectedWorkspaceFilters: Set<UUID> = []
     @State private var cardLayouts: [GlobalCanvasCardID: GlobalCanvasCardLayout] = [:]
@@ -33,7 +36,7 @@ struct GlobalCanvasView: View {
     private let maxCanvasScale: CGFloat = 1.8
     private let zoomStep: CGFloat = 1.14
     private let gridSpacing: CGFloat = 18
-    private let gridTopInset: CGFloat = 128
+    private let gridTopInset: CGFloat = 24
     private let gridSideInset: CGFloat = 32
 
     private func localized(_ key: String) -> String {
@@ -66,9 +69,10 @@ struct GlobalCanvasView: View {
 
     private var visibleCards: [GlobalCanvasCardSnapshot] {
         let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidates = pinnedOnly ? allCards.filter { layout(for: $0).isPinned } : allCards
         let workspaceFiltered = selectedWorkspaceFilters.isEmpty
-            ? allCards
-            : allCards.filter { selectedWorkspaceFilters.contains($0.workspaceID) }
+            ? candidates
+            : candidates.filter { selectedWorkspaceFilters.contains($0.workspaceID) }
 
         guard !normalizedQuery.isEmpty else {
             return workspaceFiltered
@@ -134,8 +138,11 @@ struct GlobalCanvasView: View {
                             let layout = cardLayouts[card.id] ?? fallbackLayout(for: index)
                             let screenCenter = screenPosition(for: layout.position)
 
+                            if WorkbenchViewport.shouldMount(center: screenCenter, size: layout.size,
+                                scale: canvasScale, viewport: proxy.size, isSelected: card.isSelected) {
                             GlobalCanvasCardView(
                                 card: card,
+                                summary: workbenchItems.first(where: { $0.id == card.id }),
                                 layout: layout,
                                 canvasScale: canvasScale,
                                 accentTint: tint(for: layout.colorGroup),
@@ -147,6 +154,10 @@ struct GlobalCanvasView: View {
                                     withAnimation(.easeInOut(duration: 0.2)) {
                                         onDismiss()
                                     }
+                                },
+                                onExpand: {
+                                    store.selectGlobalCanvasCard(card.id)
+                                    onExpand?(card.id)
                                 },
                                 onTogglePin: {
                                     togglePinned(for: card.id)
@@ -165,19 +176,11 @@ struct GlobalCanvasView: View {
                             .scaleEffect(canvasScale, anchor: .center)
                             .position(x: screenCenter.x, y: screenCenter.y)
                             .zIndex(zIndex(for: card, layout: layout))
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-
-                headerPanel
-                    .padding(16)
-                    .zIndex(2)
-
-                exitCanvasButton
-                    .padding(16)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .zIndex(2)
 
                 canvasToolbar
                     .padding(20)
@@ -202,15 +205,8 @@ struct GlobalCanvasView: View {
                     persistCanvasState()
                 }
             }
-            .onChange(of: allCards.map(\.id)) { _, _ in
-                let hadMissingLayouts = ensureLayouts()
-                if visibleCards.isEmpty == false {
-                    if hadMissingLayouts {
-                        organizeCardsAsGrid()
-                    } else {
-                        fitToView(canvasSize: viewportSize)
-                    }
-                }
+            .onChange(of: Set(allCards.map(\.id))) { _, _ in
+                ensureLayouts()
                 persistCanvasState()
             }
             .onChange(of: query) { _, _ in
@@ -223,113 +219,6 @@ struct GlobalCanvasView: View {
         }
     }
 
-    private var headerPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(localized("main.canvas.title"))
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-
-            HStack(spacing: 8) {
-                WorkspaceCanvasBadge(
-                    text: isFiltering
-                        ? localizedFormat("canvas.header.visibleLiveFormat", visibleCards.count, allCards.count)
-                        : localizedFormat("canvas.header.liveTabsFormat", allCards.count, allCards.count == 1 ? "" : "s"),
-                    tint: LineyTheme.secondaryText
-                )
-                WorkspaceCanvasBadge(
-                    text: localizedFormat(
-                        "canvas.header.activeSessionsFormat",
-                        allCards.reduce(0) { $0 + $1.activeSessionCount },
-                        allCards.reduce(0) { $0 + $1.activeSessionCount } == 1 ? "" : "s"
-                    ),
-                    tint: LineyTheme.success
-                )
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(LineyTheme.mutedText)
-
-                TextField(
-                    text: $query,
-                    prompt: Text(localized("canvas.search.placeholder"))
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(LineyTheme.mutedText)
-                ) {
-                    EmptyView()
-                }
-                .textFieldStyle(.plain)
-                .font(.system(size: 11, weight: .medium))
-
-                if !query.isEmpty {
-                    Button {
-                        query = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(LineyTheme.mutedText)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    GlobalCanvasFilterChip(
-                        title: localized("canvas.filter.all"),
-                        subtitle: "\(allCards.count)",
-                        isSelected: selectedWorkspaceFilters.isEmpty
-                    ) {
-                        selectedWorkspaceFilters.removeAll()
-                    }
-
-                    ForEach(workspaceFilters) { workspace in
-                        GlobalCanvasFilterChip(
-                            title: workspace.workspaceName,
-                            subtitle: workspace.pinnedCardCount > 0 ? "\(workspace.liveCardCount) · \(workspace.pinnedCardCount) \(localized("canvas.filter.pinSuffix"))" : "\(workspace.liveCardCount)",
-                            isSelected: selectedWorkspaceFilters.contains(workspace.workspaceID)
-                        ) {
-                            toggleWorkspaceFilter(workspace.workspaceID)
-                        }
-                    }
-
-                    GlobalCanvasFilterChip(
-                        title: localized("canvas.filter.showArchived"),
-                        subtitle: "",
-                        isSelected: showArchived
-                    ) {
-                        showArchived.toggle()
-                        refreshCards()
-                    }
-                }
-                .padding(.vertical, 1)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LineyTheme.chromeBackground.opacity(0.96), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(LineyTheme.border, lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
-        .controlSize(.small)
-    }
-
-    private var exitCanvasButton: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                onDismiss()
-            }
-        } label: {
-            Label(localized("canvas.exit"), systemImage: "xmark.circle.fill")
-        }
-        .labelStyle(.titleAndIcon)
-        .buttonStyle(.borderedProminent)
-        .controlSize(.small)
-    }
 
     private func emptyState(title: String, message: String) -> some View {
         VStack(spacing: 14) {
@@ -362,6 +251,17 @@ struct GlobalCanvasView: View {
     private var canvasToolbar: some View {
         HStack(spacing: 8) {
             Menu {
+                Toggle(localized("canvas.filter.showArchived"), isOn: $showArchived)
+                    .onChange(of: showArchived) { _, _ in refreshCards() }
+                Menu(localized("workbench.directory")) {
+                    Button(localized("canvas.filter.all")) { selectedWorkspaceFilters.removeAll() }
+                    ForEach(workspaceFilters) { workspace in
+                        Button((selectedWorkspaceFilters.contains(workspace.workspaceID) ? "✓ " : "") + workspace.workspaceName) {
+                            toggleWorkspaceFilter(workspace.workspaceID)
+                        }
+                    }
+                }
+                Divider()
                 Button(localized("canvas.organize.byWorkspace")) {
                     organizeCardsByWorkspace()
                 }
@@ -456,9 +356,9 @@ struct GlobalCanvasView: View {
         lastCanvasScale = canvasScale
         dragOrigins = [:]
         hasPerformedInitialFit = false
-        let hadMissingLayouts = ensureLayouts()
+        ensureLayouts()
 
-        if (savedState.cardLayouts.isEmpty || hadMissingLayouts), visibleCards.isEmpty == false {
+        if savedState.cardLayouts.isEmpty, visibleCards.isEmpty == false {
             organizeCardsAsGrid()
         }
 
@@ -474,7 +374,8 @@ struct GlobalCanvasView: View {
         cachedCards = store.workspaces.filter { !$0.isArchived || showArchived }.flatMap { workspace in
             workspace.canvasStates().flatMap { state in
                 state.tabs.compactMap { tab in
-                    guard let controller = workspace.existingTabController(for: state.worktreePath, tabID: tab.id) else {
+                    guard let controller = workspace.existingTabController(for: state.worktreePath, tabID: tab.id),
+                          controller.sessions.values.contains(where: { $0.lifecycle != .idle }) else {
                         return nil
                     }
                     let cardID = GlobalCanvasCardID(
@@ -491,7 +392,7 @@ struct GlobalCanvasView: View {
                             ?? URL(fileURLWithPath: state.worktreePath).lastPathComponent,
                         tab: tab,
                         controller: controller,
-                        isSelected: workspace.isActiveCanvasCard(worktreePath: state.worktreePath, tabID: tab.id),
+                        isSelected: workspace.id == store.selectedWorkspaceID && workspace.isActiveCanvasCard(worktreePath: state.worktreePath, tabID: tab.id),
                         paneCount: workspace.paneCount(for: tab.id, worktreePath: state.worktreePath),
                         activeSessionCount: controller.activeSessionCount(using: state.worktreePath)
                     )
@@ -499,9 +400,6 @@ struct GlobalCanvasView: View {
             }
         }
         .sorted { lhs, rhs in
-            if lhs.isSelected != rhs.isSelected {
-                return lhs.isSelected
-            }
             if lhs.workspaceName != rhs.workspaceName {
                 return lhs.workspaceName.localizedCaseInsensitiveCompare(rhs.workspaceName) == .orderedAscending
             }
@@ -517,11 +415,10 @@ struct GlobalCanvasView: View {
         let cardIDs = allCards.map(\.id)
         let missingIDs = cardIDs.filter { cardLayouts[$0] == nil }
         guard !missingIDs.isEmpty else {
-            cardLayouts = cardLayouts.filter { cardIDs.contains($0.key) }
             return false
         }
 
-        var nextLayouts = cardLayouts.filter { cardIDs.contains($0.key) }
+        var nextLayouts = cardLayouts
         let startIndex = nextLayouts.count
         for (offset, cardID) in missingIDs.enumerated() {
             nextLayouts[cardID] = fallbackLayout(for: startIndex + offset)
@@ -687,6 +584,8 @@ struct GlobalCanvasView: View {
     }
 
     private func handleScrollWheel(_ event: NSEvent) {
+        // Ordinary wheel events belong to terminal scrollback. Zoom is explicit.
+        guard event.modifierFlags.contains(.command) else { return }
         guard viewportSize.width > 0, viewportSize.height > 0 else { return }
         let deltaY = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY * 10
         guard abs(deltaY) > abs(event.scrollingDeltaX) else { return }
@@ -756,9 +655,8 @@ struct GlobalCanvasView: View {
     }
 
     private func persistCanvasState() {
-        let records = allCards.compactMap { card in
-            cardLayouts[card.id]?.record(cardID: card.id)
-        }
+        let records = cardLayouts.map { $0.value.record(cardID: $0.key) }
+            .sorted { $0.id < $1.id }
         let nextState = GlobalCanvasStateRecord(
             scale: canvasScale,
             offsetX: canvasOffset.width,
@@ -1008,13 +906,16 @@ private struct GlobalCanvasScrollWheelMonitor: NSViewRepresentable {
 }
 
 private struct GlobalCanvasCardView: View {
+    @EnvironmentObject private var store: WorkspaceStore
     @ObservedObject private var localization = LocalizationManager.shared
     let card: GlobalCanvasCardSnapshot
+    let summary: WorkbenchItem?
     let layout: GlobalCanvasCardLayout
     let canvasScale: CGFloat
     let accentTint: Color
     let onSelect: () -> Void
     let onOpen: () -> Void
+    let onExpand: () -> Void
     let onTogglePin: () -> Void
     let onToggleMinimize: () -> Void
     let onSelectColorGroup: (GlobalCanvasColorGroup) -> Void
@@ -1033,6 +934,24 @@ private struct GlobalCanvasCardView: View {
     var body: some View {
         VStack(spacing: 0) {
             titleBar
+            if let summary, summary.needsAttention || summary.hasSecondarySummary {
+                HStack {
+                    Text(localized(summary.statusKey))
+                    Spacer()
+                    if summary.isUnread { Circle().fill(LineyTheme.accent).frame(width: 5, height: 5) }
+                    if summary.changedFileCount > 0 {
+                        Text("\(summary.changedFileCount) " + localized("workbench.changed"))
+                    }
+                    if summary.hasStaleGitHubStatus {
+                        Text(localized("workbench.stale"))
+                    } else if summary.failingCheckCount > 0 {
+                        Text("\(summary.failingCheckCount) " + localized("workbench.failingChecks"))
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(summary.needsAttention ? LineyTheme.warning : LineyTheme.secondaryText)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+            }
 
             if layout.isMinimized {
                 minimizedSummary
@@ -1050,13 +969,6 @@ private struct GlobalCanvasCardView: View {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(cardBorder, lineWidth: card.isSelected ? 1.4 : 1)
         )
-        .overlay {
-            if !card.isSelected {
-                Color.clear
-                    .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .onTapGesture(perform: onSelect)
-            }
-        }
         .shadow(color: .clear, radius: 0)
     }
 
@@ -1104,6 +1016,11 @@ private struct GlobalCanvasCardView: View {
             .buttonStyle(.plain)
             .foregroundStyle(card.isSelected ? .white : LineyTheme.secondaryText)
             .help(localized("canvas.card.openTab"))
+            Button(action: onExpand) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+            }
+            .buttonStyle(.plain)
+            .help(localized("workbench.expand"))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -1142,16 +1059,13 @@ private struct GlobalCanvasCardView: View {
             WorkspaceCanvasLiveNodeView(
                 sessionController: card.controller,
                 node: node,
-                allowsInteraction: card.isSelected
+                allowsInteraction: true,
+                onActivate: { paneID in
+                    store.openWorkbenchLocation(WorkbenchLocation(cardID: card.id, paneID: paneID), inCanvas: true)
+                },
+                restoreFocusPaneID: card.isSelected ? card.controller.focusedPaneID : nil
             )
-            .padding(10)
             .background(LineyTheme.paneBackground)
-            .allowsHitTesting(card.isSelected)
-            .overlay {
-                if !card.isSelected {
-                    inactiveOverlay
-                }
-            }
         }
     }
 
@@ -1181,10 +1095,12 @@ private struct GlobalCanvasCardView: View {
     }
 }
 
-private struct WorkspaceCanvasLiveNodeView: View {
+struct WorkspaceCanvasLiveNodeView: View {
     @ObservedObject var sessionController: WorkspaceSessionController
     let node: SessionLayoutNode
     let allowsInteraction: Bool
+    var onActivate: ((UUID) -> Void)? = nil
+    var restoreFocusPaneID: UUID? = nil
 
     var body: some View {
         switch node {
@@ -1193,7 +1109,10 @@ private struct WorkspaceCanvasLiveNodeView: View {
                 WorkspaceCanvasTerminalPane(
                     session: session,
                     isFocused: sessionController.focusedPaneID == leaf.paneID,
-                    allowsInteraction: allowsInteraction
+                    allowsInteraction: allowsInteraction,
+                    showsHeader: sessionController.sessions.count > 1,
+                    onActivate: { onActivate?(leaf.paneID) },
+                    shouldRestoreFocus: restoreFocusPaneID == leaf.paneID
                 )
             } else {
                 Color.clear
@@ -1218,7 +1137,9 @@ private struct WorkspaceCanvasLiveNodeView: View {
                 WorkspaceCanvasLiveNodeView(
                     sessionController: sessionController,
                     node: split.first,
-                    allowsInteraction: allowsInteraction
+                    allowsInteraction: allowsInteraction,
+                    onActivate: onActivate,
+                    restoreFocusPaneID: restoreFocusPaneID
                 )
                 .frame(width: firstWidth)
 
@@ -1229,7 +1150,9 @@ private struct WorkspaceCanvasLiveNodeView: View {
                 WorkspaceCanvasLiveNodeView(
                     sessionController: sessionController,
                     node: split.second,
-                    allowsInteraction: allowsInteraction
+                    allowsInteraction: allowsInteraction,
+                    onActivate: onActivate,
+                    restoreFocusPaneID: restoreFocusPaneID
                 )
                 .frame(width: secondWidth)
             }
@@ -1241,7 +1164,9 @@ private struct WorkspaceCanvasLiveNodeView: View {
                 WorkspaceCanvasLiveNodeView(
                     sessionController: sessionController,
                     node: split.first,
-                    allowsInteraction: allowsInteraction
+                    allowsInteraction: allowsInteraction,
+                    onActivate: onActivate,
+                    restoreFocusPaneID: restoreFocusPaneID
                 )
                 .frame(height: firstHeight)
 
@@ -1252,7 +1177,9 @@ private struct WorkspaceCanvasLiveNodeView: View {
                 WorkspaceCanvasLiveNodeView(
                     sessionController: sessionController,
                     node: split.second,
-                    allowsInteraction: allowsInteraction
+                    allowsInteraction: allowsInteraction,
+                    onActivate: onActivate,
+                    restoreFocusPaneID: restoreFocusPaneID
                 )
                 .frame(height: secondHeight)
             }
@@ -1264,6 +1191,9 @@ private struct WorkspaceCanvasTerminalPane: View {
     @ObservedObject var session: ShellSession
     let isFocused: Bool
     let allowsInteraction: Bool
+    var showsHeader = true
+    var onActivate: (() -> Void)? = nil
+    var shouldRestoreFocus = false
 
     private var directoryLabel: String {
         session.effectiveWorkingDirectory.lastPathComponentValue
@@ -1271,6 +1201,7 @@ private struct WorkspaceCanvasTerminalPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if showsHeader {
             HStack(spacing: 8) {
                 Circle()
                     .fill(session.hasActiveProcess ? LineyTheme.success : LineyTheme.warning)
@@ -1291,15 +1222,16 @@ private struct WorkspaceCanvasTerminalPane: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(isFocused ? LineyTheme.panelRaised : LineyTheme.paneHeaderBackground)
+            }
 
-            TerminalHostView(session: session)
+            TerminalHostView(session: session, shouldRestoreFocus: shouldRestoreFocus, onActivate: onActivate)
                 .background(LineyTheme.paneBackground)
                 .allowsHitTesting(allowsInteraction)
         }
         .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .stroke(isFocused ? LineyTheme.accent.opacity(0.4) : LineyTheme.border, lineWidth: 1)
+                .stroke(showsHeader ? (isFocused ? LineyTheme.accent.opacity(0.4) : LineyTheme.border) : .clear, lineWidth: 1)
         )
     }
 }

@@ -11,15 +11,42 @@ import SwiftUI
 struct TerminalHostView: NSViewRepresentable {
     @ObservedObject var session: ShellSession
     var shouldRestoreFocus: Bool = false
+    var onActivate: (() -> Void)? = nil
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator {
+        var monitor: Any?
+        var onActivate: (() -> Void)?
+    }
 
     func makeNSView(context: Context) -> TerminalViewContainer {
         let container = TerminalViewContainer()
+        context.coordinator.onActivate = onActivate
+        if onActivate != nil {
+            let coordinator = context.coordinator
+            coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak container, weak coordinator] event in
+                if let container, event.window === container.window,
+                   !container.isHiddenOrHasHiddenAncestor,
+                   container.visibleRect.contains(container.convert(event.locationInWindow, from: nil)) {
+                    coordinator?.onActivate?()
+                }
+                return event
+            }
+        }
         container.attach(session.nsView, restoreFocus: shouldRestoreFocus)
         return container
     }
 
     func updateNSView(_ nsView: TerminalViewContainer, context: Context) {
+        context.coordinator.onActivate = onActivate
         nsView.attach(session.nsView, restoreFocus: shouldRestoreFocus)
+    }
+
+    static func dismantleNSView(_ nsView: TerminalViewContainer, coordinator: Coordinator) {
+        if let monitor = coordinator.monitor { NSEvent.removeMonitor(monitor) }
+        coordinator.monitor = nil
+        coordinator.onActivate = nil
     }
 }
 

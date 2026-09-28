@@ -9,6 +9,13 @@ import XCTest
 @testable import Liney
 
 final class WorkspaceSettingsTests: XCTestCase {
+    func testStandaloneOwnershipIsExplicitAndSurvivesRoundTrip() throws {
+        let legacy = try JSONDecoder().decode(WorkspaceSettings.self, from: Data("{}".utf8))
+        XCTAssertFalse(legacy.isStandaloneTerminal)
+        let standalone = WorkspaceSettings(isStandaloneTerminal: true)
+        let decoded = try JSONDecoder().decode(WorkspaceSettings.self, from: JSONEncoder().encode(standalone))
+        XCTAssertTrue(decoded.isStandaloneTerminal)
+    }
     func testWorkspaceRecordDecodesDefaultSettingsFromLegacyPayload() throws {
         let json = """
         {

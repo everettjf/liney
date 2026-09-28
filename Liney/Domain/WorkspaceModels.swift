@@ -369,6 +369,9 @@ struct RemoteWorkspaceTarget: Codable, Hashable, Identifiable {
 }
 
 struct WorkspaceSettings: Codable, Hashable {
+    /// Explicit ownership; legacy local folders remain ordinary workspaces.
+    var isStandaloneTerminal: Bool
+    var workbenchVisits: [String: Date]
     var isPinned: Bool
     var isArchived: Bool
     var workspaceIcon: SidebarItemIcon?
@@ -385,6 +388,8 @@ struct WorkspaceSettings: Codable, Hashable {
     var remoteRepositoryRoot: String?
 
     init(
+        isStandaloneTerminal: Bool = false,
+        workbenchVisits: [String: Date] = [:],
         isPinned: Bool = false,
         isArchived: Bool = false,
         workspaceIcon: SidebarItemIcon? = nil,
@@ -400,6 +405,8 @@ struct WorkspaceSettings: Codable, Hashable {
         sshConfiguration: SSHSessionConfiguration? = nil,
         remoteRepositoryRoot: String? = nil
     ) {
+        self.isStandaloneTerminal = isStandaloneTerminal
+        self.workbenchVisits = workbenchVisits
         self.isPinned = isPinned
         self.isArchived = isArchived
         self.workspaceIcon = workspaceIcon
@@ -417,6 +424,8 @@ struct WorkspaceSettings: Codable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
+        case isStandaloneTerminal
+        case workbenchVisits
         case isPinned
         case isArchived
         case workspaceIcon
@@ -436,6 +445,8 @@ struct WorkspaceSettings: Codable, Hashable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
+            isStandaloneTerminal: try container.decodeIfPresent(Bool.self, forKey: .isStandaloneTerminal) ?? false,
+            workbenchVisits: try container.decodeIfPresent([String: Date].self, forKey: .workbenchVisits) ?? [:],
             isPinned: try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false,
             isArchived: try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false,
             workspaceIcon: try container.decodeIfPresent(SidebarItemIcon.self, forKey: .workspaceIcon),

@@ -59,10 +59,87 @@ struct WorkspaceSidebarView: View {
             SidebarRunningProjectsStrip()
                 .environmentObject(store)
 
+            if !store.standaloneTerminals.isEmpty {
+                StandaloneTerminalSidebar(query: query)
+            }
+
             WorkspaceOutlineSidebar(query: query, onOpenRepository: { store.addWorkspaceFromOpenPanel() }, onConnectSSH: { store.presentConnectSSH() })
                 .environmentObject(store)
         }
         .background(LineyTheme.sidebarBackground)
+    }
+}
+
+private struct StandaloneTerminalSidebar: View {
+    @EnvironmentObject private var store: WorkspaceStore
+    @ObservedObject private var localization = LocalizationManager.shared
+    @AppStorage("sidebar.standaloneTerminalsExpanded") private var expanded = true
+    let query: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack {
+                Button { expanded.toggle() } label: {
+                    Label(localization.string("workbench.terminals"), systemImage: expanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            .foregroundStyle(LineyTheme.secondaryText)
+            if expanded {
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(store.standaloneTerminals.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }) { workspace in
+                            StandaloneTerminalSidebarRow(workspace: workspace)
+                        }
+                    }
+                }
+                .frame(height: min(CGFloat(store.standaloneTerminals.count) * 32, 192))
+            }
+        }
+        .padding(10)
+        .overlay(alignment: .bottom) { Divider() }
+        .onAppear { expanded = true }
+        .onChange(of: store.standaloneTerminals.count) { old, new in
+            if new > old { expanded = true }
+        }
+    }
+}
+
+private struct StandaloneTerminalSidebarRow: View {
+    @EnvironmentObject private var store: WorkspaceStore
+    @ObservedObject var workspace: WorkspaceModel
+    @ObservedObject private var localization = LocalizationManager.shared
+
+    var body: some View {
+        Button {
+            store.isOverviewPresented = false
+            store.isCanvasPresented = false
+            store.selectWorkspace(workspace)
+        } label: {
+            HStack {
+                Image(systemName: "terminal")
+                Text(workspace.name).lineLimit(1)
+                Spacer()
+            }
+            .padding(6)
+            .contentShape(Rectangle())
+            .background(store.selectedWorkspaceID == workspace.id ? LineyTheme.subtleFill : Color.clear, in: RoundedRectangle(cornerRadius: 5))
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(localization.string("sidebar.menu.renameWorkspace")) { store.requestRenameWorkspace(workspace) }
+            Button(localization.string("workbench.atDirectory")) {
+                let directory = workspace.sessionController.focusedPaneID
+                    .flatMap { workspace.sessionController.session(for: $0)?.effectiveWorkingDirectory }
+                    ?? workspace.activeWorktreePath
+                store.createStandaloneTerminal(at: directory)
+            }
+            Button(localization.string("workbench.openProject")) { store.openTerminalDirectoryAsProject(workspace) }
+            Divider()
+            Button(localization.string("workbench.close")) { store.closeStandaloneTerminal(workspace) }
+        }
     }
 }
 
@@ -746,6 +823,11 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
 
         private func makeWorkspaceMenu(workspace: WorkspaceModel) -> NSMenu {
             let menu = NSMenu()
+            if !workspace.isRemote {
+                addMenuItem(to: menu, title: localized("workbench.atDirectory"),
+                            action: #selector(openStandaloneTerminalHere(_:)), representedObject: workspace.id)
+                menu.addItem(.separator())
+            }
 
             // Dynamic actions at the top for quick access
             let hasRunScript = !workspace.runScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1086,6 +1168,12 @@ private final class WorkspaceSidebarCoordinator: NSObject, NSOutlineViewDataSour
             guard let workspaceID = sender.representedObject as? UUID,
                   let workspace = store?.workspaces.first(where: { $0.id == workspaceID }) else { return }
             store?.requestRenameWorkspace(workspace)
+        }
+
+        @objc private func openStandaloneTerminalHere(_ sender: NSMenuItem) {
+            guard let id = sender.representedObject as? UUID,
+                  let workspace = store?.workspaces.first(where: { $0.id == id }) else { return }
+            store?.createStandaloneTerminal(at: workspace.activeWorktreePath)
         }
 
         @objc private func removeWorkspace(_ sender: NSMenuItem) {

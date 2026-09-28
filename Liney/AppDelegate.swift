@@ -483,6 +483,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                  .hideOtherApps,
                  .quitApp,
                  .newWindow,
+                 .newStandaloneTerminal,
                  .openSettings,
                  .toggleCommandPalette,
                  .toggleSidebar,
@@ -627,6 +628,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         case .previousWorkspace:
             desktopApplication?.selectPreviousWorkspace()
 
+        case .newStandaloneTerminal:
+            desktopApplication?.createStandaloneTerminal()
         case .newTab:
             desktopApplication?.createTabInSelectedWorkspace()
 
