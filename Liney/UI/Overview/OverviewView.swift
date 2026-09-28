@@ -8,6 +8,7 @@ struct OverviewView: View {
     @State private var query = ""
     @State private var items: [WorkbenchItem] = []
     @State private var showActivity = false
+    @State private var showDirectory = false
 
     private func text(_ key: String) -> String { localization.string(key) }
 
@@ -16,7 +17,6 @@ struct OverviewView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(text("main.overview.title")).font(.title2.bold())
-                    Text(text("workbench.overviewSubtitle")).foregroundStyle(LineyTheme.secondaryText)
                 }
                 Spacer()
                 Button(text("workbench.newTerminal")) { store.createStandaloneTerminal() }
@@ -27,7 +27,9 @@ struct OverviewView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     attentionSection
                     continueSection
-                    directorySection
+                    DisclosureGroup(text("workbench.directory"), isExpanded: $showDirectory) {
+                        directorySection.padding(.top, 12)
+                    }
                     DisclosureGroup(text("overview.timeline.title"), isExpanded: $showActivity) {
                         ForEach(OverviewViewModel(workspaces: store.workspaces).recentActivities) { item in
                             HStack {
@@ -38,7 +40,7 @@ struct OverviewView: View {
                             }.padding(.vertical, 4)
                         }
                     }
-                }.padding(24).frame(maxWidth: 1200).frame(maxWidth: .infinity)
+                }.padding(24).frame(maxWidth: 960).frame(maxWidth: .infinity)
             }
         }
         .background(LineyTheme.appBackground)
@@ -56,10 +58,10 @@ struct OverviewView: View {
     private var attentionSection: some View {
         let groups = WorkbenchAttention.make(items: items)
         return VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("workbench.attention", count: groups.count)
+            if !groups.isEmpty { sectionTitle("workbench.attention", count: groups.count) }
             if groups.isEmpty {
                 Label(text("workbench.allClear"), systemImage: "checkmark.circle")
-                    .foregroundStyle(LineyTheme.secondaryText).padding(.vertical, 12)
+                    .font(.callout).foregroundStyle(LineyTheme.secondaryText)
             }
             ForEach(groups) { group in
                 HStack(alignment: .top, spacing: 12) {
@@ -123,7 +125,9 @@ struct OverviewView: View {
         return VStack(alignment: .leading, spacing: 12) {
             sectionTitle("workbench.continue", count: recent.count)
             if recent.isEmpty { Text(text("workbench.continueEmpty")).foregroundStyle(LineyTheme.secondaryText) }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 500))], spacing: 12) {
+            LazyVGrid(columns: recent.count < 3
+                ? Array(repeating: GridItem(.flexible()), count: max(1, recent.count))
+                : [GridItem(.adaptive(minimum: 280))], spacing: 12) {
                 ForEach(Array(recent.prefix(12))) { item in
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
@@ -131,7 +135,8 @@ struct OverviewView: View {
                             Spacer()
                             pinButton(item)
                         }
-                        Text(item.context + " · " + item.tab.title).font(.callout).lineLimit(1)
+                        Text(item.tab.title).font(.callout).foregroundStyle(LineyTheme.secondaryText).lineLimit(1)
+                            .help(item.context)
                         HStack {
                             Text(text(item.statusKey))
                             if item.changedFileCount > 0 { Text("· \(item.changedFileCount) " + text("workbench.changed")) }
@@ -151,7 +156,6 @@ struct OverviewView: View {
 
     private var directorySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("workbench.directory", count: store.workspaces.count)
             TextField(text("canvas.search.placeholder"), text: $query).textFieldStyle(.roundedBorder)
             ForEach(items.filter {
                 query.isEmpty || [$0.workspace.name, $0.context, $0.tab.title, $0.directory]

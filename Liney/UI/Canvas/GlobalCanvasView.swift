@@ -17,7 +17,7 @@ struct FreeformCanvasView: View {
     var workbenchItems: [WorkbenchItem] = []
     var onExpand: ((GlobalCanvasCardID) -> Void)? = nil
 
-    @State private var query = ""
+    @Binding var query: String
     @State private var showArchived = false
     @State private var selectedWorkspaceFilters: Set<UUID> = []
     @State private var cardLayouts: [GlobalCanvasCardID: GlobalCanvasCardLayout] = [:]
@@ -36,7 +36,7 @@ struct FreeformCanvasView: View {
     private let maxCanvasScale: CGFloat = 1.8
     private let zoomStep: CGFloat = 1.14
     private let gridSpacing: CGFloat = 18
-    private let gridTopInset: CGFloat = 128
+    private let gridTopInset: CGFloat = 24
     private let gridSideInset: CGFloat = 32
 
     private func localized(_ key: String) -> String {
@@ -179,15 +179,6 @@ struct FreeformCanvasView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
-                headerPanel
-                    .padding(16)
-                    .zIndex(2)
-
-                exitCanvasButton
-                    .padding(16)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .zIndex(2)
-
                 canvasToolbar
                     .padding(20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
@@ -225,113 +216,6 @@ struct FreeformCanvasView: View {
         }
     }
 
-    private var headerPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(localized("main.canvas.title"))
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-
-            HStack(spacing: 8) {
-                WorkspaceCanvasBadge(
-                    text: isFiltering
-                        ? localizedFormat("canvas.header.visibleLiveFormat", visibleCards.count, allCards.count)
-                        : localizedFormat("canvas.header.liveTabsFormat", allCards.count, allCards.count == 1 ? "" : "s"),
-                    tint: LineyTheme.secondaryText
-                )
-                WorkspaceCanvasBadge(
-                    text: localizedFormat(
-                        "canvas.header.activeSessionsFormat",
-                        allCards.reduce(0) { $0 + $1.activeSessionCount },
-                        allCards.reduce(0) { $0 + $1.activeSessionCount } == 1 ? "" : "s"
-                    ),
-                    tint: LineyTheme.success
-                )
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(LineyTheme.mutedText)
-
-                TextField(
-                    text: $query,
-                    prompt: Text(localized("canvas.search.placeholder"))
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(LineyTheme.mutedText)
-                ) {
-                    EmptyView()
-                }
-                .textFieldStyle(.plain)
-                .font(.system(size: 11, weight: .medium))
-
-                if !query.isEmpty {
-                    Button {
-                        query = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(LineyTheme.mutedText)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(LineyTheme.sidebarSearchBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    GlobalCanvasFilterChip(
-                        title: localized("canvas.filter.all"),
-                        subtitle: "\(allCards.count)",
-                        isSelected: selectedWorkspaceFilters.isEmpty
-                    ) {
-                        selectedWorkspaceFilters.removeAll()
-                    }
-
-                    ForEach(workspaceFilters) { workspace in
-                        GlobalCanvasFilterChip(
-                            title: workspace.workspaceName,
-                            subtitle: workspace.pinnedCardCount > 0 ? "\(workspace.liveCardCount) · \(workspace.pinnedCardCount) \(localized("canvas.filter.pinSuffix"))" : "\(workspace.liveCardCount)",
-                            isSelected: selectedWorkspaceFilters.contains(workspace.workspaceID)
-                        ) {
-                            toggleWorkspaceFilter(workspace.workspaceID)
-                        }
-                    }
-
-                    GlobalCanvasFilterChip(
-                        title: localized("canvas.filter.showArchived"),
-                        subtitle: "",
-                        isSelected: showArchived
-                    ) {
-                        showArchived.toggle()
-                        refreshCards()
-                    }
-                }
-                .padding(.vertical, 1)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LineyTheme.chromeBackground.opacity(0.96), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(LineyTheme.border, lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
-        .controlSize(.small)
-    }
-
-    private var exitCanvasButton: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                onDismiss()
-            }
-        } label: {
-            Label(localized("canvas.exit"), systemImage: "xmark.circle.fill")
-        }
-        .labelStyle(.titleAndIcon)
-        .buttonStyle(.borderedProminent)
-        .controlSize(.small)
-    }
 
     private func emptyState(title: String, message: String) -> some View {
         VStack(spacing: 14) {
@@ -364,6 +248,17 @@ struct FreeformCanvasView: View {
     private var canvasToolbar: some View {
         HStack(spacing: 8) {
             Menu {
+                Toggle(localized("canvas.filter.showArchived"), isOn: $showArchived)
+                    .onChange(of: showArchived) { _, _ in refreshCards() }
+                Menu(localized("workbench.directory")) {
+                    Button(localized("canvas.filter.all")) { selectedWorkspaceFilters.removeAll() }
+                    ForEach(workspaceFilters) { workspace in
+                        Button((selectedWorkspaceFilters.contains(workspace.workspaceID) ? "✓ " : "") + workspace.workspaceName) {
+                            toggleWorkspaceFilter(workspace.workspaceID)
+                        }
+                    }
+                }
+                Divider()
                 Button(localized("canvas.organize.byWorkspace")) {
                     organizeCardsByWorkspace()
                 }
@@ -1036,11 +931,10 @@ private struct GlobalCanvasCardView: View {
     var body: some View {
         VStack(spacing: 0) {
             titleBar
-            if let summary {
+            if let summary, summary.needsAttention || summary.changedFileCount > 0 {
                 HStack {
-                    Text(summary.context).lineLimit(1)
-                    Spacer()
                     Text(localized(summary.statusKey))
+                    Spacer()
                     if summary.isUnread { Circle().fill(LineyTheme.accent).frame(width: 5, height: 5) }
                     if summary.changedFileCount > 0 {
                         Text("\(summary.changedFileCount) " + localized("workbench.changed"))
@@ -1163,7 +1057,6 @@ private struct GlobalCanvasCardView: View {
                 },
                 restoreFocusPaneID: card.isSelected ? card.controller.focusedPaneID : nil
             )
-            .padding(10)
             .background(LineyTheme.paneBackground)
         }
     }
@@ -1209,6 +1102,7 @@ struct WorkspaceCanvasLiveNodeView: View {
                     session: session,
                     isFocused: sessionController.focusedPaneID == leaf.paneID,
                     allowsInteraction: allowsInteraction,
+                    showsHeader: sessionController.sessions.count > 1,
                     onActivate: { onActivate?(leaf.paneID) },
                     shouldRestoreFocus: restoreFocusPaneID == leaf.paneID
                 )
@@ -1289,6 +1183,7 @@ private struct WorkspaceCanvasTerminalPane: View {
     @ObservedObject var session: ShellSession
     let isFocused: Bool
     let allowsInteraction: Bool
+    var showsHeader = true
     var onActivate: (() -> Void)? = nil
     var shouldRestoreFocus = false
 
@@ -1298,6 +1193,7 @@ private struct WorkspaceCanvasTerminalPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if showsHeader {
             HStack(spacing: 8) {
                 Circle()
                     .fill(session.hasActiveProcess ? LineyTheme.success : LineyTheme.warning)
@@ -1318,6 +1214,7 @@ private struct WorkspaceCanvasTerminalPane: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(isFocused ? LineyTheme.panelRaised : LineyTheme.paneHeaderBackground)
+            }
 
             TerminalHostView(session: session, shouldRestoreFocus: shouldRestoreFocus, onActivate: onActivate)
                 .background(LineyTheme.paneBackground)
@@ -1326,7 +1223,7 @@ private struct WorkspaceCanvasTerminalPane: View {
         .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .stroke(isFocused ? LineyTheme.accent.opacity(0.4) : LineyTheme.border, lineWidth: 1)
+                .stroke(showsHeader ? (isFocused ? LineyTheme.accent.opacity(0.4) : LineyTheme.border) : .clear, lineWidth: 1)
         )
     }
 }

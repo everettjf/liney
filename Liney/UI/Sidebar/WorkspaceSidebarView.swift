@@ -59,7 +59,9 @@ struct WorkspaceSidebarView: View {
             SidebarRunningProjectsStrip()
                 .environmentObject(store)
 
-            StandaloneTerminalSidebar(query: query)
+            if !store.standaloneTerminals.isEmpty {
+                StandaloneTerminalSidebar(query: query)
+            }
 
             WorkspaceOutlineSidebar(query: query, onOpenRepository: { store.addWorkspaceFromOpenPanel() }, onConnectSSH: { store.presentConnectSSH() })
                 .environmentObject(store)
@@ -83,12 +85,6 @@ private struct StandaloneTerminalSidebar: View {
                 }
                 .buttonStyle(.plain)
                 Spacer()
-                Button { store.createStandaloneTerminal() } label: {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.plain)
-                .help(localization.string("workbench.newTerminal"))
-                .accessibilityLabel(localization.string("workbench.newTerminal"))
             }
             .foregroundStyle(LineyTheme.secondaryText)
             if expanded {
@@ -104,6 +100,10 @@ private struct StandaloneTerminalSidebar: View {
         }
         .padding(10)
         .overlay(alignment: .bottom) { Divider() }
+        .onAppear { expanded = true }
+        .onChange(of: store.standaloneTerminals.count) { old, new in
+            if new > old { expanded = true }
+        }
     }
 }
 

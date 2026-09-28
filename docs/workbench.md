@@ -69,6 +69,22 @@ The checklist remains open until each scenario is verified; a successful build a
 
 ## Handoff / outstanding verification
 
+### UI follow-up
+
+- Empty standalone sections are hidden; creating a terminal expands the section.
+  The sidebar plus was removed. The main toolbar creation menu sits immediately
+  before Toggle File Tree, with Home and local-current-directory actions.
+- Canvas uses one shared search/layout/scope toolbar. Picker labels are hidden
+  visually (retained for accessibility), with compact menu fallback. Free layout
+  keeps organize/zoom controls, with archived/project filters in the organize menu.
+  Single-pane cards omit redundant inner chrome; split panes retain their headers.
+- Overview uses a compact all-clear line, wider small-count recent cards, and
+  a collapsed directory instead of repeating every terminal by default.
+- Follow-up Debug build and 15 workbench/tab tests passed. An isolated interactive
+  fixture verified the single Canvas toolbar, removed inner pane chrome, layout
+  switching and collapsed Overview directory. Production toolbar placement,
+  empty/single-item states and narrow-window behavior still need user smoke checks.
+
 - Source is on `codex/terminal-workbench`; issue #160 exists. On 2026-09-28,
   the user explicitly authorized pushing this implementation to the public
   `everettjf/liney` repository and creating a PR. Keep the PR in draft until
