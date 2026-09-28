@@ -69,10 +69,10 @@ The checklist remains open until each scenario is verified; a successful build a
 
 ## Handoff / outstanding verification
 
-- Source is on `codex/terminal-workbench`; issue #160 exists. PR publication is
-  blocked by automatic approval review, which requires explicit authorization
-  to push to the public `everettjf/liney` repository despite verified ADMIN access.
-  Do not bypass this gate through another upload mechanism.
+- Source is on `codex/terminal-workbench`; issue #160 exists. On 2026-09-28,
+  the user explicitly authorized pushing this implementation to the public
+  `everettjf/liney` repository and creating a PR. Keep the PR in draft until
+  the outstanding release checks are complete.
 - Finish the remaining production-app manual checklist, including actual IME
   composition, text selection, scrolling, splitting and sidebar keyboard use.
 - The real-surface harness proves surface/session reuse and persistence counts;
