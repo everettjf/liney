@@ -24,6 +24,7 @@ Debug builds expose an isolated fixture:
 /path/to/Liney.app/Contents/MacOS/Liney workbench-smoke
 /path/to/Liney.app/Contents/MacOS/Liney workbench-smoke --interactive
 /path/to/Liney.app/Contents/MacOS/Liney workbench-smoke --interactive --production-ui
+/path/to/Liney.app/Contents/MacOS/Liney workbench-smoke --interactive --production-ui --narrow
 ```
 
 The fixture uses a unique temporary persistence directory and twelve standalone terminals;
@@ -32,17 +33,19 @@ surface creation counts and standalone persistence while switching Canvas and Ov
 variant supports visual/focus checks and stays open until explicitly terminated.
 The `--production-ui` variant starts with no workspaces and hosts the actual
 main window, toolbar and sheets using the same isolated temporary persistence.
+Adding `--narrow` seeds one waiting terminal and opens a 760-point-wide window
+to exercise compact content layouts (below the normal app's 1120-point minimum).
 
 ## Release acceptance checklist
 
-- [ ] No-project creation, explicit-directory creation, rename, running-process close protection.
+- [x] No-project creation, explicit-directory creation, rename, running-process close protection.
 - [ ] Restart restores multiple tabs, splits, selected tab and directory without flattening the layout.
 - [ ] Agent waiting/error updates both surfaces and navigates to the reported pane.
 - [ ] Dirty plus failed checks yield one attention row for the worktree, with freshness/error labels.
-- [ ] Twelve started tabs retain session/process identity across view changes; dormant tabs stay idle.
+- [x] Twelve started tabs retain session/surface identity across view changes; dormant tabs stay idle.
 - [ ] Pin scope, filtering, expansion/return, free-layout compatibility and stable card order.
 - [ ] Keyboard navigation, Chinese input/composition, selection, terminal scrolling and splitting.
-- [ ] Full build, relevant automated tests and recorded manual smoke results.
+- [x] Full build, relevant automated tests and recorded manual smoke results.
 
 The checklist remains open until each scenario is verified; a successful build alone does not establish runtime acceptance.
 
@@ -85,8 +88,8 @@ The checklist remains open until each scenario is verified; a successful build a
   a collapsed directory instead of repeating every terminal by default.
 - Follow-up Debug build and 15 workbench/tab tests passed. An isolated interactive
   fixture verified the single Canvas toolbar, removed inner pane chrome, layout
-  switching and collapsed Overview directory. Narrow-window behavior remains a
-  release check.
+  switching and collapsed Overview directory. The later narrow-window checks
+  below cover the compact layout.
 
 ### Menu and production-window acceptance
 
@@ -107,6 +110,23 @@ The checklist remains open until each scenario is verified; a successful build a
   tests. Repeated real-surface smoke passed with twelve surfaces before/after,
   twelve sessions and twelve restored records. IME composition and exhaustive
   keyboard/selection/scrolling checks are still not claimed as verified.
+
+### Additional acceptance and CI
+
+- At commit `2e6beac`, remote lint, macOS 14 universal build, macOS 15 build/tests,
+  and macOS 14 runtime smoke all completed successfully.
+- Created a real left/right split, entered `LEFT_OK` and `RIGHT_OK` commands in
+  their respective free-layout panes, and verified separate output. Selecting
+  `LEFT_OK` highlighted text without moving the card. Scrolling `seq 1 100`
+  revealed older output while the canvas zoom stayed at 114%.
+- At 760 points, Canvas switched to compact layout/scope menus without vertical
+  labels or overlapping controls. Overview's reminder and single recent card
+  remained readable. This is a stress case below the app's 1120-point minimum.
+- Actual Chinese IME composition is still pending: the machine's enabled input
+  sources are U.S. and Character Palette only. Switching the existing input
+  source and typing `nihao` produced literal Latin text, not composition.
+  Await authorization before adding a temporary Pinyin input source; Chinese
+  paste/output and automated marked-text tests are not substitutes for it.
 
 - Source is on `codex/terminal-workbench`; issue #160 exists. On 2026-09-28,
   the user explicitly authorized pushing this implementation to the public

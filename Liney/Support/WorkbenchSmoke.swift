@@ -19,7 +19,8 @@ enum WorkbenchSmoke {
         let store = WorkspaceStore(persistsWorkspaceState: true, persistenceCoordinator: persistence,
             terminalHistoryCoordinator: TerminalHistoryCoordinator(persistence: TerminalHistoryPersistence(directory: directory.appendingPathComponent("history"))))
         let productionUI = interactive && CommandLine.arguments.contains("--production-ui")
-        let count = productionUI ? 0 : 12
+        let narrow = interactive && CommandLine.arguments.contains("--narrow")
+        let count = productionUI ? (narrow ? 1 : 0) : 12
         for index in 0..<count {
             let workspace = store.createStandaloneTerminal(at: NSTemporaryDirectory())
             workspace.name = "Terminal \(index + 1)"
@@ -27,13 +28,13 @@ enum WorkbenchSmoke {
         if let first = store.workspaces.first, let paneID = first.paneOrder.first {
             AgentStatusStore.shared.update(pane: paneID, state: .waiting, title: "Choose the migration strategy")
         }
-        store.isCanvasPresented = !productionUI
+        store.isCanvasPresented = !productionUI || narrow
         let root = productionUI ? AnyView(MainWindowView()) : AnyView(WorkbenchSmokeRoot())
         let hosting = NSHostingController(rootView: root.environmentObject(store))
         hosting.sizingOptions = []
         let window = NSWindow(contentViewController: hosting)
         window.title = "Liney Workbench Acceptance"
-        window.setContentSize(NSSize(width: 1280, height: 850))
+        window.setContentSize(narrow ? NSSize(width: 760, height: 600) : NSSize(width: 1280, height: 850))
         window.styleMask = [.titled, .closable, .resizable, .miniaturizable]
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
