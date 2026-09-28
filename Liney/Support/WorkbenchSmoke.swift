@@ -30,7 +30,11 @@ enum WorkbenchSmoke {
         }
         store.isCanvasPresented = !productionUI || narrow
         let root = productionUI ? AnyView(MainWindowView()) : AnyView(WorkbenchSmokeRoot())
-        let hosting = NSHostingController(rootView: root.environmentObject(store))
+        let preferencesName = "liney.workbench.fixture.\(directory.lastPathComponent)"
+        guard let preferences = UserDefaults(suiteName: preferencesName) else { return 1 }
+        defer { preferences.removePersistentDomain(forName: preferencesName) }
+        preferences.set(true, forKey: "canvas.workbench.freeform")
+        let hosting = NSHostingController(rootView: root.environmentObject(store).defaultAppStorage(preferences))
         hosting.sizingOptions = []
         let window = NSWindow(contentViewController: hosting)
         window.title = "Liney Workbench Acceptance"
@@ -56,6 +60,22 @@ enum WorkbenchSmoke {
         store.isOverviewPresented = false
         store.isCanvasPresented = true
         settle()
+        let originalCanvas = store.globalCanvasState
+        store.isCanvasPresented = false
+        settle()
+        store.globalCanvasState.offsetX = -100_000
+        store.globalCanvasState.offsetY = -100_000
+        store.isCanvasPresented = true
+        settle()
+        func hostCount(_ view: NSView) -> Int {
+            (view is TerminalViewContainer ? 1 : 0) + view.subviews.reduce(0) { $0 + hostCount($1) }
+        }
+        let offscreenHosts = hostCount(hosting.view)
+        store.isCanvasPresented = false
+        settle()
+        store.globalCanvasState = originalCanvas
+        store.isCanvasPresented = true
+        settle()
         let after = store.workspaces.flatMap { $0.sessionController.sessions.values }
         let finalSurfaceCount = TerminalDiagnostics.shared.entries.filter { $0.message.contains("event=surface-create") }.count
         let unchanged = identities == after.map { ObjectIdentifier($0) } && pids == after.map(\.pid)
@@ -63,10 +83,10 @@ enum WorkbenchSmoke {
         store.persist()
         store.flushPendingPersistence()
         let restored = persistence.loadWorkspaceState().value
-        let valid = unchanged && restored.workspaces.count == 12 && restored.workspaces.allSatisfy(\.settings.isStandaloneTerminal)
+        let valid = unchanged && offscreenHosts == 1 && restored.workspaces.count == 12 && restored.workspaces.allSatisfy(\.settings.isStandaloneTerminal)
         window.orderOut(nil)
         sessions.forEach { $0.terminate() }
-        output.write(Data("surfaces=\(surfaceCount) after=\(finalSurfaceCount) sessions=\(sessions.count) restored=\(restored.workspaces.count)\n".utf8))
+        output.write(Data("surfaces=\(surfaceCount) after=\(finalSurfaceCount) sessions=\(sessions.count) restored=\(restored.workspaces.count) offscreenHosts=\(offscreenHosts)\n".utf8))
         output.write(Data(((valid ? "LINEY_WORKBENCH_SMOKE_OK" : "LINEY_WORKBENCH_SMOKE_FAILED") + "\n").utf8))
         return valid ? 0 : 1
     }

@@ -138,6 +138,8 @@ struct FreeformCanvasView: View {
                             let layout = cardLayouts[card.id] ?? fallbackLayout(for: index)
                             let screenCenter = screenPosition(for: layout.position)
 
+                            if WorkbenchViewport.shouldMount(center: screenCenter, size: layout.size,
+                                scale: canvasScale, viewport: proxy.size, isSelected: card.isSelected) {
                             GlobalCanvasCardView(
                                 card: card,
                                 summary: workbenchItems.first(where: { $0.id == card.id }),
@@ -174,6 +176,7 @@ struct FreeformCanvasView: View {
                             .scaleEffect(canvasScale, anchor: .center)
                             .position(x: screenCenter.x, y: screenCenter.y)
                             .zIndex(zIndex(for: card, layout: layout))
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

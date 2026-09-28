@@ -35,6 +35,8 @@ The `--production-ui` variant starts with no workspaces and hosts the actual
 main window, toolbar and sheets using the same isolated temporary persistence.
 Adding `--narrow` seeds one waiting terminal and opens a 760-point-wide window
 to exercise compact content layouts (below the normal app's 1120-point minimum).
+Fixture UI preferences use a separate defaults suite, so layout checks do not
+change the user's Canvas mode or sidebar expansion preference.
 
 ## Release acceptance checklist
 
@@ -127,6 +129,17 @@ The checklist remains open until each scenario is verified; a successful build a
   source and typing `nihao` produced literal Latin text, not composition.
   Await authorization before adding a temporary Pinyin input source; Chinese
   paste/output and automated marked-text tests are not substitutes for it.
+
+### Offscreen resource acceptance
+
+- Free-layout cards outside the viewport plus a 160-point prefetch margin now
+  unmount their terminal hosts. The selected card stays mounted to preserve
+  focus. Session controllers and terminal surfaces remain owned by workspaces.
+- Seventeen focused workbench/tab tests passed, including viewport boundaries,
+  zoomed bounds, pre-layout dimensions and selected-card retention.
+- The real-surface smoke now moves all cards far offscreen and back, checking
+  the actual native host count as well as session and surface identity. Passed:
+  `surfaces=12 after=12 sessions=12 restored=12 offscreenHosts=1`.
 
 - Source is on `codex/terminal-workbench`; issue #160 exists. On 2026-09-28,
   the user explicitly authorized pushing this implementation to the public

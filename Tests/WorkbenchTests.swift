@@ -52,6 +52,17 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertNil(store.selectedStandaloneTerminalDirectory)
     }
 
+    func testFreeformViewportKeepsFocusAndNearbyCardsButCullsDistantCards() {
+        let viewport = CGSize(width: 800, height: 600)
+        let card = CGSize(width: 400, height: 300)
+        XCTAssertTrue(WorkbenchViewport.shouldMount(center: CGPoint(x: 400, y: 300), size: card, scale: 1, viewport: viewport, isSelected: false))
+        XCTAssertTrue(WorkbenchViewport.shouldMount(center: CGPoint(x: 1000, y: 300), size: card, scale: 1, viewport: viewport, isSelected: false))
+        XCTAssertFalse(WorkbenchViewport.shouldMount(center: CGPoint(x: 1600, y: 300), size: card, scale: 1, viewport: viewport, isSelected: false))
+        XCTAssertTrue(WorkbenchViewport.shouldMount(center: CGPoint(x: 1600, y: 300), size: card, scale: 1, viewport: viewport, isSelected: true))
+        XCTAssertTrue(WorkbenchViewport.shouldMount(center: CGPoint(x: 1600, y: 300), size: card, scale: 4, viewport: viewport, isSelected: false))
+        XCTAssertTrue(WorkbenchViewport.shouldMount(center: CGPoint(x: 1600, y: 300), size: card, scale: 1, viewport: .zero, isSelected: false))
+    }
+
     func testFailedCIAndDirtyWorktreeProduceOneAttentionRow() throws {
         var record = WorkspaceModel(localDirectoryPath: "/tmp").snapshot()
         record.kind = .repository

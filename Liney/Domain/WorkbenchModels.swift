@@ -1,4 +1,16 @@
 import Foundation
+import CoreGraphics
+
+enum WorkbenchViewport {
+    static func shouldMount(center: CGPoint, size: CGSize, scale: CGFloat, viewport: CGSize, isSelected: Bool) -> Bool {
+        // Keep the focused card mounted and prefetch nearby cards to avoid churn at edges.
+        guard !isSelected, viewport.width > 0, viewport.height > 0 else { return true }
+        let bounds = CGRect(x: center.x - size.width * scale / 2,
+                            y: center.y - size.height * scale / 2,
+                            width: size.width * scale, height: size.height * scale)
+        return CGRect(origin: .zero, size: viewport).insetBy(dx: -160, dy: -160).intersects(bounds)
+    }
+}
 
 @MainActor
 struct WorkbenchAttention: Identifiable {
