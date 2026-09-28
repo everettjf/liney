@@ -34,6 +34,24 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(normalized.globalCanvasState.cardLayouts, [layout])
     }
 
+    func testStandaloneCreationUsesHomeOrExplicitDirectory() {
+        let store = makeStore()
+        XCTAssertNil(store.selectedStandaloneTerminalDirectory)
+        let home = store.createStandaloneTerminal()
+        XCTAssertEqual(home.activeWorktreePath, FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path)
+        XCTAssertTrue(home.isStandaloneTerminal)
+        let temporary = store.createStandaloneTerminal(at: "/private/tmp")
+        let expectedDirectory = URL(fileURLWithPath: "/private/tmp").standardizedFileURL.path
+        XCTAssertEqual(temporary.activeWorktreePath, expectedDirectory)
+        XCTAssertEqual(store.selectedStandaloneTerminalDirectory, expectedDirectory)
+        XCTAssertTrue(temporary.isStandaloneTerminal)
+        XCTAssertEqual(store.standaloneTerminals.count, 2)
+        store.closeStandaloneTerminal(temporary)
+        store.closeStandaloneTerminal(home)
+        XCTAssertTrue(store.standaloneTerminals.isEmpty)
+        XCTAssertNil(store.selectedStandaloneTerminalDirectory)
+    }
+
     func testFailedCIAndDirtyWorktreeProduceOneAttentionRow() throws {
         var record = WorkspaceModel(localDirectoryPath: "/tmp").snapshot()
         record.kind = .repository

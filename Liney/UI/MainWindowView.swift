@@ -316,25 +316,8 @@ struct MainWindowView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 6 * uiScale) {
-                    Menu {
-                        Button {
-                            store.createStandaloneTerminal()
-                        } label: {
-                            Text(localized("workbench.newTerminal") +
-                                (LineyKeyboardShortcuts.effectiveShortcut(for: .newStandaloneTerminal, in: store.appSettings)
-                                    .map { "  " + $0.displayString } ?? ""))
-                        }
-                        Button(localized("workbench.atDirectory")) {
-                            guard let workspace = store.selectedWorkspace, !workspace.isRemote else { return }
-                            let directory = workspace.sessionController.focusedPaneID
-                                .flatMap { workspace.sessionController.session(for: $0)?.effectiveWorkingDirectory }
-                                ?? workspace.activeWorktreePath
-                            store.createStandaloneTerminal(at: directory)
-                        }
-                        .disabled(store.selectedWorkspace == nil || store.selectedWorkspace?.isRemote == true)
-                    } label: {
-                        Image(systemName: "plus")
-                            .frame(width: 20 * uiScale, height: 20 * uiScale)
+                    ToolbarMenuButton(systemName: "plus", title: localized("workbench.newTerminal"), scale: uiScale, tint: .primary) { anchor in
+                        present(menu: makeStandaloneTerminalMenu(), from: anchor)
                     }
                     .help(localized("workbench.newTerminal"))
                     .accessibilityLabel(localized("workbench.newTerminal"))
@@ -886,6 +869,22 @@ struct MainWindowView: View {
             }
         }
 
+        return menu
+    }
+
+    private func makeStandaloneTerminalMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let shortcut = LineyKeyboardShortcuts.effectiveShortcut(for: .newStandaloneTerminal, in: store.appSettings)
+        menu.addActionItem(title: localized("workbench.newTerminal") + (shortcut.map { "  " + $0.displayString } ?? "")) {
+            store.createStandaloneTerminal()
+        }
+        let directory = store.selectedStandaloneTerminalDirectory
+        menu.addActionItem(title: localized("workbench.atDirectory") + (directory.map { " — " + $0.abbreviatedPath } ?? ""),
+                           isEnabled: directory != nil, toolTip: directory) {
+            guard let directory else { return }
+            store.createStandaloneTerminal(at: directory)
+        }
         return menu
     }
 

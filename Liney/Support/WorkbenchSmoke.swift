@@ -18,14 +18,18 @@ enum WorkbenchSmoke {
         )
         let store = WorkspaceStore(persistsWorkspaceState: true, persistenceCoordinator: persistence,
             terminalHistoryCoordinator: TerminalHistoryCoordinator(persistence: TerminalHistoryPersistence(directory: directory.appendingPathComponent("history"))))
-        for index in 1...12 {
+        let productionUI = interactive && CommandLine.arguments.contains("--production-ui")
+        let count = productionUI ? 0 : 12
+        for index in 0..<count {
             let workspace = store.createStandaloneTerminal(at: NSTemporaryDirectory())
-            workspace.name = "Terminal \(index)"
+            workspace.name = "Terminal \(index + 1)"
         }
-        guard let first = store.workspaces.first, let paneID = first.paneOrder.first else { return 1 }
-        AgentStatusStore.shared.update(pane: paneID, state: .waiting, title: "Choose the migration strategy")
-        store.isCanvasPresented = true
-        let hosting = NSHostingController(rootView: WorkbenchSmokeRoot().environmentObject(store))
+        if let first = store.workspaces.first, let paneID = first.paneOrder.first {
+            AgentStatusStore.shared.update(pane: paneID, state: .waiting, title: "Choose the migration strategy")
+        }
+        store.isCanvasPresented = !productionUI
+        let root = productionUI ? AnyView(MainWindowView()) : AnyView(WorkbenchSmokeRoot())
+        let hosting = NSHostingController(rootView: root.environmentObject(store))
         hosting.sizingOptions = []
         let window = NSWindow(contentViewController: hosting)
         window.title = "Liney Workbench Acceptance"

@@ -23,12 +23,15 @@ Debug builds expose an isolated fixture:
 ```sh
 /path/to/Liney.app/Contents/MacOS/Liney workbench-smoke
 /path/to/Liney.app/Contents/MacOS/Liney workbench-smoke --interactive
+/path/to/Liney.app/Contents/MacOS/Liney workbench-smoke --interactive --production-ui
 ```
 
 The fixture uses a unique temporary persistence directory and twelve standalone terminals;
 it does not load the user's saved workspaces. The automated variant checks session identity,
 surface creation counts and standalone persistence while switching Canvas and Overview. The interactive
 variant supports visual/focus checks and stays open until explicitly terminated.
+The `--production-ui` variant starts with no workspaces and hosts the actual
+main window, toolbar and sheets using the same isolated temporary persistence.
 
 ## Release acceptance checklist
 
@@ -82,8 +85,28 @@ The checklist remains open until each scenario is verified; a successful build a
   a collapsed directory instead of repeating every terminal by default.
 - Follow-up Debug build and 15 workbench/tab tests passed. An isolated interactive
   fixture verified the single Canvas toolbar, removed inner pane chrome, layout
-  switching and collapsed Overview directory. Production toolbar placement,
-  empty/single-item states and narrow-window behavior still need user smoke checks.
+  switching and collapsed Overview directory. Narrow-window behavior remains a
+  release check.
+
+### Menu and production-window acceptance
+
+- Menu labels now distinguish Home from the current directory in English and
+  Chinese. The current-directory item shows its target and is disabled without
+  an existing local directory.
+- Manual testing found stale menu directory capture after `cd`; the toolbar now
+  builds its native menu at open time rather than capturing a SwiftUI render's
+  directory. Verified `cd /private/tmp` updates the label and new shell `pwd`
+  resolves to `/tmp` (the same macOS directory after URL normalization).
+- Passed isolated production-window checks: empty sidebar hides Terminals;
+  Home creation reveals the group; current-directory creation; rename sheet
+  save; `sleep 300` triggers close confirmation; Cancel preserves the running
+  session; stopping the command permits closure; final closure hides the group.
+- Passed Overview empty state and single-card Canvas pin, expand/return and
+  free-layout pinned scope checks. No user workspace was loaded by this fixture.
+- Final build/test run passed all 97 workbench, tab and Ghostty input-support
+  tests. Repeated real-surface smoke passed with twelve surfaces before/after,
+  twelve sessions and twelve restored records. IME composition and exhaustive
+  keyboard/selection/scrolling checks are still not claimed as verified.
 
 - Source is on `codex/terminal-workbench`; issue #160 exists. On 2026-09-28,
   the user explicitly authorized pushing this implementation to the public

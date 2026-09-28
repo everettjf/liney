@@ -818,6 +818,17 @@ final class WorkspaceStore: ObservableObject {
         workspaces.filter(\.isStandaloneTerminal)
     }
 
+    var selectedStandaloneTerminalDirectory: String? {
+        guard let workspace = selectedWorkspace, !workspace.isRemote else { return nil }
+        let directory = workspace.sessionController.focusedPaneID
+            .flatMap { workspace.sessionController.session(for: $0)?.effectiveWorkingDirectory }
+            ?? workspace.activeWorktreePath
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: directory, isDirectory: &isDirectory),
+              isDirectory.boolValue else { return nil }
+        return directory
+    }
+
     @discardableResult
     func createStandaloneTerminal(at directory: String? = nil, keepCanvas: Bool = false) -> WorkspaceModel {
         let path = directory ?? FileManager.default.homeDirectoryForCurrentUser.path
