@@ -27,7 +27,7 @@ Debug builds expose an isolated fixture:
 
 The fixture uses a unique temporary persistence directory and twelve standalone terminals;
 it does not load the user's saved workspaces. The automated variant checks session identity,
-process identity and standalone persistence while switching Canvas and Overview. The interactive
+surface creation counts and standalone persistence while switching Canvas and Overview. The interactive
 variant supports visual/focus checks and stays open until explicitly terminated.
 
 ## Release acceptance checklist
@@ -54,9 +54,18 @@ The checklist remains open until each scenario is verified; a successful build a
   Aggregated rows expose secondary actions so one waiting tab cannot hide another.
 - Real Ghostty smoke passed: `surfaces=12 after=12 sessions=12 restored=12` and
   `LINEY_WORKBENCH_SMOKE_OK`.
-- Manual UI/IME checks remain pending: the desktop is locked and computer-use
-  cannot inspect or interact with the acceptance window. Do not treat this as a
-  completed manual smoke test.
+- After desktop unlock, isolated interactive checks passed: readable two-column
+  live grid, shared pin scope in grid/free layout, expansion and return in both
+  layouts, Overview waiting-state display and navigation back to the original
+  terminal with its output intact. The sidebar showed twelve separate standalone
+  entries and exposed rename, create-here, open-as-project and close actions.
+- ASCII keyboard input and execution passed. A Chinese paste initially produced
+  a computer-use timeout, but subsequent inspection showed the exact pasted text;
+  executing it printed `liney-中文-input-ok` correctly. This verifies paste/output,
+  not Chinese IME composition. No production input defect was established.
+- The fixture does not cover every production sheet/menu. Rename completion,
+  actual IME composition, selection, scrolling, split interactions and full
+  keyboard navigation remain manual release checks, not completed acceptance.
 
 ## Handoff / outstanding verification
 
@@ -64,7 +73,7 @@ The checklist remains open until each scenario is verified; a successful build a
   blocked by automatic approval review, which requires explicit authorization
   to push to the public `everettjf/liney` repository despite verified ADMIN access.
   Do not bypass this gate through another upload mechanism.
-- Await desktop unlock for the manual checklist, including actual IME composition,
-  text selection, scrolling, focus after expand/return, and sidebar keyboard use.
+- Finish the remaining production-app manual checklist, including actual IME
+  composition, text selection, scrolling, splitting and sidebar keyboard use.
 - The real-surface harness proves surface/session reuse and persistence counts;
   it does not substitute for those manual interaction checks.
