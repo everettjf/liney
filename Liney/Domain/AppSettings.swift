@@ -478,7 +478,12 @@ struct AppSettings: Codable, Hashable {
         hooksEnabled: Bool = false,
         directoryTreeEnabled: Bool = false
     ) {
-        let normalizedKeyboardShortcutOverrides = LineyKeyboardShortcuts.normalizedOverrides(keyboardShortcutOverrides)
+        var normalizedKeyboardShortcutOverrides = LineyKeyboardShortcuts.normalizedOverrides(keyboardShortcutOverrides)
+        // A newly introduced default must not erase an existing user's quick command.
+        if keyboardShortcutOverrides[LineyShortcutAction.newStandaloneTerminal.rawValue] == nil,
+           quickCommandPresets.contains(where: { $0.shortcut == LineyShortcutAction.newStandaloneTerminal.defaultShortcut }) {
+            normalizedKeyboardShortcutOverrides[LineyShortcutAction.newStandaloneTerminal.rawValue] = KeyboardShortcutOverride(shortcut: nil)
+        }
         let normalizedAgentPresets = lineyNormalizedAgentPresets(agentPresets)
         let normalizedSSHPresets = lineyNormalizedSSHPresets(sshPresets)
 
@@ -988,6 +993,7 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
     case nextWorkspace
     case previousWorkspace
     case newTab
+    case newStandaloneTerminal
     case closeTab
     case nextTab
     case previousTab
@@ -1039,7 +1045,7 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
              .nextWorkspace,
              .previousWorkspace:
             return .workspace
-        case .newTab,
+        case .newStandaloneTerminal, .newTab,
              .closeTab,
              .nextTab,
              .previousTab,
@@ -1069,6 +1075,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
 
     var title: String {
         switch self {
+        case .newStandaloneTerminal:
+            return lineyLocalizedSettingsString("workbench.newTerminal")
         case .hideApp:
             return lineyLocalizedSettingsString("settings.shortcuts.action.hideApp.title")
         case .hideOtherApps:
@@ -1216,6 +1224,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return lineyLocalizedSettingsString("settings.shortcuts.action.nextWorkspace.subtitle")
         case .previousWorkspace:
             return lineyLocalizedSettingsString("settings.shortcuts.action.previousWorkspace.subtitle")
+        case .newStandaloneTerminal:
+            return lineyLocalizedSettingsString("workbench.newTerminalDetail")
         case .newTab:
             return lineyLocalizedSettingsString("settings.shortcuts.action.newTab.subtitle")
         case .closeTab:
@@ -1313,6 +1323,8 @@ enum LineyShortcutAction: String, CaseIterable, Hashable, Identifiable {
             return StoredShortcut(key: "]", command: true, shift: true, option: false, control: false)
         case .previousWorkspace:
             return StoredShortcut(key: "[", command: true, shift: true, option: false, control: false)
+        case .newStandaloneTerminal:
+            return StoredShortcut(key: "t", command: true, shift: true, option: false, control: false)
         case .newTab:
             return StoredShortcut(key: "t", command: true, shift: false, option: false, control: false)
         case .closeTab:
@@ -1756,6 +1768,8 @@ nonisolated struct GitHubWorktreeStatus: Codable, Hashable {
     var pullRequest: GitHubPullRequestSummary?
     var checksSummary: GitHubPullRequestChecksSummary?
     var latestRun: GitHubWorkflowRunSummary?
+    var refreshedAt: Date? = nil
+    var refreshError: String? = nil
 }
 
 enum GitHubIntegrationState: Hashable {

@@ -94,6 +94,7 @@ final class WorkspaceStore: ObservableObject {
     private let initialWorkspaceState: PersistedWorkspaceState?
     private let initialAppSettings: AppSettings?
     private let gitRepositoryService = GitRepositoryService()
+    private let workbenchGitHubClient = GitHubCLIService()
     private let remoteGitService = RemoteGitService()
     private let updaterController = AppUpdaterController.shared
     private let remoteSessionCoordinator = RemoteSessionCoordinator()
@@ -169,7 +170,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     var sidebarWorkspaces: [WorkspaceModel] {
-        let visible = workspaces.filter { !$0.isArchived }
+        let visible = workspaces.filter { !$0.isArchived && !$0.isStandaloneTerminal }
         return visible.enumerated().sorted { lhs, rhs in
             if lhs.element.isPinned != rhs.element.isPinned {
                 return lhs.element.isPinned && !rhs.element.isPinned
@@ -308,6 +309,12 @@ final class WorkspaceStore: ObservableObject {
 
     private var allCommandPaletteItems: [CommandPaletteItem] {
         var items: [CommandPaletteItem] = [
+            CommandPaletteItem(
+                id: "standalone-terminal", title: localized("workbench.newTerminal"),
+                subtitle: LineyKeyboardShortcuts.effectiveShortcut(for: .newStandaloneTerminal, in: appSettings)?.displayString,
+                group: .sessions, keywords: ["scratch", "terminal", "shell", "independent"],
+                isGlobal: true, kind: .command(.newStandaloneTerminal)
+            ),
             CommandPaletteItem(
                 id: "overview",
                 title: isOverviewPresented ? localized("main.commandPalette.overview.close") : localized("main.commandPalette.overview.open"),
@@ -807,6 +814,66 @@ final class WorkspaceStore: ObservableObject {
         }
     }
 
+    var standaloneTerminals: [WorkspaceModel] {
+        workspaces.filter(\.isStandaloneTerminal)
+    }
+
+    @discardableResult
+    func createStandaloneTerminal(at directory: String? = nil, keepCanvas: Bool = false) -> WorkspaceModel {
+        let path = directory ?? FileManager.default.homeDirectoryForCurrentUser.path
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        let workspace = WorkspaceModel(
+            localDirectoryPath: url.path,
+            name: url.path == NSHomeDirectory() ? "~" : url.lastPathComponent,
+            isStandaloneTerminal: true
+        )
+        workspaces.append(workspace)
+        isOverviewPresented = false
+        if !keepCanvas { isCanvasPresented = false }
+        selectWorkspace(workspace)
+        DispatchQueue.main.async {
+            if let paneID = workspace.sessionController.focusedPaneID {
+                workspace.sessionController.focus(paneID)
+            }
+        }
+        return workspace
+    }
+
+    func closeStandaloneTerminal(_ workspace: WorkspaceModel) {
+        guard workspace.isStandaloneTerminal else { return }
+        if workspace.quitConfirmationSessionCount > 0 {
+            let alert = NSAlert()
+            alert.messageText = localized("workbench.closeRunning")
+            alert.informativeText = localized("workbench.closeRunningDetail")
+            alert.addButton(withTitle: localized("workbench.close"))
+            alert.addButton(withTitle: localized("app.quit.cancel"))
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        for state in workspace.canvasStates() {
+            for tab in state.tabs {
+                workspace.existingTabController(for: state.worktreePath, tabID: tab.id)?
+                    .sessions.values.forEach { session in
+                        AgentStatusStore.shared.clear(pane: session.id)
+                        session.terminate()
+                    }
+            }
+        }
+        terminalHistoryCoordinator.discard(Set(workspace.snapshot().worktreeStates.flatMap { $0.tabs.flatMap { $0.panes.map(\.id) } }))
+        workspaces.removeAll { $0.id == workspace.id }
+        if selectedWorkspaceID == workspace.id { selectedWorkspaceID = workspaces.first?.id }
+        persist()
+    }
+
+    func openTerminalDirectoryAsProject(_ workspace: WorkspaceModel) {
+        let path = workspace.sessionController.focusedPaneID
+            .flatMap { workspace.sessionController.session(for: $0)?.effectiveWorkingDirectory }
+            ?? workspace.activeWorktreePath
+        Task { @MainActor in
+            do { try await openRepositoryWorkspace(at: path, persistAfterChange: true) }
+            catch { presentError(title: localized("main.error.openRepository.title"), message: error.localizedDescription) }
+        }
+    }
+
     func addWorkspaces(at urls: [URL], toGroup groupID: UUID? = nil) async {
         var seenPaths = Set<String>()
         var addedIDs: [UUID] = []
@@ -910,6 +977,7 @@ final class WorkspaceStore: ObservableObject {
         defer { LineyPerformance.signposter.endInterval("SelectWorkspace", interval) }
         selectedWorkspaceID = workspace.id
         workspace.bootstrapIfNeeded()
+        recordWorkbenchVisit(workspace)
         persist()
     }
 
@@ -954,6 +1022,7 @@ final class WorkspaceStore: ObservableObject {
             workspace.switchToWorktree(path: cardID.worktreePath, restartRunning: false)
         }
         workspace.selectTab(cardID.tabID)
+        recordWorkbenchVisit(workspace)
         persist()
     }
 
@@ -1440,9 +1509,10 @@ final class WorkspaceStore: ObservableObject {
             )
             guard isCurrentRefresh(refreshGeneration, for: workspace.id) else { return }
             var changed = workspace.apply(snapshot: snapshot)
-            if !workspace.gitHubStatuses.isEmpty {
-                workspace.gitHubStatuses = [:]
-                changed = true
+            // Network status must not delay terminal startup or local Git navigation.
+            Task { @MainActor [weak self, weak workspace] in
+                guard let self, let workspace else { return }
+                await self.refreshGitHubStatus(for: workspace, generation: refreshGeneration)
             }
             workspace.bootstrapIfNeeded()
             let newWorktreePaths = Set(workspace.worktrees.map(\.path))
@@ -1911,6 +1981,10 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func closePane(in workspace: WorkspaceModel, paneID: UUID) {
+        if workspace.isStandaloneTerminal, workspace.paneOrder == [paneID] {
+            if let tabID = workspace.activeTabID { closeTab(in: workspace, tabID: tabID) }
+            return
+        }
         workspace.closePane(paneID)
         persist()
     }
@@ -1945,20 +2019,28 @@ final class WorkspaceStore: ObservableObject {
 
     func createTab(in workspace: WorkspaceModel) {
         workspace.createTab()
+        recordWorkbenchVisit(workspace)
         persist()
     }
 
     func selectTab(in workspace: WorkspaceModel, tabID: UUID) {
         workspace.selectTab(tabID)
+        recordWorkbenchVisit(workspace)
         persist()
     }
 
     func selectTab(in workspace: WorkspaceModel, index: Int) {
         workspace.selectTab(at: index)
+        recordWorkbenchVisit(workspace)
         persist()
     }
 
     func closeTab(in workspace: WorkspaceModel, tabID: UUID) {
+        if workspace.isStandaloneTerminal, workspace.activeWorktreeState.tabs.count == 1,
+           workspace.activeTabID == tabID {
+            closeStandaloneTerminal(workspace)
+            return
+        }
         workspace.closeTab(tabID)
         persist()
     }
@@ -1985,11 +2067,13 @@ final class WorkspaceStore: ObservableObject {
 
     func selectNextTab(in workspace: WorkspaceModel) {
         workspace.selectNextTab()
+        recordWorkbenchVisit(workspace)
         persist()
     }
 
     func selectPreviousTab(in workspace: WorkspaceModel) {
         workspace.selectPreviousTab()
+        recordWorkbenchVisit(workspace)
         persist()
     }
 
@@ -2727,6 +2811,8 @@ final class WorkspaceStore: ObservableObject {
                 resetCommandPalette()
             }
 
+        case .newStandaloneTerminal:
+            createStandaloneTerminal()
         case .toggleOverview:
             isCanvasPresented = false
             dismissCommandPalette()
@@ -2974,8 +3060,8 @@ final class WorkspaceStore: ObservableObject {
             Task { @MainActor in
                 await refreshWorkspace(workspace)
             }
-        case .gitHubIntegrationStateUpdated:
-            gitHubIntegrationState = .disabled
+        case .gitHubIntegrationStateUpdated(let state):
+            gitHubIntegrationState = state
         case .statusMessage(let text, let tone, let deliverSystemNotification, let workspaceID, let worktreePath):
             statusMessageTask?.cancel()
             if deliverSystemNotification && appSettings.dynamicIslandEnabled {
@@ -3416,7 +3502,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     private func refreshGitHubIntegrationState() async {
-        receive(.gitHubIntegrationStateUpdated(.disabled))
+        receive(.gitHubIntegrationStateUpdated(await workbenchGitHubClient.integrationState()))
     }
 
     private func configureUpdater(checkInBackground: Bool) {
@@ -3556,15 +3642,37 @@ final class WorkspaceStore: ObservableObject {
         }
     }
 
-    private func refreshGitHubStatus(for workspace: WorkspaceModel) async {
-        workspace.gitHubStatuses = [:]
-        receive(.gitHubIntegrationStateUpdated(.disabled))
+    private func refreshGitHubStatus(for workspace: WorkspaceModel, generation: UInt) async {
+        guard workspace.supportsLocalRepositoryFeatures else { return }
+        guard await gitRepositoryService.hasRemote(in: workspace.repositoryRoot) else { return }
+        await refreshGitHubIntegrationState()
+        guard isCurrentRefresh(generation, for: workspace.id), workspaces.contains(where: { $0.id == workspace.id }) else { return }
+        guard case .authorized = gitHubIntegrationState else {
+            for worktree in workspace.worktrees {
+                var stale = workspace.gitHubStatuses[worktree.path] ?? GitHubWorktreeStatus()
+                stale.refreshError = gitHubIntegrationState.summary
+                workspace.gitHubStatuses[worktree.path] = stale
+            }
+            objectWillChange.send()
+            return
+        }
+        let coordinator = WorkspaceGitHubCoordinator(client: workbenchGitHubClient)
+        let result = await coordinator.refreshStatuses(for: workspace, integrationEnabled: true, currentIntegrationState: gitHubIntegrationState)
+        guard isCurrentRefresh(generation, for: workspace.id), workspaces.contains(where: { $0.id == workspace.id }) else { return }
+        workspace.gitHubStatuses = result.statuses
+        if let state = result.integrationStateOverride { gitHubIntegrationState = state }
+        objectWillChange.send()
     }
 
     private func openPullRequest(workspaceID: UUID, worktreePath: String) async {
-        _ = workspaceID
-        _ = worktreePath
-        notifyGitHubFeatureRemoval(localized("main.github.removed.openPullRequests"))
+        guard let workspace = workspace(for: workspaceID) else { return }
+        do {
+            let result = try await WorkspaceGitHubCoordinator(client: workbenchGitHubClient)
+                .openPullRequest(workspace: workspace, worktreePath: worktreePath)
+            applyCoordinatorEffects(result.sideEffects)
+            applyCoordinatorActivities(result.activities)
+            applyStatusUpdate(result.statusUpdate)
+        } catch { presentError(title: localized("workbench.githubError"), message: error.localizedDescription) }
     }
 
     private func markPullRequestReady(workspaceID: UUID, worktreePath: String) async {
@@ -3613,9 +3721,11 @@ final class WorkspaceStore: ObservableObject {
     }
 
     private func openFailingCheckDetails(workspaceID: UUID, worktreePath: String) async {
-        _ = workspaceID
-        _ = worktreePath
-        notifyGitHubFeatureRemoval(localized("main.github.removed.openFailingChecks"))
+        guard let workspace = workspace(for: workspaceID) else { return }
+        let result = WorkspaceGitHubCoordinator(client: workbenchGitHubClient)
+            .openFailingCheckDetails(workspace: workspace, worktreePath: worktreePath)
+        applyCoordinatorEffects(result.sideEffects)
+        applyStatusUpdate(result.statusUpdate)
     }
 
     private func copyFailingCheckURL(workspaceID: UUID, worktreePath: String) async {
@@ -4025,44 +4135,13 @@ final class WorkspaceStore: ObservableObject {
         return String(compact.prefix(72)) + "..."
     }
 
-    private func normalizeLaunchState(_ state: PersistedWorkspaceState) -> PersistedWorkspaceState {
-        guard !state.workspaces.isEmpty else { return state }
-
+    func normalizeLaunchState(_ state: PersistedWorkspaceState) -> PersistedWorkspaceState {
         var normalized = state
-        let selectedWorkspaceID = state.selectedWorkspaceID ?? state.workspaces.first?.id
-        let targetIndex = normalized.workspaces.firstIndex(where: { $0.id == selectedWorkspaceID }) ?? 0
-        var workspace = normalized.workspaces[targetIndex]
-        let activePath = workspace.activeWorktreePath
-        let currentState = workspace.worktreeStates.first(where: { $0.worktreePath == activePath })
-            ?? WorktreeSessionStateRecord.makeDefault(for: activePath)
-
-        let preservedPane: PaneSnapshot
-        if let focusedPaneID = currentState.focusedPaneID,
-           let focusedPane = currentState.panes.first(where: { $0.id == focusedPaneID }) {
-            preservedPane = focusedPane
-        } else if let firstPane = currentState.panes.first {
-            preservedPane = firstPane
-        } else {
-            preservedPane = PaneSnapshot.makeDefault(cwd: activePath)
+        if !state.workspaces.contains(where: { $0.id == state.selectedWorkspaceID }) {
+            normalized.selectedWorkspaceID = state.workspaces.first?.id
         }
-
-        let startupState = WorktreeSessionStateRecord(
-            worktreePath: activePath,
-            layout: .pane(PaneLeaf(paneID: preservedPane.id)),
-            panes: [preservedPane],
-            focusedPaneID: preservedPane.id,
-            zoomedPaneID: nil
-        )
-
-        if let stateIndex = workspace.worktreeStates.firstIndex(where: { $0.worktreePath == activePath }) {
-            workspace.worktreeStates[stateIndex] = startupState
-        } else {
-            workspace.worktreeStates.append(startupState)
-        }
-
-        normalized.workspaces[targetIndex] = workspace
-        normalized.globalCanvasState = normalized.globalCanvasState.pruned(
-            to: validGlobalCanvasCardIDs(in: normalized.workspaces)
+        normalized.globalCanvasState = state.globalCanvasState.pruned(
+            to: validGlobalCanvasCardIDs(in: state.workspaces)
         )
         return normalized
     }
@@ -4070,7 +4149,7 @@ final class WorkspaceStore: ObservableObject {
     private func ensureDefaultWorkspace() {
         guard workspaces.isEmpty else { return }
         let homePath = FileManager.default.homeDirectoryForCurrentUser.path
-        let workspace = WorkspaceModel(localDirectoryPath: homePath)
+        let workspace = WorkspaceModel(localDirectoryPath: homePath, name: "~", isStandaloneTerminal: true)
         workspaces = [workspace]
         selectedWorkspaceID = workspace.id
     }
@@ -4100,6 +4179,7 @@ final class WorkspaceStore: ObservableObject {
         let homePath = FileManager.default.homeDirectoryForCurrentUser.path
         guard localWorkspaces.count == 1,
               let localWorkspace = localWorkspaces.first,
+              !localWorkspace.isStandaloneTerminal,
               localWorkspace.repositoryRoot == homePath,
               localWorkspace.name == "Terminal" else { return }
         workspaces.removeAll { $0.id == localWorkspace.id }

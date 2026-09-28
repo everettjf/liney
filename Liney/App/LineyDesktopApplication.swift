@@ -193,6 +193,10 @@ public final class LineyDesktopApplication: NSObject {
         activeStore?.dispatch(.toggleOverview)
     }
 
+    public func createStandaloneTerminal() {
+        activeStore?.createStandaloneTerminal()
+    }
+
     public func presentSettings() {
         guard let store = activeStore else { return }
         store.presentSettings(for: store.selectedWorkspace)

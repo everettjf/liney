@@ -10,6 +10,28 @@ import XCTest
 
 @MainActor
 final class WorkspaceGitHubCoordinatorTests: XCTestCase {
+    func testFailedRefreshPreservesLastSuccessfulStatusAndTimestamp() async {
+        let workspace = makeCoordinatorWorkspace(name: "App", rootPath: "/tmp/app", prNumber: 101)
+        let previousDate = Date(timeIntervalSince1970: 123)
+        workspace.gitHubStatuses["/tmp/app"]?.refreshedAt = previousDate
+        let client = FakeGitHubClient(failingUpdateNumbers: [], releaseDrafts: [:])
+        client.statusError = GitHubCLIError.commandFailed("offline")
+        let result = await WorkspaceGitHubCoordinator(client: client).refreshStatuses(
+            for: workspace, integrationEnabled: true, currentIntegrationState: client.integrationStateResult)
+        XCTAssertEqual(result.statuses["/tmp/app"]?.pullRequest?.number, 101)
+        XCTAssertEqual(result.statuses["/tmp/app"]?.refreshedAt, previousDate)
+        XCTAssertEqual(result.statuses["/tmp/app"]?.refreshError, "offline")
+    }
+
+    func testSuccessfulRefreshClearsErrorAndUpdatesTimestamp() async {
+        let workspace = makeCoordinatorWorkspace(name: "App", rootPath: "/tmp/app", prNumber: 101)
+        workspace.gitHubStatuses["/tmp/app"]?.refreshError = "offline"
+        let client = FakeGitHubClient(failingUpdateNumbers: [], releaseDrafts: [:])
+        let result = await WorkspaceGitHubCoordinator(client: client).refreshStatuses(
+            for: workspace, integrationEnabled: true, currentIntegrationState: client.integrationStateResult)
+        XCTAssertNil(result.statuses["/tmp/app"]?.refreshError)
+        XCTAssertNotNil(result.statuses["/tmp/app"]?.refreshedAt)
+    }
     override func setUp() async throws {
         try await super.setUp()
         // Force English language for test assertions
@@ -140,6 +162,7 @@ private final class FakeGitHubClient: GitHubCLIClient {
     let failingUpdateNumbers: Set<Int>
     let releaseDrafts: [Int: String]
     private(set) var updatedNumbers: [Int] = []
+    var statusError: Error?
 
     init(failingUpdateNumbers: Set<Int>, releaseDrafts: [Int: String]) {
         self.failingUpdateNumbers = failingUpdateNumbers
@@ -155,7 +178,8 @@ private final class FakeGitHubClient: GitHubCLIClient {
     }
 
     func status(repositoryRoot: String, branch: String) async throws -> GitHubWorktreeStatus {
-        GitHubWorktreeStatus(pullRequest: nil, checksSummary: nil, latestRun: nil)
+        if let statusError { throw statusError }
+        return GitHubWorktreeStatus(pullRequest: nil, checksSummary: nil, latestRun: nil)
     }
 
     func openPullRequest(repositoryRoot: String, number: Int) async throws {}

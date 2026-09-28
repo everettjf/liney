@@ -80,6 +80,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     }
 
     var isRemote: Bool { sshTarget != nil }
+    var isStandaloneTerminal: Bool { kind == .localTerminal && settings.isStandaloneTerminal }
 
     /// Reconnect the active worktree's remote sessions if their connection has
     /// dropped. Called when the workspace is (re)selected so that clicking a
@@ -173,7 +174,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
         apply(snapshot: snapshot)
     }
 
-    convenience init(localDirectoryPath: String, name: String = "Terminal") {
+    convenience init(localDirectoryPath: String, name: String = "Terminal", isStandaloneTerminal: Bool = false) {
         let normalizedPath = URL(fileURLWithPath: localDirectoryPath).standardizedFileURL.path
         self.init(
             record: WorkspaceRecord(
@@ -186,7 +187,7 @@ final class WorkspaceModel: ObservableObject, Identifiable {
                     WorktreeSessionStateRecord.makeDefault(for: normalizedPath)
                 ],
                 isSidebarExpanded: false,
-                settings: WorkspaceSettings(),
+                settings: WorkspaceSettings(isStandaloneTerminal: isStandaloneTerminal),
                 activityLog: []
             )
         )

@@ -105,6 +105,7 @@ final class ApplicationMenuController: NSObject, NSMenuDelegate, NSMenuItemValid
         fileMenuItem.submenu = fileMenu
         addShortcutItem(title: localized("menu.file.newWindow"), shortcutAction: .newWindow, to: fileMenu, target: target)
         addShortcutItem(title: localized("menu.file.newTab"), shortcutAction: .newTab, to: fileMenu, target: target)
+        addShortcutItem(title: localized("workbench.newTerminal"), shortcutAction: .newStandaloneTerminal, to: fileMenu, target: target)
         if LineyFeatureFlags.showsRemoteSessionCreationUI {
             let remoteItem = addItem(
                 title: localized("menu.file.newRemoteWorkspace"),

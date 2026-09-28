@@ -9,7 +9,7 @@ import AppKit
 import Combine
 import SwiftUI
 
-struct GlobalCanvasView: View {
+struct FreeformCanvasView: View {
     @EnvironmentObject private var store: WorkspaceStore
     @ObservedObject private var localization = LocalizationManager.shared
     let onDismiss: () -> Void
@@ -202,15 +202,8 @@ struct GlobalCanvasView: View {
                     persistCanvasState()
                 }
             }
-            .onChange(of: allCards.map(\.id)) { _, _ in
-                let hadMissingLayouts = ensureLayouts()
-                if visibleCards.isEmpty == false {
-                    if hadMissingLayouts {
-                        organizeCardsAsGrid()
-                    } else {
-                        fitToView(canvasSize: viewportSize)
-                    }
-                }
+            .onChange(of: Set(allCards.map(\.id))) { _, _ in
+                ensureLayouts()
                 persistCanvasState()
             }
             .onChange(of: query) { _, _ in
@@ -456,9 +449,9 @@ struct GlobalCanvasView: View {
         lastCanvasScale = canvasScale
         dragOrigins = [:]
         hasPerformedInitialFit = false
-        let hadMissingLayouts = ensureLayouts()
+        ensureLayouts()
 
-        if (savedState.cardLayouts.isEmpty || hadMissingLayouts), visibleCards.isEmpty == false {
+        if savedState.cardLayouts.isEmpty, visibleCards.isEmpty == false {
             organizeCardsAsGrid()
         }
 
@@ -474,7 +467,8 @@ struct GlobalCanvasView: View {
         cachedCards = store.workspaces.filter { !$0.isArchived || showArchived }.flatMap { workspace in
             workspace.canvasStates().flatMap { state in
                 state.tabs.compactMap { tab in
-                    guard let controller = workspace.existingTabController(for: state.worktreePath, tabID: tab.id) else {
+                    guard let controller = workspace.existingTabController(for: state.worktreePath, tabID: tab.id),
+                          controller.sessions.values.contains(where: { $0.lifecycle != .idle }) else {
                         return nil
                     }
                     let cardID = GlobalCanvasCardID(
@@ -491,7 +485,7 @@ struct GlobalCanvasView: View {
                             ?? URL(fileURLWithPath: state.worktreePath).lastPathComponent,
                         tab: tab,
                         controller: controller,
-                        isSelected: workspace.isActiveCanvasCard(worktreePath: state.worktreePath, tabID: tab.id),
+                        isSelected: workspace.id == store.selectedWorkspaceID && workspace.isActiveCanvasCard(worktreePath: state.worktreePath, tabID: tab.id),
                         paneCount: workspace.paneCount(for: tab.id, worktreePath: state.worktreePath),
                         activeSessionCount: controller.activeSessionCount(using: state.worktreePath)
                     )
@@ -499,9 +493,6 @@ struct GlobalCanvasView: View {
             }
         }
         .sorted { lhs, rhs in
-            if lhs.isSelected != rhs.isSelected {
-                return lhs.isSelected
-            }
             if lhs.workspaceName != rhs.workspaceName {
                 return lhs.workspaceName.localizedCaseInsensitiveCompare(rhs.workspaceName) == .orderedAscending
             }
@@ -517,11 +508,10 @@ struct GlobalCanvasView: View {
         let cardIDs = allCards.map(\.id)
         let missingIDs = cardIDs.filter { cardLayouts[$0] == nil }
         guard !missingIDs.isEmpty else {
-            cardLayouts = cardLayouts.filter { cardIDs.contains($0.key) }
             return false
         }
 
-        var nextLayouts = cardLayouts.filter { cardIDs.contains($0.key) }
+        var nextLayouts = cardLayouts
         let startIndex = nextLayouts.count
         for (offset, cardID) in missingIDs.enumerated() {
             nextLayouts[cardID] = fallbackLayout(for: startIndex + offset)
@@ -687,6 +677,8 @@ struct GlobalCanvasView: View {
     }
 
     private func handleScrollWheel(_ event: NSEvent) {
+        // Ordinary wheel events belong to terminal scrollback. Zoom is explicit.
+        guard event.modifierFlags.contains(.command) else { return }
         guard viewportSize.width > 0, viewportSize.height > 0 else { return }
         let deltaY = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY * 10
         guard abs(deltaY) > abs(event.scrollingDeltaX) else { return }
@@ -756,9 +748,8 @@ struct GlobalCanvasView: View {
     }
 
     private func persistCanvasState() {
-        let records = allCards.compactMap { card in
-            cardLayouts[card.id]?.record(cardID: card.id)
-        }
+        let records = cardLayouts.map { $0.value.record(cardID: $0.key) }
+            .sorted { $0.id < $1.id }
         let nextState = GlobalCanvasStateRecord(
             scale: canvasScale,
             offsetX: canvasOffset.width,
@@ -1008,6 +999,7 @@ private struct GlobalCanvasScrollWheelMonitor: NSViewRepresentable {
 }
 
 private struct GlobalCanvasCardView: View {
+    @EnvironmentObject private var store: WorkspaceStore
     @ObservedObject private var localization = LocalizationManager.shared
     let card: GlobalCanvasCardSnapshot
     let layout: GlobalCanvasCardLayout
@@ -1050,13 +1042,6 @@ private struct GlobalCanvasCardView: View {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(cardBorder, lineWidth: card.isSelected ? 1.4 : 1)
         )
-        .overlay {
-            if !card.isSelected {
-                Color.clear
-                    .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .onTapGesture(perform: onSelect)
-            }
-        }
         .shadow(color: .clear, radius: 0)
     }
 
@@ -1142,16 +1127,13 @@ private struct GlobalCanvasCardView: View {
             WorkspaceCanvasLiveNodeView(
                 sessionController: card.controller,
                 node: node,
-                allowsInteraction: card.isSelected
+                allowsInteraction: true,
+                onActivate: { paneID in
+                    store.openWorkbenchLocation(WorkbenchLocation(cardID: card.id, paneID: paneID), inCanvas: true)
+                }
             )
             .padding(10)
             .background(LineyTheme.paneBackground)
-            .allowsHitTesting(card.isSelected)
-            .overlay {
-                if !card.isSelected {
-                    inactiveOverlay
-                }
-            }
         }
     }
 
@@ -1181,10 +1163,12 @@ private struct GlobalCanvasCardView: View {
     }
 }
 
-private struct WorkspaceCanvasLiveNodeView: View {
+struct WorkspaceCanvasLiveNodeView: View {
     @ObservedObject var sessionController: WorkspaceSessionController
     let node: SessionLayoutNode
     let allowsInteraction: Bool
+    var onActivate: ((UUID) -> Void)? = nil
+    var restoreFocusPaneID: UUID? = nil
 
     var body: some View {
         switch node {
@@ -1193,7 +1177,9 @@ private struct WorkspaceCanvasLiveNodeView: View {
                 WorkspaceCanvasTerminalPane(
                     session: session,
                     isFocused: sessionController.focusedPaneID == leaf.paneID,
-                    allowsInteraction: allowsInteraction
+                    allowsInteraction: allowsInteraction,
+                    onActivate: { onActivate?(leaf.paneID) },
+                    shouldRestoreFocus: restoreFocusPaneID == leaf.paneID
                 )
             } else {
                 Color.clear
@@ -1218,7 +1204,9 @@ private struct WorkspaceCanvasLiveNodeView: View {
                 WorkspaceCanvasLiveNodeView(
                     sessionController: sessionController,
                     node: split.first,
-                    allowsInteraction: allowsInteraction
+                    allowsInteraction: allowsInteraction,
+                    onActivate: onActivate,
+                    restoreFocusPaneID: restoreFocusPaneID
                 )
                 .frame(width: firstWidth)
 
@@ -1229,7 +1217,9 @@ private struct WorkspaceCanvasLiveNodeView: View {
                 WorkspaceCanvasLiveNodeView(
                     sessionController: sessionController,
                     node: split.second,
-                    allowsInteraction: allowsInteraction
+                    allowsInteraction: allowsInteraction,
+                    onActivate: onActivate,
+                    restoreFocusPaneID: restoreFocusPaneID
                 )
                 .frame(width: secondWidth)
             }
@@ -1241,7 +1231,9 @@ private struct WorkspaceCanvasLiveNodeView: View {
                 WorkspaceCanvasLiveNodeView(
                     sessionController: sessionController,
                     node: split.first,
-                    allowsInteraction: allowsInteraction
+                    allowsInteraction: allowsInteraction,
+                    onActivate: onActivate,
+                    restoreFocusPaneID: restoreFocusPaneID
                 )
                 .frame(height: firstHeight)
 
@@ -1252,7 +1244,9 @@ private struct WorkspaceCanvasLiveNodeView: View {
                 WorkspaceCanvasLiveNodeView(
                     sessionController: sessionController,
                     node: split.second,
-                    allowsInteraction: allowsInteraction
+                    allowsInteraction: allowsInteraction,
+                    onActivate: onActivate,
+                    restoreFocusPaneID: restoreFocusPaneID
                 )
                 .frame(height: secondHeight)
             }
@@ -1264,6 +1258,8 @@ private struct WorkspaceCanvasTerminalPane: View {
     @ObservedObject var session: ShellSession
     let isFocused: Bool
     let allowsInteraction: Bool
+    var onActivate: (() -> Void)? = nil
+    var shouldRestoreFocus = false
 
     private var directoryLabel: String {
         session.effectiveWorkingDirectory.lastPathComponentValue
@@ -1292,7 +1288,7 @@ private struct WorkspaceCanvasTerminalPane: View {
             .padding(.vertical, 6)
             .background(isFocused ? LineyTheme.panelRaised : LineyTheme.paneHeaderBackground)
 
-            TerminalHostView(session: session)
+            TerminalHostView(session: session, shouldRestoreFocus: shouldRestoreFocus, onActivate: onActivate)
                 .background(LineyTheme.paneBackground)
                 .allowsHitTesting(allowsInteraction)
         }
