@@ -194,6 +194,7 @@ struct MainWindowView: View {
                     .disabled(!hasSelectedWorkspace)
                     .accessibilityLabel(localized("menu.file.newTab"))
                     .help(localized("menu.file.newTab"))
+                    .padding(.leading, 3)
 
                     Divider()
                         .frame(height: 16 * uiScale)
@@ -210,17 +211,9 @@ struct MainWindowView: View {
                 }
                 .buttonStyle(.plain)
                 .fixedSize()
-
-                Button {
-                    store.selectedWorkspace?.toggleFileTree()
-                } label: {
-                    Image(systemName: store.selectedWorkspace?.isFileTreePresented == true ? "list.bullet.indent" : "sidebar.squares.leading")
-                        .font(.system(size: 13 * uiScale, weight: .medium))
-                        .frame(width: 20 * uiScale, height: 20 * uiScale)
-                }
-                .disabled(!hasSelectedWorkspace)
-                .accessibilityLabel(localized("main.toolbar.toggleFileTree"))
-                .help(localized("main.toolbar.toggleFileTree"))
+            }
+            if #available(macOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .primaryAction)
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 ToolbarMenuButton(
@@ -264,44 +257,10 @@ struct MainWindowView: View {
                     .disabled(!hasSelectedWorkspace)
                 }
             }
+            if #available(macOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+            }
             ToolbarItemGroup(placement: .primaryAction) {
-                Menu {
-                    Button(localized("menu.view.openDiff"), systemImage: "doc.text.magnifyingglass") {
-                        openDiffWindow()
-                    }
-
-                    Button(localized("menu.workspace.openReview"), systemImage: "checkmark.bubble") {
-                        openReviewWindow()
-                    }
-                    .disabled(!selectedWorkspaceSupportsGit)
-
-                    Button(localized("menu.view.openHistory"), systemImage: "clock.arrow.circlepath") {
-                        openHistoryWindow()
-                    }
-                    Divider()
-                    Button(localized("sidebar.menu.createWorktree"), systemImage: "plus.rectangle.on.folder") {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.presentCreateWorktree(for: workspace)
-                    }
-                    .disabled(store.selectedWorkspace?.supportsLocalRepositoryFeatures != true)
-                    Button(localized("sidebar.menu.fetchRemotes"), systemImage: "arrow.down.circle") {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.fetch(workspace)
-                    }
-                    .disabled(store.selectedWorkspace?.supportsLocalRepositoryFeatures != true)
-                    Button(localized("main.menu.refreshRepo"), systemImage: "arrow.clockwise") {
-                        store.refreshSelectedWorkspace()
-                    }
-                    .disabled(!selectedWorkspaceSupportsGit)
-                } label: {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 13 * uiScale, weight: .medium))
-                        .frame(width: 20 * uiScale, height: 20 * uiScale)
-                }
-                .menuIndicator(.visible)
-                .accessibilityLabel(localized("main.toolbar.repositoryTools"))
-                .help(localized("main.toolbar.repositoryTools"))
-
                 Button {
                     withAnimation(.easeInOut(duration: 0.25)) {
                         dismissCanvas(restoreFocus: false)
@@ -354,102 +313,163 @@ struct MainWindowView: View {
                     present(menu: makeSleepPreventionMenu(), from: anchor)
                 }
 
-                Menu {
-                    Button(localized("main.menu.restartFocusedSession")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.restartFocusedSession(in: workspace)
-                    }
-                    .disabled(!hasFocusedPane)
-
-                    Button(localized("main.menu.restartAllSessions")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.restartAllSessions(in: workspace)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                HStack(spacing: 6 * uiScale) {
+                    Button {
+                        store.selectedWorkspace?.toggleFileTree()
+                    } label: {
+                        Image(systemName: store.selectedWorkspace?.isFileTreePresented == true ? "list.bullet.indent" : "sidebar.squares.leading")
+                            .font(.system(size: 13 * uiScale, weight: .medium))
+                            .frame(width: 20 * uiScale, height: 20 * uiScale)
                     }
                     .disabled(!hasSelectedWorkspace)
+                    .accessibilityLabel(localized("main.toolbar.toggleFileTree"))
+                    .help(localized("main.toolbar.toggleFileTree"))
+                    .padding(.leading, 3)
 
                     Divider()
+                        .frame(height: 16 * uiScale)
 
-                    Button(localized("main.menu.runWorkspaceScript")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.dispatch(.runWorkspaceScript(workspace.id))
-                    }
-                    .disabled(!(store.selectedWorkspace?.runScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false))
+                    Menu {
+                        Button(localized("menu.view.openDiff"), systemImage: "doc.text.magnifyingglass") {
+                            openDiffWindow()
+                        }
 
-                    Button(localized("main.menu.runSetupScript")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.dispatch(.runSetupScript(workspace.id))
+                        Button(localized("menu.workspace.openReview"), systemImage: "checkmark.bubble") {
+                            openReviewWindow()
+                        }
+                        .disabled(!selectedWorkspaceSupportsGit)
+
+                        Button(localized("menu.view.openHistory"), systemImage: "clock.arrow.circlepath") {
+                            openHistoryWindow()
+                        }
+                        Divider()
+                        Button(localized("sidebar.menu.createWorktree"), systemImage: "plus.rectangle.on.folder") {
+                            guard let workspace = store.selectedWorkspace else { return }
+                            store.presentCreateWorktree(for: workspace)
+                        }
+                        .disabled(store.selectedWorkspace?.supportsLocalRepositoryFeatures != true)
+                        Button(localized("sidebar.menu.fetchRemotes"), systemImage: "arrow.down.circle") {
+                            guard let workspace = store.selectedWorkspace else { return }
+                            store.fetch(workspace)
+                        }
+                        .disabled(store.selectedWorkspace?.supportsLocalRepositoryFeatures != true)
+                        Button(localized("main.menu.refreshRepo"), systemImage: "arrow.clockwise") {
+                            store.refreshSelectedWorkspace()
+                        }
+                        .disabled(!selectedWorkspaceSupportsGit)
+                    } label: {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 13 * uiScale, weight: .medium))
+                            .frame(width: 20 * uiScale, height: 20 * uiScale)
                     }
-                    .disabled(!(store.selectedWorkspace?.setupScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false))
+                    .menuIndicator(.visible)
+                    .accessibilityLabel(localized("main.toolbar.repositoryTools"))
+                    .help(localized("main.toolbar.repositoryTools"))
 
                     Divider()
+                        .frame(height: 16 * uiScale)
 
-                    Button(localized("sidebar.menu.browseFiles")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.presentWorkspaceFileBrowser(for: workspace)
-                    }
-                    .disabled(!hasSelectedWorkspace)
+                    Menu {
+                        Button(localized("main.menu.restartFocusedSession")) {
+                            guard let workspace = store.selectedWorkspace else { return }
+                            store.restartFocusedSession(in: workspace)
+                        }
+                        .disabled(!hasFocusedPane)
 
-                    Menu(localized("main.toolbar.webPreview")) {
-                        webPreviewMenuContent
-                    }
-                    .disabled(!hasSelectedWorkspace)
+                        Button(localized("main.menu.restartAllSessions")) {
+                            guard let workspace = store.selectedWorkspace else { return }
+                            store.restartAllSessions(in: workspace)
+                        }
+                        .disabled(!hasSelectedWorkspace)
 
-                    if let workspace = store.selectedWorkspace,
-                       !workspace.remoteTargets.isEmpty {
-                        Menu(localized("main.menu.remoteTargets")) {
-                            ForEach(workspace.remoteTargets) { target in
-                                Button(localizedFormat("main.menu.remoteShellFormat", target.name)) {
-                                    store.dispatch(.openRemoteTargetShell(workspace.id, target.id))
-                                }
-                                Button(localizedFormat("main.menu.remoteBrowseFormat", target.name)) {
-                                    store.dispatch(.browseRemoteTargetRepository(workspace.id, target.id))
-                                }
-                                Button(localizedFormat("main.menu.remoteCopyDestinationFormat", target.name)) {
-                                    store.dispatch(.copyRemoteTargetDestination(workspace.id, target.id))
-                                }
-                                if target.ssh.remoteWorkingDirectory?.isEmpty == false {
-                                    Button(localizedFormat("main.menu.remoteCopyPathFormat", target.name)) {
-                                        store.dispatch(.copyRemoteTargetWorkingDirectory(workspace.id, target.id))
+                        Divider()
+
+                        Button(localized("main.menu.runWorkspaceScript")) {
+                            guard let workspace = store.selectedWorkspace else { return }
+                            store.dispatch(.runWorkspaceScript(workspace.id))
+                        }
+                        .disabled(!(store.selectedWorkspace?.runScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false))
+
+                        Button(localized("main.menu.runSetupScript")) {
+                            guard let workspace = store.selectedWorkspace else { return }
+                            store.dispatch(.runSetupScript(workspace.id))
+                        }
+                        .disabled(!(store.selectedWorkspace?.setupScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false))
+
+                        Divider()
+
+                        Button(localized("sidebar.menu.browseFiles")) {
+                            guard let workspace = store.selectedWorkspace else { return }
+                            store.presentWorkspaceFileBrowser(for: workspace)
+                        }
+                        .disabled(!hasSelectedWorkspace)
+
+                        Menu(localized("main.toolbar.webPreview")) {
+                            webPreviewMenuContent
+                        }
+                        .disabled(!hasSelectedWorkspace)
+
+                        if let workspace = store.selectedWorkspace,
+                           !workspace.remoteTargets.isEmpty {
+                            Menu(localized("main.menu.remoteTargets")) {
+                                ForEach(workspace.remoteTargets) { target in
+                                    Button(localizedFormat("main.menu.remoteShellFormat", target.name)) {
+                                        store.dispatch(.openRemoteTargetShell(workspace.id, target.id))
+                                    }
+                                    Button(localizedFormat("main.menu.remoteBrowseFormat", target.name)) {
+                                        store.dispatch(.browseRemoteTargetRepository(workspace.id, target.id))
+                                    }
+                                    Button(localizedFormat("main.menu.remoteCopyDestinationFormat", target.name)) {
+                                        store.dispatch(.copyRemoteTargetDestination(workspace.id, target.id))
+                                    }
+                                    if target.ssh.remoteWorkingDirectory?.isEmpty == false {
+                                        Button(localizedFormat("main.menu.remoteCopyPathFormat", target.name)) {
+                                            store.dispatch(.copyRemoteTargetWorkingDirectory(workspace.id, target.id))
+                                        }
                                     }
                                 }
                             }
                         }
+
+                        Divider()
+
+                        Button(localized("main.menu.equalizeSplits")) {
+                            guard let workspace = store.selectedWorkspace else { return }
+                            store.equalizeSplits(in: workspace)
+                        }
+                        .disabled(!hasSelectedWorkspace)
+
+                        Button(localized("main.menu.toggleZoom")) {
+                            guard let workspace = store.selectedWorkspace else { return }
+                            store.toggleZoom(in: workspace)
+                        }
+                        .disabled(!hasFocusedPane)
+
+                        Button(localized("main.menu.resetLayout")) {
+                            guard let workspace = store.selectedWorkspace else { return }
+                            store.resetLayout(in: workspace)
+                        }
+                        .disabled(!hasSelectedWorkspace)
+
+                        Divider()
+
+                        Button(localized("sidebar.menu.workspaceSettings")) {
+                            store.presentSettings(for: store.selectedWorkspace)
+                        }
+                        .disabled(!hasSelectedWorkspace)
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 13 * uiScale, weight: .medium))
+                            .frame(width: 20 * uiScale, height: 20 * uiScale)
                     }
-
-                    Divider()
-
-                    Button(localized("main.menu.equalizeSplits")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.equalizeSplits(in: workspace)
-                    }
-                    .disabled(!hasSelectedWorkspace)
-
-                    Button(localized("main.menu.toggleZoom")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.toggleZoom(in: workspace)
-                    }
-                    .disabled(!hasFocusedPane)
-
-                    Button(localized("main.menu.resetLayout")) {
-                        guard let workspace = store.selectedWorkspace else { return }
-                        store.resetLayout(in: workspace)
-                    }
-                    .disabled(!hasSelectedWorkspace)
-
-                    Divider()
-
-                    Button(localized("sidebar.menu.workspaceSettings")) {
-                        store.presentSettings(for: store.selectedWorkspace)
-                    }
-                    .disabled(!hasSelectedWorkspace)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 13 * uiScale, weight: .medium))
-                        .frame(width: 20 * uiScale, height: 20 * uiScale)
+                    .menuIndicator(.visible)
+                    .accessibilityLabel(localized("main.menu.moreActions"))
+                    .help(localized("main.menu.moreActions"))
                 }
-                .menuIndicator(.visible)
-                .accessibilityLabel(localized("main.menu.moreActions"))
-                .help(localized("main.menu.moreActions"))
+                .buttonStyle(.plain)
+                .fixedSize()
             }
         }
 
