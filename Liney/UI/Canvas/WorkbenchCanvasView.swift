@@ -143,7 +143,7 @@ struct GlobalCanvasView: View {
                 Button { store.openWorkbenchLocation(item.location) } label: { Image(systemName: "arrow.up.right.square") }
                     .help(text("canvas.card.openTab"))
             }.buttonStyle(.plain).padding(12)
-            if item.isUnread || item.changedFileCount > 0 || item.workspace.gitHubStatuses[item.id.worktreePath]?.refreshError != nil {
+            if item.hasSecondarySummary {
               HStack {
                 if item.isUnread { Circle().fill(LineyTheme.accent).frame(width: 5, height: 5) }
                 if item.changedFileCount > 0 { Text("· \(item.changedFileCount) " + text("workbench.changed")) }

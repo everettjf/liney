@@ -141,6 +141,15 @@ The checklist remains open until each scenario is verified; a successful build a
   the actual native host count as well as session and surface identity. Passed:
   `surfaces=12 after=12 sessions=12 restored=12 offscreenHosts=1`.
 
+### Status-summary regression check
+
+- Final inspection found that the compact grid summary could hide failed CI
+  when there were no changed files or unread Agent events. Both Canvas layouts
+  now use shared failed-check/stale-state summary predicates.
+- The focused workbench/GitHub coordinator suite passed, including clean-tree
+  failure visibility, stale-state visibility and successful/failed refresh
+  behavior. This correction does not change Agent-state classification.
+
 - Source is on `codex/terminal-workbench`; issue #160 exists. On 2026-09-28,
   the user explicitly authorized pushing this implementation to the public
   `everettjf/liney` repository and creating a PR. Keep the PR in draft until

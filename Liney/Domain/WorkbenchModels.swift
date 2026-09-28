@@ -120,6 +120,10 @@ struct WorkbenchItem: Identifiable {
         return workspace.worktreeStatuses[id.worktreePath]?.changedFileCount
             ?? (workspace.activeWorktreePath == id.worktreePath ? workspace.changedFileCount : 0)
     }
+    var failingCheckCount: Int { workspace.gitHubStatuses[id.worktreePath]?.checksSummary?.failingCount ?? 0 }
+    var hasStaleGitHubStatus: Bool { workspace.gitHubStatuses[id.worktreePath]?.refreshError != nil }
+    var hasSecondarySummary: Bool { isUnread || changedFileCount > 0 || failingCheckCount > 0 || hasStaleGitHubStatus }
+
     var statusKey: String {
         switch agent?.state {
         case .waiting: return "workbench.waiting"

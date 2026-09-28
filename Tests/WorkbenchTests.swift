@@ -87,6 +87,23 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertNil(LineyKeyboardShortcuts.effectiveShortcut(for: .newStandaloneTerminal, in: settings))
         XCTAssertEqual(LineyKeyboardShortcuts.effectiveShortcut(for: .newStandaloneTerminal, in: AppSettings()), shortcut)
     }
+
+    func testCleanWorktreeStillDisplaysFailedChecksAndStaleStatus() throws {
+        let workspace = WorkspaceModel(localDirectoryPath: "/tmp")
+        let store = makeStore()
+        store.workspaces = [workspace]
+        let item = try XCTUnwrap(store.workbenchItems().first)
+        XCTAssertFalse(item.hasSecondarySummary)
+        workspace.gitHubStatuses["/tmp"] = GitHubWorktreeStatus(checksSummary: GitHubPullRequestChecksSummary(
+            passingCount: 0, failingCount: 1, pendingCount: 0, skippedCount: 0, failingChecks: []), refreshedAt: Date())
+        XCTAssertEqual(item.changedFileCount, 0)
+        XCTAssertEqual(item.failingCheckCount, 1)
+        XCTAssertTrue(item.hasSecondarySummary)
+        workspace.gitHubStatuses["/tmp"]?.checksSummary = nil
+        workspace.gitHubStatuses["/tmp"]?.refreshError = "offline"
+        XCTAssertTrue(item.hasStaleGitHubStatus)
+        XCTAssertTrue(item.hasSecondarySummary)
+    }
     override func tearDown() {
         AgentStatusStore.shared.clearAll()
         super.tearDown()

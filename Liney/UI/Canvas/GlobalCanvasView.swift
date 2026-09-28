@@ -934,13 +934,18 @@ private struct GlobalCanvasCardView: View {
     var body: some View {
         VStack(spacing: 0) {
             titleBar
-            if let summary, summary.needsAttention || summary.changedFileCount > 0 {
+            if let summary, summary.needsAttention || summary.hasSecondarySummary {
                 HStack {
                     Text(localized(summary.statusKey))
                     Spacer()
                     if summary.isUnread { Circle().fill(LineyTheme.accent).frame(width: 5, height: 5) }
                     if summary.changedFileCount > 0 {
                         Text("\(summary.changedFileCount) " + localized("workbench.changed"))
+                    }
+                    if summary.hasStaleGitHubStatus {
+                        Text(localized("workbench.stale"))
+                    } else if summary.failingCheckCount > 0 {
+                        Text("\(summary.failingCheckCount) " + localized("workbench.failingChecks"))
                     }
                 }
                 .font(.caption)
