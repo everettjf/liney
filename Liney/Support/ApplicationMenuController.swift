@@ -255,6 +255,7 @@ final class ApplicationMenuController: NSObject, NSMenuDelegate, NSMenuItemValid
         addItem(title: localized("menu.help.visitWebsite"), action: #selector(openWebsite(_:)), keyEquivalent: "", to: helpMenu)
         addItem(title: localized("menu.help.starSourceCode"), action: #selector(openRepository(_:)), keyEquivalent: "", to: helpMenu)
         addItem(title: localized("menu.help.submitFeedback"), action: #selector(submitFeedback(_:)), keyEquivalent: "", to: helpMenu)
+        addItem(title: "Discord", action: #selector(openDiscord(_:)), keyEquivalent: "", to: helpMenu)
         NSApp.helpMenu = helpMenu
 
         NSApp.mainMenu = mainMenu
@@ -375,6 +376,10 @@ final class ApplicationMenuController: NSObject, NSMenuDelegate, NSMenuItemValid
         }
     }
 
+    @objc private func openDiscord(_ sender: Any?) {
+        NSWorkspace.shared.open(URL(string: "https://discord.gg/eGzEaP6TzR")!)
+    }
+
     @objc private func openWebsite(_ sender: Any?) {
         NSWorkspace.shared.open(websiteURL)
     }
@@ -394,7 +399,7 @@ final class ApplicationMenuController: NSObject, NSMenuDelegate, NSMenuItemValid
     @discardableResult
     private func addItem(title: String, action: Selector?, keyEquivalent: String, to menu: NSMenu) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
-        if action == #selector(openWebsite(_:)) || action == #selector(submitFeedback(_:)) || action == #selector(openRepository(_:)) || action == #selector(newRemoteWorkspace(_:)) {
+        if action == #selector(openDiscord(_:)) || action == #selector(openWebsite(_:)) || action == #selector(submitFeedback(_:)) || action == #selector(openRepository(_:)) || action == #selector(newRemoteWorkspace(_:)) {
             item.target = self
         }
         menu.addItem(item)
