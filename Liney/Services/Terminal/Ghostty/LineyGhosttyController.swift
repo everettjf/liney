@@ -404,7 +404,8 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Cancel")
-        let previewText = items.first(where: \.isPlainText)?.text ?? items.first?.text ?? ""
+        let previewText = items.first(where: \.isPlainText)?.text
+            ?? items.map { "\($0.mimeType) (\($0.data.count) bytes)" }.joined(separator: "\n")
         alert.accessoryView = ClipboardPreviewView(text: previewText)
 
         guard alert.runModal() == .alertFirstButtonReturn,
