@@ -5,7 +5,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$REPO_ROOT/Liney/Vendor/GhosttyKit.version"
 FRAMEWORK="$REPO_ROOT/Liney/Vendor/GhosttyKit.xcframework"
-BINARY="$FRAMEWORK/macos-arm64_x86_64/ghostty-internal.a"
+LIBRARY_PATH="$(plutil -extract AvailableLibraries.0.LibraryPath raw -o - "$FRAMEWORK/Info.plist")"
+BINARY="$FRAMEWORK/macos-arm64_x86_64/$LIBRARY_PATH"
 
 # shellcheck disable=SC1090
 source "$MANIFEST"

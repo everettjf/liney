@@ -69,17 +69,36 @@ cd ghostty
 git checkout <tag-or-commit>
 ```
 
-The currently vendored build uses:
+The currently vendored build uses the official `v1.3.1` release as a stable
+baseline for investigating TUI rendering stalls ([#162](https://github.com/everettjf/liney/issues/162)).
+This rollback is an experiment, not a confirmed fix for the reported hangs.
 
 These values are also recorded in `Liney/Vendor/GhosttyKit.version`; update
 that manifest together with the framework so CI can verify the binary.
 
-- Ghostty commit: `602497e9b96c62b05c4c6418538192ad974e4326`
-- Ghostty version string: `1.3.2-main+602497e`
-- Source archive SHA-256: `7164678225d3c9c45e214c5081108547333cb31ec9f18f6a918471b73f68a5ad`
-- Zig: `0.16.0`
+- Ghostty commit: `332b2aefc6e72d363aa93ab6ecfc86eeeeb5ed28`
+- Ghostty version string: `1.3.1`
+- Source archive SHA-256: `3349d25600ffbda281197a18314f7d18791969cffe9474f0ff16a45a9ebfccdb`
+- Zig: `0.15.2`
 
 ## Build The XCFramework
+
+For the pinned stable release, use Xcode **26.3** and run:
+
+```bash
+bash scripts/build_ghostty_stable.sh
+```
+
+The script verifies the source and Zig archive checksums, builds both macOS
+architectures, strips debug symbols, and replaces the framework and version
+manifest together. The `Rebuild stable Ghostty` workflow provides the same
+build environment and checks Liney compilation and terminal lifecycle.
+
+Zig 0.15.2 cannot link SDKs from Xcode 26.4 and newer; see
+[upstream #11991](https://github.com/ghostty-org/ghostty/issues/11991).
+Changing `SDKROOT` alone does not make a newer SDK compatible. Use the matching
+Xcode environment rather than changing the pinned Ghostty source or Zig version.
+
 
 Run Ghostty's Zig build with the macOS app runtime disabled and xcframework output enabled:
 
@@ -90,7 +109,7 @@ zig build \
   -Demit-xcframework=true \
   -Demit-macos-app=false \
   -Dxcframework-target=universal \
-  -Dversion-string=1.3.2-main+602497e
+  -Dversion-string=1.3.1
 ```
 
 Expected output:
@@ -99,14 +118,16 @@ Expected output:
 macos/GhosttyKit.xcframework
 ```
 
-Upstream currently writes the xcframework directly to `macos/GhosttyKit.xcframework`
-in the Ghostty source tree. Its macOS archive is named `ghostty-internal.a`.
+Ghostty 1.3.1 writes the xcframework directly to `macos/GhosttyKit.xcframework`
+in the Ghostty source tree. Its macOS archive is named `libghostty.a`. Its
+universal output also includes iOS slices; the stable rebuild script repackages
+only the macOS slice for Liney.
 
 Strip debug symbols from the static archive before vendoring it. Current
 upstream builds otherwise exceed GitHub's 100 MB per-file limit:
 
 ```bash
-strip -S macos/GhosttyKit.xcframework/macos-arm64_x86_64/ghostty-internal.a
+strip -S macos/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a
 ```
 
 ## Replace The Vendored Framework
@@ -129,7 +150,7 @@ embeds the library and does not bundle that executable.
 Confirm the macOS library is universal:
 
 ```bash
-lipo -archs Liney/Vendor/GhosttyKit.xcframework/macos-arm64_x86_64/ghostty-internal.a
+lipo -archs Liney/Vendor/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a
 ```
 
 Expected output:

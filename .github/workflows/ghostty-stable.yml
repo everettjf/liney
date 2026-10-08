@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [codex/ghostty-1.3.1-stable]
-    paths: [.github/workflows/ghostty-stable.yml, scripts/build_ghostty_stable.sh]
+    paths: [.github/workflows/ghostty-stable.yml, scripts/build_ghostty_stable.sh, scripts/verify_ghostty_vendor.sh]
 
 permissions:
   contents: read
@@ -22,6 +22,11 @@ jobs:
           brew install gettext
           xcodebuild -downloadComponent MetalToolchain
           xcrun --kill-cache
+      - name: Cache Zig dependencies and compiler artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/zig
+          key: ghostty-1.3.1-zig-0.15.2-${{ runner.os }}-${{ runner.arch }}
       - name: Rebuild official stable release
         run: bash scripts/build_ghostty_stable.sh
       - name: Upload matching framework and manifest

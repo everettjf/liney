@@ -7,7 +7,7 @@ trap 'rm -rf "$BUILD_ROOT"' EXIT
 cd "$BUILD_ROOT"
 
 # Zig 0.15.2 cannot link the SDK shipped with Xcode 26.4 and newer.
-XCODE_VERSION="$(xcodebuild -version | head -1 | awk '{print $2}')"
+XCODE_VERSION="$(xcodebuild -version | awk 'NR == 1 {print $2}')"
 case "$XCODE_VERSION" in
   26.[0123]|26.[0123].*) ;;
   *) echo "Use Xcode 26.3 to rebuild Ghostty 1.3.1 (found $XCODE_VERSION)." >&2; exit 1 ;;
@@ -30,8 +30,13 @@ export PATH="$(brew --prefix gettext)/bin:$PATH"
 "$BUILD_ROOT/zig-${ZIG_ARCH}-macos-0.15.2/zig" build \
   -Doptimize=ReleaseFast -Dapp-runtime=none -Demit-xcframework=true \
   -Demit-macos-app=false -Dxcframework-target=universal -Dversion-string=1.3.1
-strip -S macos/GhosttyKit.xcframework/macos-arm64_x86_64/ghostty-internal.a
-rsync -a --delete macos/GhosttyKit.xcframework/ "$REPO_ROOT/Liney/Vendor/GhosttyKit.xcframework/"
+# The 1.3.1 universal output includes iOS slices and names its archive
+# libghostty.a. Package only the macOS slice needed by Liney.
+MACOS_SLICE="$BUILD_ROOT/ghostty-1.3.1/macos/GhosttyKit.xcframework/macos-arm64_x86_64"
+strip -S "$MACOS_SLICE/libghostty.a"
+xcodebuild -create-xcframework -library "$MACOS_SLICE/libghostty.a" \
+  -headers "$MACOS_SLICE/Headers" -output "$BUILD_ROOT/GhosttyKit.xcframework"
+rsync -a --delete "$BUILD_ROOT/GhosttyKit.xcframework/" "$REPO_ROOT/Liney/Vendor/GhosttyKit.xcframework/"
 cat > "$REPO_ROOT/Liney/Vendor/GhosttyKit.version" <<'EOF'
 GHOSTTY_COMMIT=332b2aefc6e72d363aa93ab6ecfc86eeeeb5ed28
 GHOSTTY_VERSION=1.3.1
