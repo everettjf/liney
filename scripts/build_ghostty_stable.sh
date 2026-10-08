@@ -34,8 +34,11 @@ export PATH="$(brew --prefix gettext)/bin:$PATH"
 # libghostty.a. Package only the macOS slice needed by Liney.
 MACOS_SLICE="$BUILD_ROOT/ghostty-1.3.1/macos/GhosttyKit.xcframework/macos-arm64_x86_64"
 strip -S "$MACOS_SLICE/libghostty.a"
+# Match Liney's existing embedding module; the separate VT API is unused.
+mkdir "$BUILD_ROOT/EmbeddingHeaders"
+cp "$MACOS_SLICE/Headers/ghostty.h" "$MACOS_SLICE/Headers/module.modulemap" "$BUILD_ROOT/EmbeddingHeaders/"
 xcodebuild -create-xcframework -library "$MACOS_SLICE/libghostty.a" \
-  -headers "$MACOS_SLICE/Headers" -output "$BUILD_ROOT/GhosttyKit.xcframework"
+  -headers "$BUILD_ROOT/EmbeddingHeaders" -output "$BUILD_ROOT/GhosttyKit.xcframework"
 rsync -a --delete "$BUILD_ROOT/GhosttyKit.xcframework/" "$REPO_ROOT/Liney/Vendor/GhosttyKit.xcframework/"
 cat > "$REPO_ROOT/Liney/Vendor/GhosttyKit.version" <<'EOF'
 GHOSTTY_COMMIT=332b2aefc6e72d363aa93ab6ecfc86eeeeb5ed28
