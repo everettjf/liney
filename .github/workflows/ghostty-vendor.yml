@@ -1,0 +1,45 @@
+name: Rebuild vendored Ghostty
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select compatible Xcode
+        run: sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
+      - name: Install build prerequisites
+        run: |
+          brew install gettext
+          xcodebuild -downloadComponent MetalToolchain
+          xcrun --kill-cache
+      - name: Cache Zig dependencies and compiler artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/zig
+          key: ghostty-zig-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Liney/Vendor/GhosttyKit.version') }}
+      - name: Rebuild pinned upstream commit
+        run: bash scripts/build_ghostty_vendor.sh
+      - name: Upload matching framework and manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhosttyKit-vendor
+          path: |
+            Liney/Vendor/GhosttyKit.xcframework
+            Liney/Vendor/GhosttyKit.version
+      - name: Build Liney with pinned runtime
+        run: |
+          xcodebuild -project Liney.xcodeproj -scheme Liney -configuration Debug \
+            -destination 'generic/platform=macOS' -derivedDataPath "$RUNNER_TEMP/LineyVendor" \
+            ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build
+      - name: Exercise terminal lifecycle
+        run: |
+          APP="$RUNNER_TEMP/LineyVendor/Build/Products/Debug/Liney.app"
+          codesign --force --deep --sign - "$APP"
+          "$APP/Contents/MacOS/Liney" compatibility-smoke

@@ -207,45 +207,53 @@ final class LineyGhosttyRuntime: NSObject {
     }
 
     nonisolated fileprivate static func readClipboard(
-        _ userdata: UnsafeMutableRawPointer?,
-        location: ghostty_clipboard_e,
-        state: UnsafeMutableRawPointer?
-    ) -> Bool {
+        _ userdata: UnsafeMutableRawPointer?, location: ghostty_clipboard_e,
+        state: UnsafeMutableRawPointer?, mimes: UnsafePointer<UnsafePointer<CChar>?>?,
+        count: Int, list: Bool
+    ) -> ghostty_clipboard_read_result_e {
+        let requested = lineyGhosttyCopyClipboardMimes(mimes, count: count)
         let controllerAddress = pointerAddress(userdata)
         let stateAddress = pointerAddress(state)
         return onMainSync {
             guard let controller = controller(fromAddress: controllerAddress),
-                  let pasteboard = lineyGhosttyPasteboard(for: location),
-                  let value = pasteboard.lineyGhosttyBestString else {
-                return false
+                  let pasteboard = lineyGhosttyPasteboard(for: location) else {
+                return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED
             }
-
+            let value = pasteboard.lineyGhosttyBestString
+            // Preserve Liney's text clipboard support; do not read unrelated
+            // representations simply because a terminal requested another MIME.
+            var seen = Set<String>()
+            let items = requested.compactMap { mime -> LineyGhosttyClipboardPayload? in
+                guard seen.insert(mime).inserted, let value else { return nil }
+                let item = LineyGhosttyClipboardPayload(mimeType: mime, text: value)
+                return item.isPlainText ? item : nil
+            }
+            guard !items.isEmpty || list else { return GHOSTTY_CLIPBOARD_READ_UNAVAILABLE }
+            let available = list && value != nil ? ["text/plain", "text/plain;charset=utf-8"] : []
             controller.completeClipboardRequest(
-                value,
-                state: pointer(from: stateAddress),
-                confirmed: false
+                items: items, available: available, state: pointer(from: stateAddress), confirmed: false
             )
-            return true
+            return GHOSTTY_CLIPBOARD_READ_STARTED
         }
     }
 
     nonisolated fileprivate static func confirmReadClipboard(
-        _ userdata: UnsafeMutableRawPointer?,
-        string: UnsafePointer<CChar>?,
-        state: UnsafeMutableRawPointer?,
-        request: ghostty_clipboard_request_e
+        _ userdata: UnsafeMutableRawPointer?, confirm: UnsafePointer<ghostty_clipboard_confirm_s>?,
+        state: UnsafeMutableRawPointer?, request: ghostty_clipboard_request_e
     ) {
-        guard let string else { return }
-        let text = String(cString: string)
         let controllerAddress = pointerAddress(userdata)
         let stateAddress = pointerAddress(state)
+        guard let confirm else {
+            onMainSync { controller(fromAddress: controllerAddress)?.denyClipboardRequest(state: pointer(from: stateAddress)) }
+            return
+        }
+        let items = lineyGhosttyCopyClipboardContents(confirm.pointee.contents, count: confirm.pointee.contents_len)
+        let available = lineyGhosttyCopyClipboardMimes(confirm.pointee.available, count: confirm.pointee.available_len)
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
                 guard let controller = controller(fromAddress: controllerAddress) else { return }
                 controller.confirmClipboardRead(
-                    text: text,
-                    state: pointer(from: stateAddress),
-                    request: request
+                    items: items, available: available, state: pointer(from: stateAddress), request: request
                 )
             }
         }
@@ -260,11 +268,7 @@ final class LineyGhosttyRuntime: NSObject {
     ) {
         guard let content, count > 0 else { return }
 
-        let items = (0..<count).compactMap { index -> LineyGhosttyClipboardPayload? in
-            let entry = content[index]
-            guard let mime = entry.mime, let data = entry.data else { return nil }
-            return LineyGhosttyClipboardPayload(mimeType: String(cString: mime), text: String(cString: data))
-        }
+        let items = lineyGhosttyCopyClipboardContents(content, count: count)
         guard !items.isEmpty else { return }
 
         if confirm {
@@ -355,20 +359,18 @@ nonisolated private func lineyGhosttyActionCallback(
 }
 
 nonisolated private func lineyGhosttyReadClipboardCallback(
-    _ userdata: UnsafeMutableRawPointer?,
-    _ location: ghostty_clipboard_e,
-    _ state: UnsafeMutableRawPointer?
-) -> Bool {
-    LineyGhosttyRuntime.readClipboard(userdata, location: location, state: state)
+    _ userdata: UnsafeMutableRawPointer?, _ location: ghostty_clipboard_e,
+    _ state: UnsafeMutableRawPointer?, _ mimes: UnsafePointer<UnsafePointer<CChar>?>?,
+    _ count: Int, _ list: Bool
+) -> ghostty_clipboard_read_result_e {
+    LineyGhosttyRuntime.readClipboard(userdata, location: location, state: state, mimes: mimes, count: count, list: list)
 }
 
 nonisolated private func lineyGhosttyConfirmReadClipboardCallback(
-    _ userdata: UnsafeMutableRawPointer?,
-    _ string: UnsafePointer<CChar>?,
-    _ state: UnsafeMutableRawPointer?,
-    _ request: ghostty_clipboard_request_e
+    _ userdata: UnsafeMutableRawPointer?, _ confirm: UnsafePointer<ghostty_clipboard_confirm_s>?,
+    _ state: UnsafeMutableRawPointer?, _ request: ghostty_clipboard_request_e
 ) {
-    LineyGhosttyRuntime.confirmReadClipboard(userdata, string: string, state: state, request: request)
+    LineyGhosttyRuntime.confirmReadClipboard(userdata, confirm: confirm, state: state, request: request)
 }
 
 nonisolated private func lineyGhosttyWriteClipboardCallback(
