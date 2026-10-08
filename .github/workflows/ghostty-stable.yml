@@ -2,9 +2,6 @@ name: Rebuild stable Ghostty
 
 on:
   workflow_dispatch:
-  push:
-    branches: [codex/ghostty-1.3.1-stable]
-    paths: [.github/workflows/ghostty-stable.yml, scripts/build_ghostty_stable.sh, scripts/verify_ghostty_vendor.sh]
 
 permissions:
   contents: read

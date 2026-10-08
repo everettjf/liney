@@ -12,7 +12,7 @@ Ghostty's upstream build system can emit an xcframework directly. In current ups
 
 - `app-runtime=none` means "build the library for a macOS app consumer" rather than a standalone Ghostty app runtime.
 - `emit-xcframework=true` enables xcframework output.
-- `xcframework-target=universal` produces a universal macOS library. Current upstream emits only the macOS slice for this target.
+- `xcframework-target=universal` produces a universal macOS library. Ghostty 1.3.1 also emits iOS slices; Liney vendors only the macOS slice.
 
 Relevant upstream sources:
 
@@ -135,8 +135,12 @@ strip -S macos/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a
 From the Liney repository root:
 
 ```bash
+xcodebuild -create-xcframework \
+  -library /path/to/ghostty/macos/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a \
+  -headers /path/to/ghostty/macos/GhosttyKit.xcframework/macos-arm64_x86_64/Headers \
+  -output /tmp/GhosttyKit-macOS.xcframework
 rsync -a --delete \
-  /path/to/ghostty/macos/GhosttyKit.xcframework/ \
+  /tmp/GhosttyKit-macOS.xcframework/ \
   Liney/Vendor/GhosttyKit.xcframework/
 ```
 
