@@ -340,26 +340,36 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         }
     }
 
-    func completeClipboardRequest(_ text: String, state: UnsafeMutableRawPointer?, confirmed: Bool) {
+    func completeClipboardRequest(
+        items: [LineyGhosttyClipboardPayload], available: [String] = [],
+        state: UnsafeMutableRawPointer?, confirmed: Bool
+    ) {
         guard let surface = currentSurface else { return }
-        text.withCString { pointer in
-            ghostty_surface_complete_clipboard_request(surface, pointer, state, confirmed)
+        lineyGhosttyWithClipboardCompletion(items: items, available: available, confirmed: confirmed) {
+            ghostty_surface_complete_clipboard_request(surface, $0, state)
         }
     }
 
+    func denyClipboardRequest(state: UnsafeMutableRawPointer?) {
+        guard let surface = currentSurface else { return }
+        ghostty_surface_deny_clipboard_request(surface, state)
+    }
+
     func confirmClipboardRead(
-        text: String,
-        state: UnsafeMutableRawPointer?,
-        request: ghostty_clipboard_request_e
+        items: [LineyGhosttyClipboardPayload], available: [String],
+        state: UnsafeMutableRawPointer?, request: ghostty_clipboard_request_e
     ) {
         let alert = NSAlert()
         switch request {
         case GHOSTTY_CLIPBOARD_REQUEST_PASTE:
             alert.messageText = "Paste clipboard into terminal?"
             alert.informativeText = "Pasting into a shell can execute commands. Review the clipboard contents before continuing."
-        case GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ:
+        case GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ, GHOSTTY_CLIPBOARD_REQUEST_KITTY_READ:
             alert.messageText = "Allow terminal to read the clipboard?"
-            alert.informativeText = "A running program requested clipboard access through OSC 52."
+            alert.informativeText = "A running program requested clipboard access."
+        case GHOSTTY_CLIPBOARD_REQUEST_OSC_52_WRITE, GHOSTTY_CLIPBOARD_REQUEST_KITTY_WRITE:
+            alert.messageText = "Allow terminal to update the clipboard?"
+            alert.informativeText = "A running program wants to write to the clipboard."
         default:
             alert.messageText = "Allow clipboard access?"
             alert.informativeText = "A running program requested clipboard access."
@@ -367,13 +377,14 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Cancel")
-        alert.accessoryView = ClipboardPreviewView(text: text)
+        let preview = items.first(where: \.isPlainText)?.text
+            ?? items.map { "\($0.mimeType) (\($0.data.count) bytes)" }.joined(separator: "\n")
+        alert.accessoryView = ClipboardPreviewView(text: preview)
 
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            completeClipboardRequest(text, state: state, confirmed: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            completeClipboardRequest(items: items, available: available, state: state, confirmed: true)
         } else {
-            completeClipboardRequest("", state: state, confirmed: false)
+            denyClipboardRequest(state: state)
         }
     }
 
@@ -393,7 +404,8 @@ final class LineyGhosttyController: ManagedTerminalSessionSurfaceController {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Cancel")
-        let previewText = items.first(where: \.isPlainText)?.text ?? items.first?.text ?? ""
+        let previewText = items.first(where: \.isPlainText)?.text
+            ?? items.map { "\($0.mimeType) (\($0.data.count) bytes)" }.joined(separator: "\n")
         alert.accessoryView = ClipboardPreviewView(text: previewText)
 
         guard alert.runModal() == .alertFirstButtonReturn,

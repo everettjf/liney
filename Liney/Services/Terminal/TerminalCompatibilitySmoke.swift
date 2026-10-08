@@ -5,6 +5,7 @@
 
 import AppKit
 import Foundation
+import GhosttyKit
 
 /// A short-lived runtime harness used by the macOS 14 CI runner. Unlike the
 /// normal startup smoke test, this creates a real Ghostty surface, resizes it,
@@ -26,7 +27,7 @@ enum TerminalCompatibilitySmoke {
                 // initialize and resize the surface. The harness terminates it
                 // immediately after observing the marker, so this does not add
                 // five seconds to successful runs.
-                arguments: ["-f", "-c", "printf 'liney-compatibility-smoke\\n'; sleep 5"],
+                arguments: ["-f", "-c", "printf 'liney-compatibility-smoke\\n'; IFS= read -r reply; printf '\\nliney-clipboard:%s\\n' \"$reply\"; sleep 5"],
                 displayName: "compatibility-smoke"
             ),
             backendConfiguration: .local(),
@@ -86,6 +87,37 @@ enum TerminalCompatibilitySmoke {
                 || scrollback.contains("liney-compatibility-smoke") else {
             return fail("terminal output was not readable")
         }
+
+        // Exercise the actual embedding clipboard callbacks without touching
+        // the system clipboard. A shell acknowledgement verifies PTY delivery.
+        guard let surface = controller.currentSurface,
+              let clipboard = lineyGhosttyPasteboard(for: GHOSTTY_CLIPBOARD_SELECTION) else {
+            return fail("selection clipboard was unavailable")
+        }
+        let previousClipboard = (clipboard.types ?? []).compactMap { type in
+            clipboard.data(forType: type).map { (type, $0) }
+        }
+        defer {
+            clipboard.clearContents()
+            for (type, data) in previousClipboard { clipboard.setData(data, forType: type) }
+        }
+        clipboard.clearContents()
+        clipboard.setString("liney-paste-你好", forType: .string)
+        let pasted = "paste_from_selection".withCString {
+            ghostty_surface_binding_action(surface, $0, UInt(strlen($0)))
+        }
+        guard pasted else { return fail("paste binding was rejected") }
+        controller.sendReturn()
+        let pasteDeadline = Date().addingTimeInterval(10)
+        var pasteAcknowledged = false
+        while Date() < pasteDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            if controller.readScreenText(scrollback: false)?.contains("liney-clipboard:liney-paste-你好") == true {
+                pasteAcknowledged = true
+                break
+            }
+        }
+        guard pasteAcknowledged else { return fail("clipboard paste did not reach the shell") }
 
         let historyDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("liney-history-smoke-\(UUID().uuidString)")
         let historyStore = TerminalHistoryPersistence(directory: historyDirectory)
