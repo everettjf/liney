@@ -27,6 +27,13 @@ final class WorkspaceModel: ObservableObject, Identifiable {
     @Published var remoteBranches: [String]
     @Published var worktrees: [WorktreeModel]
     @Published var worktreeStatuses: [String: RepositoryStatusSnapshot]
+
+    /// True when the workspace's recorded repository root is missing or is no
+    /// longer a git repository. Set by a failed refresh so the sidebar can show
+    /// a durable warning instead of the app re-presenting the same modal error
+    /// on every auto-refresh tick. Cleared automatically once a refresh
+    /// succeeds again (for example after the folder is restored).
+    @Published var isRepositoryUnavailable: Bool = false
     @Published var gitHubStatuses: [String: GitHubWorktreeStatus]
     @Published var activeTabID: UUID?
     @Published var layout: SessionLayoutNode?
@@ -258,6 +265,24 @@ final class WorkspaceModel: ObservableObject, Identifiable {
 
     var supportsLocalRepositoryFeatures: Bool {
         kind == .repository
+    }
+
+    /// Record that this workspace's repository can no longer be inspected.
+    /// Returns true when the flag actually changed, so callers can skip
+    /// redundant UI invalidation on repeated failures.
+    @discardableResult
+    func markRepositoryUnavailable() -> Bool {
+        guard !isRepositoryUnavailable else { return false }
+        isRepositoryUnavailable = true
+        return true
+    }
+
+    /// Clear the unavailable flag after a successful inspection.
+    @discardableResult
+    func clearRepositoryUnavailable() -> Bool {
+        guard isRepositoryUnavailable else { return false }
+        isRepositoryUnavailable = false
+        return true
     }
 
     var defaultPaneBackendConfiguration: SessionBackendConfiguration {

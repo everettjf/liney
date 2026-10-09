@@ -358,6 +358,60 @@ final class GitRepositoryServiceTests: XCTestCase {
         XCTAssertTrue(remaining.isEmpty)
     }
 
+    func testInspectRepositoryThrowsRepositoryUnavailableWhenRootIsMissing() async throws {
+        let directoryURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let missingRoot = directoryURL.appendingPathComponent("gone", isDirectory: true).path
+
+        do {
+            _ = try await GitRepositoryService().inspectRepository(at: missingRoot, repositoryRoot: missingRoot)
+            XCTFail("Expected repositoryUnavailable for a missing root")
+        } catch let error as GitServiceError {
+            guard case .repositoryUnavailable(let path, _) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertEqual(path, missingRoot)
+        }
+    }
+
+    func testInspectRepositoryThrowsRepositoryUnavailableWhenRootIsNotGitRepository() async throws {
+        let directoryURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        // The directory exists but was never a git repository.
+        do {
+            _ = try await GitRepositoryService().inspectRepository(
+                at: directoryURL.path,
+                repositoryRoot: directoryURL.path
+            )
+            XCTFail("Expected repositoryUnavailable for a non-git root")
+        } catch let error as GitServiceError {
+            guard case .repositoryUnavailable = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    func testIsRepositoryAvailableDistinguishesMissingAndNonGitDirectories() throws {
+        let directoryURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        XCTAssertFalse(GitRepositoryService.isRepositoryAvailable(at: directoryURL.path))
+        XCTAssertFalse(
+            GitRepositoryService.isRepositoryAvailable(
+                at: directoryURL.appendingPathComponent("missing", isDirectory: true).path
+            )
+        )
+
+        try runProcess(
+            executable: "/usr/bin/env",
+            arguments: ["git", "init", "-b", "main"],
+            currentDirectory: directoryURL.path
+        )
+        XCTAssertTrue(GitRepositoryService.isRepositoryAvailable(at: directoryURL.path))
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let root = FileManager.default.temporaryDirectory
         let directoryURL = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
