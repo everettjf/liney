@@ -1524,6 +1524,7 @@ final class WorkspaceStore: ObservableObject {
             )
             guard isCurrentRefresh(refreshGeneration, for: workspace.id) else { return }
             var changed = workspace.apply(snapshot: snapshot)
+            changed = workspace.clearRepositoryUnavailable() || changed
             // Network status must not delay terminal startup or local Git navigation.
             Task { @MainActor [weak self, weak workspace] in
                 guard let self, let workspace else { return }
@@ -1545,10 +1546,44 @@ final class WorkspaceStore: ObservableObject {
                     persist()
                 }
             }
+        } catch let error as GitServiceError where isRepositoryUnavailable(error) {
+            guard isCurrentRefresh(refreshGeneration, for: workspace.id) else { return }
+            handleUnavailableRepository(workspace, error: error)
         } catch {
             guard isCurrentRefresh(refreshGeneration, for: workspace.id) else { return }
             presentError(title: localized("main.error.refreshRepository.title"), message: error.localizedDescription)
         }
+    }
+
+    /// A missing or non-git repository root is a durable state problem, not a
+    /// transient failure. Surface it once, keep the workspace (and its
+    /// terminals), and let the sidebar badge carry the state afterwards so the
+    /// auto-refresh loop does not pop a modal every interval.
+    private func handleUnavailableRepository(_ workspace: WorkspaceModel, error: GitServiceError) {
+        guard workspace.supportsRepositoryFeatures else { return }
+        guard workspace.markRepositoryUnavailable() else {
+            if AppLogger.isEnabled {
+                AppLogger.workspace.info("Repository still unavailable for \(workspace.name, privacy: .public); suppressing repeat alert")
+            }
+            return
+        }
+        if AppLogger.isEnabled {
+            AppLogger.workspace.error("Repository unavailable for \(workspace.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+        presentedError = PresentedError(
+            title: localized("main.error.repositoryUnavailable.title"),
+            message: localizedFormat("main.error.repositoryUnavailable.messageFormat", workspace.name, workspace.repositoryRoot)
+        )
+        receive(.statusMessage(
+            localizedFormat("main.status.repositoryUnavailableFormat", workspace.name),
+            .warning,
+            deliverSystemNotification: false
+        ))
+    }
+
+    nonisolated private func isRepositoryUnavailable(_ error: GitServiceError) -> Bool {
+        if case .repositoryUnavailable = error { return true }
+        return false
     }
 
     private func nextRefreshGeneration(for workspaceID: UUID) -> UInt {
@@ -3482,6 +3517,13 @@ final class WorkspaceStore: ObservableObject {
 
     private func refreshAllRepositories(persistAfterEachWorkspace: Bool = true) async {
         for workspace in workspaces where workspace.supportsRepositoryFeatures {
+            // Automatic refresh (every autoRefreshIntervalSeconds) must not
+            // re-hit a workspace whose root has gone missing — it can only
+            // fail the same way. Manual "Refresh All" stays authoritative and
+            // still re-checks, which also clears the flag if the folder is back.
+            if !persistAfterEachWorkspace, workspace.isRepositoryUnavailable {
+                continue
+            }
             await refreshWorkspace(workspace, persistAfterRefresh: persistAfterEachWorkspace)
         }
     }

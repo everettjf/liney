@@ -2102,6 +2102,10 @@ private struct WorkspaceRowContent: View {
                         SidebarInfoBadge(text: localized("sidebar.badge.remote"), tone: .accent)
                     }
 
+                    if workspace.isRepositoryUnavailable {
+                        SidebarInfoBadge(text: localized("sidebar.badge.unavailable"), tone: .warning)
+                    }
+
                     if workspace.activeSessionCount > 1 {
                         SidebarInfoBadge(text: "\(workspace.activeSessionCount)", tone: .neutral)
                     }

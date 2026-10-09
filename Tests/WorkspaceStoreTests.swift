@@ -228,6 +228,94 @@ final class WorkspaceStoreTests: XCTestCase {
         XCTAssertEqual(selection.presets.map(\.id), SSHPreset.builtInPresets.map(\.id))
     }
 
+    func testRefreshMarksWorkspaceUnavailableOnceAndSkipsAutomaticRetries() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let repo = root.appendingPathComponent("repo", isDirectory: true)
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "init", "-b", "main"], currentDirectory: repo.path)
+
+        let record = WorkspaceRecord(
+            id: UUID(),
+            kind: .repository,
+            name: "repo",
+            repositoryRoot: repo.path,
+            activeWorktreePath: repo.path,
+            worktreeStates: [WorktreeSessionStateRecord.makeDefault(for: repo.path)],
+            isSidebarExpanded: false
+        )
+        let store = WorkspaceStore(
+            initialWorkspaceState: PersistedWorkspaceState(selectedWorkspaceID: record.id, workspaces: [record]),
+            persistsWorkspaceState: false
+        )
+        await store.loadIfNeeded()
+        let workspace = try XCTUnwrap(store.workspaces.first)
+
+        // A healthy workspace starts available and inspects without error.
+        XCTAssertFalse(workspace.isRepositoryUnavailable)
+        await store.refreshWorkspace(workspace, persistAfterRefresh: false)
+        XCTAssertNil(store.presentedError)
+        XCTAssertFalse(workspace.isRepositoryUnavailable)
+
+        // Move the repository away: the recorded root is now missing.
+        let moved = root.appendingPathComponent("repo-moved", isDirectory: true)
+        try FileManager.default.moveItem(at: repo, to: moved)
+
+        await store.refreshWorkspace(workspace, persistAfterRefresh: false)
+        XCTAssertTrue(workspace.isRepositoryUnavailable)
+        let firstError = try XCTUnwrap(store.presentedError)
+        XCTAssertEqual(firstError.title, LocalizationManager.shared.string("main.error.repositoryUnavailable.title"))
+        XCTAssertTrue(firstError.message.contains(repo.path))
+
+        // A second failure must not re-present a modal to the user.
+        store.presentedError = nil
+        await store.refreshWorkspace(workspace, persistAfterRefresh: false)
+        XCTAssertNil(store.presentedError)
+        XCTAssertTrue(workspace.isRepositoryUnavailable)
+
+        // The workspace (and its terminals) must survive the failure.
+        XCTAssertEqual(store.workspaces.count, 1)
+        XCTAssertEqual(store.workspaces.first?.id, workspace.id)
+    }
+
+    func testRefreshClearsUnavailableFlagWhenRepositoryComesBack() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let repo = root.appendingPathComponent("repo", isDirectory: true)
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+        try runProcess(executable: "/usr/bin/env", arguments: ["git", "init", "-b", "main"], currentDirectory: repo.path)
+
+        let record = WorkspaceRecord(
+            id: UUID(),
+            kind: .repository,
+            name: "repo",
+            repositoryRoot: repo.path,
+            activeWorktreePath: repo.path,
+            worktreeStates: [WorktreeSessionStateRecord.makeDefault(for: repo.path)],
+            isSidebarExpanded: false
+        )
+        let store = WorkspaceStore(
+            initialWorkspaceState: PersistedWorkspaceState(selectedWorkspaceID: record.id, workspaces: [record]),
+            persistsWorkspaceState: false
+        )
+        await store.loadIfNeeded()
+        let workspace = try XCTUnwrap(store.workspaces.first)
+
+        let moved = root.appendingPathComponent("repo-moved", isDirectory: true)
+        try FileManager.default.moveItem(at: repo, to: moved)
+        await store.refreshWorkspace(workspace, persistAfterRefresh: false)
+        XCTAssertTrue(workspace.isRepositoryUnavailable)
+
+        // Restore the repository at its recorded path.
+        try FileManager.default.moveItem(at: moved, to: repo)
+        store.presentedError = nil
+        await store.refreshWorkspace(workspace, persistAfterRefresh: false)
+        XCTAssertFalse(workspace.isRepositoryUnavailable)
+        XCTAssertNil(store.presentedError)
+    }
+
     private func makeTemporaryDirectory() throws -> URL {
         let root = FileManager.default.temporaryDirectory
         let directoryURL = root.appendingPathComponent(UUID().uuidString, isDirectory: true)

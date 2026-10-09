@@ -12,6 +12,12 @@ nonisolated enum GitServiceError: LocalizedError {
     case notAGitRepository(String)
     case commandFailed(String)
     case repositoryInspectionFailed(path: String, step: String, message: String)
+    /// The workspace's recorded repository root no longer exists on disk, or
+    /// it exists but is not (or is no longer) a git repository. This is a
+    /// durable state problem with the saved workspace, not a transient git
+    /// failure, so callers should surface it once and keep the workspace
+    /// instead of retrying it on every refresh tick.
+    case repositoryUnavailable(path: String, reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +25,8 @@ nonisolated enum GitServiceError: LocalizedError {
             return "\(path) is not inside a git repository."
         case .commandFailed(let message):
             return message
+        case .repositoryUnavailable(let path, let reason):
+            return "\(path) is not an available git repository: \(reason)"
         case .repositoryInspectionFailed(let path, let step, let message):
             return """
             Selected path:
@@ -79,6 +87,20 @@ actor GitRepositoryService {
         return result.exitCode == 0 && !result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Whether `path` exists and is the top level of a git work tree.
+    ///
+    /// Used by the refresh path to distinguish a workspace whose recorded
+    /// root has gone missing (moved, deleted, or no longer a git repository)
+    /// from a healthy one. A missing or non-git path is a durable condition;
+    /// retrying it every auto-refresh tick only produces repeated failures.
+    nonisolated static func isRepositoryAvailable(at path: String) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return false
+        }
+        return FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent(".git"))
+    }
+
     private static let inspectTimeout: TimeInterval = 10
 
     /// Cache for repositoryStatus keyed by worktree path. Invalidated when any
@@ -110,6 +132,20 @@ actor GitRepositoryService {
 
         if AppLogger.isVerbose {
             log.info("Inspecting repository at \(path, privacy: .public)")
+        }
+
+        // A workspace whose recorded root is gone (or is no longer a git
+        // repository) can never be inspected. Report it as a durable
+        // availability problem instead of running git in a missing directory,
+        // which fails with a raw "The file ... doesn't exist." / "not a git
+        // repository" error on every refresh.
+        if let repositoryRoot, !Self.isRepositoryAvailable(at: repositoryRoot) {
+            throw GitServiceError.repositoryUnavailable(
+                path: repositoryRoot,
+                reason: FileManager.default.fileExists(atPath: repositoryRoot)
+                    ? "the folder is not a git repository"
+                    : "the folder no longer exists"
+            )
         }
 
         let rootPath: String
