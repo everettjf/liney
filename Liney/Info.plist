@@ -21,7 +21,7 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.developer-tools</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 everettjf. Released under the  Apache-2.0 license.</string>
+	<string>Copyright © 2026 AtomSprout. Released under the  Apache-2.0 license.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SUFeedURL</key>
