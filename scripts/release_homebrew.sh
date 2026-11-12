@@ -5,7 +5,7 @@ ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 PROJECT_FILE="${PROJECT_FILE:-$ROOT_DIR/Liney.xcodeproj/project.pbxproj}"
 APP_NAME="${APP_NAME:-Liney}"
 APP_SLUG="${APP_SLUG:-liney}"
-APP_DESC="${APP_DESC:-Native macOS terminal workspace manager for git repositories, worktrees, and split panes.}"
+APP_DESC="${APP_DESC:-Terminal workspace manager for Git repositories, worktrees, and split panes}"
 PROJECT_PATH="${PROJECT_PATH:-$ROOT_DIR/Liney.xcodeproj}"
 SCHEME="${SCHEME:-Liney}"
 RELEASE_ARCHS="${RELEASE_ARCHS:-arm64 x86_64}"
@@ -18,7 +18,7 @@ TAP_REPO="${TAP_REPO:-everettjf/homebrew-tap}"
 TAP_DIR_DEFAULT="$ROOT_DIR/tmp/homebrew-tap"
 TAP_DIR="${TAP_DIR:-$TAP_DIR_DEFAULT}"
 CASK_PATH="${CASK_PATH:-Casks/${APP_SLUG}.rb}"
-APP_HOMEPAGE="${APP_HOMEPAGE:-}"
+APP_HOMEPAGE="${APP_HOMEPAGE:-https://atomsprout.com/liney/}"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
 APPLE_ID="${APPLE_ID:-}"
 APPLE_SPECIFIC_PASSWORD="${APPLE_SPECIFIC_PASSWORD:-}"
@@ -510,6 +510,8 @@ cask "$APP_SLUG" do
   name "$APP_NAME"
   desc "$APP_DESC"
   homepage "$APP_HOMEPAGE"
+
+  depends_on :macos
 
   app "$APP_NAME.app"
 end
