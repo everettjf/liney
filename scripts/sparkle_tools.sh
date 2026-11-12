@@ -27,7 +27,7 @@ sparkle_checkout_dir() {
 
   sparkle_require_cmd xcodebuild || return 1
   mkdir -p "$source_packages_dir"
-  xcodebuild \
+  xcodebuild -packageAuthorizationProvider "${PACKAGE_AUTHORIZATION_PROVIDER:-netrc}" \
     -project "$project_path" \
     -scheme "$scheme" \
     -resolvePackageDependencies \
@@ -53,7 +53,7 @@ sparkle_tool_path() {
   checkout_dir="$(sparkle_checkout_dir "$root_dir" "$project_path" "$scheme")" || return 1
 
   local derived_data_path="${SPARKLE_DERIVED_DATA_DIR:-$root_dir/.build/SparkleDerivedData}/$tool_name"
-  xcodebuild \
+  xcodebuild -packageAuthorizationProvider "${PACKAGE_AUTHORIZATION_PROVIDER:-netrc}" \
     -project "$checkout_dir/Sparkle.xcodeproj" \
     -scheme "$tool_name" \
     -configuration Release \

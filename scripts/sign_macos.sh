@@ -136,7 +136,7 @@ done
 
 read_build_setting() {
   local key="$1"
-  xcodebuild \
+  xcodebuild -packageAuthorizationProvider "${PACKAGE_AUTHORIZATION_PROVIDER:-netrc}" \
     -project "$PROJECT_PATH" \
     -scheme "$SCHEME" \
     -configuration Release \

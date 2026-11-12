@@ -45,7 +45,7 @@ load_build_settings() {
   fi
 
   BUILD_SETTINGS_CACHE="$(
-    xcodebuild \
+    xcodebuild -packageAuthorizationProvider "${PACKAGE_AUTHORIZATION_PROVIDER:-netrc}" \
       -project "$PROJECT_PATH" \
       -scheme "$SCHEME" \
       -configuration Release \
@@ -130,7 +130,7 @@ mkdir -p "$OUTPUT_DIR"
 
 ARCHS_VALUE="${ARCHS[*]}"
 echo "Building $APP_NAME ($ARCHS_VALUE) via Xcode..."
-xcodebuild \
+xcodebuild -packageAuthorizationProvider "${PACKAGE_AUTHORIZATION_PROVIDER:-netrc}" \
   -project "$PROJECT_PATH" \
   -scheme "$SCHEME" \
   -configuration Release \
